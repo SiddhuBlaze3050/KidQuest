@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, render_template
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, ChatSession
 import re
@@ -102,53 +102,8 @@ def chatbot():
         return jsonify({'error': 'user_id and message are required'}), 400
 
     try:
-        # Save user message to database
-        user_chat = ChatSession(
-            user_id=user_id,
-            message=user_message,
-            sender='user'
-        )
-        db.session.add(user_chat)
-        
-        # Get recent chat history (last 10 messages)
-        recent_chats = ChatSession.query.filter_by(user_id=user_id)\
-                                       .order_by(ChatSession.timestamp.desc())\
-                                       .limit(10).all()
-        
-        # Build conversation context
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-        
-        # Add recent chat history in chronological order
-        for chat in reversed(recent_chats):
-            role = "user" if chat.sender == "user" else "assistant"
-            messages.append({"role": role, "content": chat.message})
-        
-        # Add current user message
-        messages.append({"role": "user", "content": user_message})
-
-        # Get response from OpenAI
-        response = client.chat.completions.create(
-            model="meta-llama/llama-4-maverick-17b-128e-instruct",
-            messages=messages,
-            max_tokens=200,
-            temperature=0.7
-        )
-        # print(response)
-        bot_reply = response.choices[0].message.content.strip()
-        
-        # Save bot response to database
-        bot_chat = ChatSession(
-            user_id=user_id,
-            message=bot_reply,
-            sender='assistant',
-        )
-        db.session.add(bot_chat)
-        db.session.commit()
-        
-        return jsonify({
-            'response': bot_reply,
-            'timestamp': bot_chat.timestamp.isoformat()
-        }), 200
+        response_data = chatbot_logic(user_id, user_message)
+        return jsonify(response_data), 200
         
     except Exception as e:
         db.session.rollback()
@@ -182,6 +137,200 @@ def clear_chat_history(user_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+# ---------------------------
+# Frontend Routes
+# ---------------------------
+
+@app.route('/')
+def index():
+    """Serve the main homepage"""
+    # Provide default user progress data for the template
+    userProgress = {
+        'time': 0,
+        'creative': 0,
+        'financial': 0,
+        'health': 0,
+        'safety': 0,
+        'english': 0,
+        'communication': 0,
+        'quiz': 0,
+        'overall': 0
+    }
+    
+    # Default user data for template
+    user = {
+        'streak': 0,
+        'achievements': []
+    }
+    
+    # Default badges data
+    userBadges = [
+        {'id': 1, 'name': 'First Steps', 'icon': 'fas fa-baby', 'earned': False},
+        {'id': 2, 'name': 'Time Master', 'icon': 'fas fa-clock', 'earned': False},
+        {'id': 3, 'name': 'Creative Genius', 'icon': 'fas fa-palette', 'earned': False},
+        {'id': 4, 'name': 'Money Smart', 'icon': 'fas fa-coins', 'earned': False},
+        {'id': 5, 'name': 'Health Hero', 'icon': 'fas fa-heart', 'earned': False},
+        {'id': 6, 'name': 'Safety Scout', 'icon': 'fas fa-shield-alt', 'earned': False},
+    ]
+    
+    # Default streak
+    userStreak = 0
+    
+    return render_template('index.html', 
+                         userProgress=userProgress, 
+                         user=user, 
+                         userBadges=userBadges, 
+                         userStreak=userStreak)
+
+@app.route('/home')
+def home():
+    """Alternative route for homepage"""
+    # Provide default user progress data for the template
+    userProgress = {
+        'time': 0,
+        'creative': 0,
+        'financial': 0,
+        'health': 0,
+        'safety': 0,
+        'english': 0,
+        'communication': 0,
+        'quiz': 0,
+        'overall': 0
+    }
+    
+    # Default user data for template
+    user = {
+        'streak': 0,
+        'achievements': []
+    }
+    
+    # Default badges data
+    userBadges = [
+        {'id': 1, 'name': 'First Steps', 'icon': 'fas fa-baby', 'earned': False},
+        {'id': 2, 'name': 'Time Master', 'icon': 'fas fa-clock', 'earned': False},
+        {'id': 3, 'name': 'Creative Genius', 'icon': 'fas fa-palette', 'earned': False},
+        {'id': 4, 'name': 'Money Smart', 'icon': 'fas fa-coins', 'earned': False},
+        {'id': 5, 'name': 'Health Hero', 'icon': 'fas fa-heart', 'earned': False},
+        {'id': 6, 'name': 'Safety Scout', 'icon': 'fas fa-shield-alt', 'earned': False},
+    ]
+    
+    # Default streak
+    userStreak = 0
+    
+    return render_template('index.html', 
+                         userProgress=userProgress, 
+                         user=user, 
+                         userBadges=userBadges, 
+                         userStreak=userStreak)
+
+# ---------------------------
+# API Routes for Frontend
+# ---------------------------
+
+@app.route('/api/chat', methods=['POST'])
+def api_chat():
+    """API endpoint for chat interface"""
+    data = request.get_json()
+    message = data.get('message')
+    
+    if not message:
+        return jsonify({'success': False, 'error': 'Message is required'}), 400
+    
+    # For now, use a default user_id (could be from session later)
+    user_id = 1
+    
+    try:
+        # Use existing chatbot logic
+        response_data = chatbot_logic(user_id, message)
+        return jsonify({
+            'success': True,
+            'response': response_data['response']
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/chat/history', methods=['GET'])
+def api_chat_history():
+    """API endpoint to get chat history"""
+    # For now, use a default user_id (could be from session later)
+    user_id = 1
+    
+    try:
+        chats = ChatSession.query.filter_by(user_id=user_id)\
+                                 .order_by(ChatSession.timestamp.asc())\
+                                 .limit(20).all()
+        
+        messages = []
+        for chat in chats:
+            messages.append({
+                'message': chat.message,
+                'sender': chat.sender,
+                'timestamp': chat.timestamp.isoformat()
+            })
+        
+        return jsonify({
+            'success': True,
+            'messages': messages
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+def chatbot_logic(user_id, user_message):
+    """Extracted chatbot logic for reuse"""
+    # Save user message to database
+    user_chat = ChatSession(
+        user_id=user_id,
+        message=user_message,
+        sender='user'
+    )
+    db.session.add(user_chat)
+    
+    # Get recent chat history (last 10 messages)
+    recent_chats = ChatSession.query.filter_by(user_id=user_id)\
+                                   .order_by(ChatSession.timestamp.desc())\
+                                   .limit(10).all()
+    
+    # Build conversation context
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    
+    # Add recent chat history in chronological order
+    for chat in reversed(recent_chats):
+        role = "user" if chat.sender == "user" else "assistant"
+        messages.append({"role": role, "content": chat.message})
+    
+    # Add current user message
+    messages.append({"role": "user", "content": user_message})
+
+    # Get response from OpenAI/Groq
+    response = client.chat.completions.create(
+        model="meta-llama/llama-4-maverick-17b-128e-instruct",
+        messages=messages,
+        max_tokens=200,
+        temperature=0.7
+    )
+    
+    bot_reply = response.choices[0].message.content.strip()
+    
+    # Save bot response to database
+    bot_chat = ChatSession(
+        user_id=user_id,
+        message=bot_reply,
+        sender='assistant',
+    )
+    db.session.add(bot_chat)
+    db.session.commit()
+    
+    return {
+        'response': bot_reply,
+        'timestamp': bot_chat.timestamp.isoformat()
+    }
 
 # ---------------------------
 # Error Handlers
