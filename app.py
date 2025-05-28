@@ -3,7 +3,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, ChatSession
 import re
 from config import Config
-import openai
+from openai import OpenAI
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -11,7 +11,8 @@ db.init_app(app)
 
 EMAIL_REGEX = re.compile(r"[^@]+@[^@]+\.[^@]+") 
 
-openai.api_key = app.config['OPENAI_API_KEY']
+# Initialize OpenAI client
+client = OpenAI(base_url="https://api.groq.com/openai/v1",api_key=app.config['GROQ_API_KEY'])
 
 # ---------------------------
 # Authentication Routes
@@ -90,6 +91,7 @@ def load_chatbot_prompt():
 
 # Load system prompt from markdown file
 SYSTEM_PROMPT = load_chatbot_prompt()
+
 @app.route('/chatbot', methods=['POST'])
 def chatbot():
     data = request.get_json()
@@ -125,14 +127,14 @@ def chatbot():
         messages.append({"role": "user", "content": user_message})
 
         # Get response from OpenAI
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
+        response = client.chat.completions.create(
+            model="meta-llama/llama-4-maverick-17b-128e-instruct",
             messages=messages,
             max_tokens=200,
             temperature=0.7
         )
-        
-        bot_reply = response['choices'][0]['message']['content'].strip()
+        # print(response)
+        bot_reply = response.choices[0].message.content.strip()
         
         # Save bot response to database
         bot_chat = ChatSession(
