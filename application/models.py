@@ -77,6 +77,5 @@ class User(db.Model, UserMixin):
         completed = db.Column(db.Boolean(), default=False, nullable=False)
         details = db.Column(db.Text(), nullable=True)
 
-    class Reminder(db.Model):
-        tablename = 'reminder'
+ 
         
