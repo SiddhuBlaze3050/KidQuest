@@ -1,4 +1,5 @@
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, ChatSession
 import re
@@ -7,6 +8,10 @@ from openai import OpenAI
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# Configure CORS for Vue.js frontend
+CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"])
+
 db.init_app(app)
 
 EMAIL_REGEX = re.compile(r"[^@]+@[^@]+\.[^@]+") 
@@ -15,49 +20,8 @@ EMAIL_REGEX = re.compile(r"[^@]+@[^@]+\.[^@]+")
 client = OpenAI(base_url="https://api.groq.com/openai/v1",api_key=app.config['GROQ_API_KEY'])
 
 # ---------------------------
-# Authentication Routes
+# Utility Functions
 # ---------------------------
-
-@app.route('/register', methods=['POST'])
-def register():
-    data = request.get_json()
-    username = data.get('username')
-    email = data.get('email')
-    password = data.get('password')
-    role = data.get('role', 'user')
-
-    if not username or not email or not password:
-        return jsonify({'error': 'Missing required fields'}), 400
-    if not EMAIL_REGEX.match(email):
-        return jsonify({'error': 'Invalid email address'}), 400
-    if User.query.filter_by(username=username).first() or User.query.filter_by(email=email).first():
-        return jsonify({'error': 'Username or email already exists'}), 409
-
-    password_hash = generate_password_hash(password)
-    user = User(username=username, email=email, password_hash=password_hash, role=role)
-    db.session.add(user)
-    db.session.commit()
-    return jsonify({'message': 'User registered successfully'}), 201
-
-@app.route('/login', methods=['POST'])
-def login():
-    data = request.get_json()
-    username = data.get('username')
-    password = data.get('password')
-
-    if not username or not password:
-        return jsonify({'error': 'Missing username or password'}), 400
-
-    user = User.query.filter_by(username=username).first()
-    if user and check_password_hash(user.password_hash, password):
-        return jsonify({
-            'message': 'Login successful', 
-            'user_id': user.id,
-            'username': user.username,
-            'role': user.role
-        }), 200
-    else:
-        return jsonify({'error': 'Invalid credentials'}), 401
 
 def create_default_admin():
     """Ensures a default admin user exists in the database"""
@@ -76,9 +40,8 @@ def create_default_admin():
             print("Admin already exists!")
 
 # ---------------------------
-# Chatbot Routes
+# Chatbot System Setup
 # ---------------------------
-
 
 def load_chatbot_prompt():
     """Load the chatbot system prompt from markdown file"""
@@ -91,6 +54,10 @@ def load_chatbot_prompt():
 
 # Load system prompt from markdown file
 SYSTEM_PROMPT = load_chatbot_prompt()
+
+# ---------------------------
+# Legacy Chatbot Routes (for backward compatibility)
+# ---------------------------
 
 @app.route('/chatbot', methods=['POST'])
 def chatbot():
@@ -139,134 +106,110 @@ def clear_chat_history(user_id):
         return jsonify({'error': str(e)}), 500
 
 # ---------------------------
-# Frontend Routes
+# API Routes for Vue.js Frontend
 # ---------------------------
 
-@app.route('/')
-def index():
-    """Serve the main homepage"""
-    # Provide default user progress data for the template
-    userProgress = {
-        'time': 0,
-        'creative': 0,
-        'financial': 0,
-        'health': 0,
-        'safety': 0,
-        'english': 0,
-        'communication': 0,
-        'quiz': 0,
-        'overall': 0
-    }
-    
-    # Default user data for template
-    user = {
-        'streak': 0,
-        'achievements': []
-    }
-    
-    # Default badges data
-    userBadges = [
-        {'id': 1, 'name': 'First Steps', 'icon': 'fas fa-baby', 'earned': False},
-        {'id': 2, 'name': 'Time Master', 'icon': 'fas fa-clock', 'earned': False},
-        {'id': 3, 'name': 'Creative Genius', 'icon': 'fas fa-palette', 'earned': False},
-        {'id': 4, 'name': 'Money Smart', 'icon': 'fas fa-coins', 'earned': False},
-        {'id': 5, 'name': 'Health Hero', 'icon': 'fas fa-heart', 'earned': False},
-        {'id': 6, 'name': 'Safety Scout', 'icon': 'fas fa-shield-alt', 'earned': False},
-    ]
-    
-    # Default streak
-    userStreak = 0
-    
-    return render_template('index.html', 
-                         userProgress=userProgress, 
-                         user=user, 
-                         userBadges=userBadges, 
-                         userStreak=userStreak)
+@app.route('/api/auth/register', methods=['POST'])
+def api_register():
+    """API endpoint for user registration"""
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        email = data.get('email')
+        password = data.get('password')
+        role = data.get('role', 'user')
 
-@app.route('/home')
-def home():
-    """Alternative route for homepage"""
-    # Provide default user progress data for the template
-    userProgress = {
-        'time': 0,
-        'creative': 0,
-        'financial': 0,
-        'health': 0,
-        'safety': 0,
-        'english': 0,
-        'communication': 0,
-        'quiz': 0,
-        'overall': 0
-    }
-    
-    # Default user data for template
-    user = {
-        'streak': 0,
-        'achievements': []
-    }
-    
-    # Default badges data
-    userBadges = [
-        {'id': 1, 'name': 'First Steps', 'icon': 'fas fa-baby', 'earned': False},
-        {'id': 2, 'name': 'Time Master', 'icon': 'fas fa-clock', 'earned': False},
-        {'id': 3, 'name': 'Creative Genius', 'icon': 'fas fa-palette', 'earned': False},
-        {'id': 4, 'name': 'Money Smart', 'icon': 'fas fa-coins', 'earned': False},
-        {'id': 5, 'name': 'Health Hero', 'icon': 'fas fa-heart', 'earned': False},
-        {'id': 6, 'name': 'Safety Scout', 'icon': 'fas fa-shield-alt', 'earned': False},
-    ]
-    
-    # Default streak
-    userStreak = 0
-    
-    return render_template('index.html', 
-                         userProgress=userProgress, 
-                         user=user, 
-                         userBadges=userBadges, 
-                         userStreak=userStreak)
+        if not username or not email or not password:
+            return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+        if not EMAIL_REGEX.match(email):
+            return jsonify({'success': False, 'error': 'Invalid email address'}), 400
+        if User.query.filter_by(username=username).first() or User.query.filter_by(email=email).first():
+            return jsonify({'success': False, 'error': 'Username or email already exists'}), 409
 
-# ---------------------------
-# API Routes for Frontend
-# ---------------------------
+        password_hash = generate_password_hash(password)
+        user = User(username=username, email=email, password_hash=password_hash, role=role)
+        db.session.add(user)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': 'User registered successfully',
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'role': user.role
+            }
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/auth/login', methods=['POST'])
+def api_login():
+    """API endpoint for user login"""
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        password = data.get('password')
+
+        if not username or not password:
+            return jsonify({'success': False, 'error': 'Missing username or password'}), 400
+
+        user = User.query.filter_by(username=username).first()
+        if user and check_password_hash(user.password_hash, password):
+            return jsonify({
+                'success': True,
+                'message': 'Login successful', 
+                'user': {
+                    'id': user.id,
+                    'username': user.username,
+                    'email': user.email,
+                    'role': user.role
+                }
+            }), 200
+        else:
+            return jsonify({'success': False, 'error': 'Invalid credentials'}), 401
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/chat', methods=['POST'])
 def api_chat():
     """API endpoint for chat interface"""
-    data = request.get_json()
-    message = data.get('message')
-    
-    if not message:
-        return jsonify({'success': False, 'error': 'Message is required'}), 400
-    
-    # For now, use a default user_id (could be from session later)
-    user_id = 1
-    
     try:
+        data = request.get_json()
+        message = data.get('message')
+        user_id = data.get('user_id', 1)  # Default to user_id 1 for now
+        
+        if not message:
+            return jsonify({'success': False, 'error': 'Message is required'}), 400
+        
         # Use existing chatbot logic
         response_data = chatbot_logic(user_id, message)
         return jsonify({
             'success': True,
-            'response': response_data['response']
+            'response': response_data['response'],
+            'timestamp': response_data['timestamp']
         }), 200
     except Exception as e:
+        db.session.rollback()
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
 
-@app.route('/api/chat/history', methods=['GET'])
-def api_chat_history():
+@app.route('/api/chat/history/<int:user_id>', methods=['GET'])
+def api_chat_history(user_id):
     """API endpoint to get chat history"""
-    # For now, use a default user_id (could be from session later)
-    user_id = 1
-    
     try:
         chats = ChatSession.query.filter_by(user_id=user_id)\
                                  .order_by(ChatSession.timestamp.asc())\
-                                 .limit(20).all()
+                                 .limit(50).all()
         
         messages = []
         for chat in chats:
             messages.append({
+                'id': chat.id,
                 'message': chat.message,
                 'sender': chat.sender,
                 'timestamp': chat.timestamp.isoformat()
@@ -281,6 +224,38 @@ def api_chat_history():
             'success': False,
             'error': str(e)
         }), 500
+
+@app.route('/api/user/profile/<int:user_id>', methods=['GET'])
+def api_user_profile(user_id):
+    """API endpoint to get user profile"""
+    try:
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        return jsonify({
+            'success': True,
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'role': user.role
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/health', methods=['GET'])
+def api_health():
+    """API health check endpoint"""
+    return jsonify({
+        'success': True,
+        'message': 'API is running',
+        'status': 'healthy'
+    }), 200
 
 def chatbot_logic(user_id, user_message):
     """Extracted chatbot logic for reuse"""

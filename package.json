@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "@vueuse/core": "^13.3.0",
+    "animejs": "^4.0.2",
+    "gsap": "^3.13.0",
+    "howler": "^2.2.4",
+    "trois": "^1.0.3"
+  }
+}
