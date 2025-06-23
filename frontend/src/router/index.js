@@ -3,6 +3,7 @@ import HomeView from '../views/HomeView.vue'
 import AdminDashboard from '../views/AdminDashboard.vue'
 import ChildDashboard from '../views/ChildDashboard.vue'
 import { userUtils } from '@/services/api'
+import ParentDashboard from '../views/ParentDashboard.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -35,6 +36,24 @@ const router = createRouter({
           next()
         } else {
           // For demo purposes, allow any logged-in user to access child dashboard
+          if (user) {
+            next()
+          } else {
+            next('/')
+          }
+        }
+      },
+    },
+    {
+      path: '/parent-dashboard',
+      name: 'parent-dashboard',
+      component: ParentDashboard,
+      beforeEnter: (to, from, next) => {
+        const user = userUtils.getCurrentUser()
+        if (user && user.role === 'parent') {
+          next()
+        } else {
+          // For demo purposes, allow any logged-in user to access parent dashboard
           if (user) {
             next()
           } else {

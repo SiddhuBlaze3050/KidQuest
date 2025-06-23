@@ -88,6 +88,8 @@ export default {
           window.location.href = '/admin'
         } else if (user.value.role === 'child') {
           window.location.href = '/child-dashboard'
+        }else if (user.value.role === 'parent') {
+          window.location.href = '/parent-dashboard'
         }
       }
     }
@@ -101,6 +103,8 @@ export default {
         window.location.href = '/admin'
       } else if (userData.user.role === 'child') {
         window.location.href = '/child-dashboard'
+      }else if (userData.user.role === 'parent') {
+        window.location.href = '/parent-dashboard'
       }
     }
 
@@ -113,6 +117,8 @@ export default {
         window.location.href = '/admin'
       } else if (userData.user.role === 'child') {
         window.location.href = '/child-dashboard'
+      }else if (userData.user.role === 'parent') {
+        window.location.href = '/parent-dashboard'
       }
     }
 
