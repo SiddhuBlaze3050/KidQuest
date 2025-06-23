@@ -450,17 +450,6 @@ export default {
         onMounted(() => {
             loadChatHistory()
 
-            // Add some test messages so user can see the chat is working
-            setTimeout(() => {
-                messages.value.push({
-                    id: Date.now(),
-                    message: "Welcome! I can see you're testing the chat. Try typing a message below! 😊",
-                    sender: 'assistant',
-                    timestamp: new Date().toISOString()
-                })
-                scrollToBottom()
-            }, 1000)
-
             nextTick(() => {
                 if (messageInput.value) {
                     messageInput.value.focus()

@@ -48,6 +48,17 @@
                             placeholder="Confirm your secret code" required class="form-input" />
                     </div>
 
+                    <div class="form-group">
+                        <label for="role">
+                            <i class="fas fa-user-tag"></i>
+                            I am a...
+                        </label>
+                        <select id="role" v-model="role" class="form-input">
+                            <option value="child">Young Adventurer (Child)</option>
+                            <option value="user">Adult Adventurer (User)</option>
+                        </select>
+                    </div>
+
                     <button type="submit" class="btn-primary" :disabled="isLoading">
                         <span v-if="!isLoading" class="btn-content">
                             <span class="btn-icon">✨</span>
@@ -94,6 +105,7 @@ export default {
         const email = ref('')
         const password = ref('')
         const confirmPassword = ref('')
+        const role = ref('child')
         const isLoading = ref(false)
 
         const handleRegister = async () => {
@@ -129,21 +141,28 @@ export default {
             isLoading.value = true
 
             try {
-                const response = await apiService.register(username.value, email.value, password.value)
+                const response = await apiService.register(username.value, email.value, password.value, role.value)
 
                 if (response.success) {
-                    await Swal.fire({
-                        icon: 'success',
-                        title: 'Welcome to KidQuest! 🎉',
-                        text: `Adventure awaits you, ${username.value}! Your quest begins now!`,
-                        timer: 3000,
-                        showConfirmButton: false,
-                        background: 'linear-gradient(135deg, #4caf50, #8bc34a)',
-                        color: 'white',
-                        backdrop: 'rgba(0,0,0,0.8)'
-                    })
+                    // Store user data in localStorage after successful registration
+                    localStorage.setItem('user', JSON.stringify(response.user))
 
+                    // Emit success immediately
+                    isLoading.value = false
                     emit('success', response)
+
+                    // Show success message after modal closes
+                    setTimeout(() => {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Welcome to KidQuest! 🎉',
+                            text: `Adventure awaits you, ${username.value}! Your quest begins now!`,
+                            timer: 3000,
+                            showConfirmButton: false,
+                            background: 'linear-gradient(135deg, #4caf50, #8bc34a)',
+                            color: 'white'
+                        })
+                    }, 300)
                 }
             } catch (error) {
                 console.error('Registration failed:', error)
@@ -163,7 +182,7 @@ export default {
                     color: 'white'
                 })
             } finally {
-                isLoading.value = false
+                // isLoading is already handled in success/error cases
             }
         }
 
@@ -176,6 +195,7 @@ export default {
             email,
             password,
             confirmPassword,
+            role,
             isLoading,
             handleRegister,
             closeModal

@@ -257,6 +257,92 @@ def api_health():
         'status': 'healthy'
     }), 200
 
+# ---------------------------
+# Child Dashboard Routes
+# ---------------------------
+
+@app.route('/api/child/stats/<int:user_id>', methods=['GET'])
+def api_child_stats(user_id):
+    """Get child dashboard statistics"""
+    try:
+        # Mock data for now - in production, calculate from database
+        stats = {
+            'totalStars': 0,
+            'questsCompleted': 0,
+            'skillsLearned': 0,
+            'todayGoals': 0,
+            'streakDays': 0,
+            'userLevel': 1
+        }
+        
+        return jsonify({
+            'success': True,
+            'stats': stats
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/child/quests/<int:user_id>', methods=['GET'])
+def api_child_quests(user_id):
+    """Get today's quests for child"""
+    try:
+        # Mock data for now
+        quests = [
+            {
+                'id': 1,
+                'title': 'Math Adventure',
+                'description': 'Solve 10 fun math puzzles',
+                'icon': '🔢',
+                'stars': 10,
+                'completed': False
+            },
+            {
+                'id': 2,
+                'title': 'Reading Quest',
+                'description': 'Read for 20 minutes',
+                'icon': '📖',
+                'stars': 8,
+                'completed': True
+            },
+            {
+                'id': 3,
+                'title': 'Tidy Up Mission',
+                'description': 'Clean your room',
+                'icon': '🧹',
+                'stars': 5,
+                'completed': False
+            }
+        ]
+        
+        return jsonify({
+            'success': True,
+            'quests': quests
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/child/quest/<int:quest_id>/toggle', methods=['POST'])
+def api_toggle_quest(quest_id):
+    """Toggle quest completion status"""
+    try:
+        # Mock implementation - in production, update database
+        return jsonify({
+            'success': True,
+            'message': 'Quest status updated',
+            'starsEarned': 10  # Mock stars earned
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 def chatbot_logic(user_id, user_message):
     """Extracted chatbot logic for reuse"""
     # Save user message to database

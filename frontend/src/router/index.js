@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import AdminDashboard from '../views/AdminDashboard.vue'
+import ChildDashboard from '../views/ChildDashboard.vue'
 import { userUtils } from '@/services/api'
 
 const router = createRouter({
@@ -21,6 +22,24 @@ const router = createRouter({
           next()
         } else {
           next('/')
+        }
+      },
+    },
+    {
+      path: '/child-dashboard',
+      name: 'child-dashboard',
+      component: ChildDashboard,
+      beforeEnter: (to, from, next) => {
+        const user = userUtils.getCurrentUser()
+        if (user && user.role === 'child') {
+          next()
+        } else {
+          // For demo purposes, allow any logged-in user to access child dashboard
+          if (user) {
+            next()
+          } else {
+            next('/')
+          }
         }
       },
     },

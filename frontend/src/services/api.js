@@ -121,6 +121,34 @@ export const apiService = {
       throw error
     }
   },
+
+  // Child Dashboard
+  async getChildStats(userId) {
+    try {
+      const response = await api.get(`/api/child/stats/${userId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async getChildQuests(userId) {
+    try {
+      const response = await api.get(`/api/child/quests/${userId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async toggleQuest(questId) {
+    try {
+      const response = await api.post(`/api/child/quest/${questId}/toggle`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
 }
 
 // User utility functions

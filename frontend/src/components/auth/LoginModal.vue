@@ -92,23 +92,22 @@ export default {
                 const response = await apiService.login(username.value, password.value)
 
                 if (response.success) {
-                    // Show success message and wait for it to complete
-                    await Swal.fire({
-                        icon: 'success',
-                        title: 'Welcome Back, Adventurer! 🎉',
-                        text: 'Your quest continues...',
-                        timer: 2000,
-                        showConfirmButton: false,
-                        background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                        color: 'white',
-                        backdrop: 'rgba(0,0,0,0.8)',
-                        allowOutsideClick: false,
-                        allowEscapeKey: false
-                    })
-
-                    // Only emit success after the alert is completely done
+                    // Emit success immediately without waiting for alert
                     isLoading.value = false
                     emit('success', response)
+
+                    // Show success message after modal closes
+                    setTimeout(() => {
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Welcome Back, Adventurer! 🎉',
+                            text: 'Your quest continues...',
+                            timer: 2000,
+                            showConfirmButton: false,
+                            background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                            color: 'white'
+                        })
+                    }, 300)
                 } else {
                     isLoading.value = false
 

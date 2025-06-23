@@ -81,21 +81,39 @@ export default {
 
     const checkUserLogin = () => {
       user.value = userUtils.getCurrentUser()
+
+      // Redirect users based on their role
+      if (user.value) {
+        if (user.value.role === 'admin') {
+          window.location.href = '/admin'
+        } else if (user.value.role === 'child') {
+          window.location.href = '/child-dashboard'
+        }
+      }
     }
 
     const handleLoginSuccess = (userData) => {
       user.value = userData.user
       showLogin.value = false
 
-      // Redirect admin users to admin dashboard
+      // Redirect users based on their role
       if (userData.user.role === 'admin') {
         window.location.href = '/admin'
+      } else if (userData.user.role === 'child') {
+        window.location.href = '/child-dashboard'
       }
     }
 
     const handleRegisterSuccess = (userData) => {
       user.value = userData.user
       showRegister.value = false
+
+      // Redirect users based on their role
+      if (userData.user.role === 'admin') {
+        window.location.href = '/admin'
+      } else if (userData.user.role === 'child') {
+        window.location.href = '/child-dashboard'
+      }
     }
 
     const logout = () => {
