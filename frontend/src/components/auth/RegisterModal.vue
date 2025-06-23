@@ -1,96 +1,178 @@
 <template>
-    <div class="modal-backdrop" @click="closeModal">
-        <div class="auth-modal" @click.stop>
-            <!-- Header -->
-            <div class="modal-header">
-                <div class="header-icon">🚀</div>
-                <h2>Start Your Adventure</h2>
-                <p>Create your quest profile and begin the journey!</p>
-                <button @click="$emit('close')" class="close-btn">&times;</button>
-            </div>
-
-            <!-- Form -->
-            <div class="modal-body">
-                <form @submit.prevent="handleRegister" class="auth-form">
-                    <div class="form-group">
-                        <label for="username">
-                            <i class="fas fa-user"></i>
-                            Adventurer Name
-                        </label>
-                        <input id="username" v-model="username" type="text" placeholder="Choose your adventure name"
-                            required class="form-input" />
-                    </div>
-
-                    <div class="form-group">
-                        <label for="email">
-                            <i class="fas fa-envelope"></i>
-                            Magic Mail
-                        </label>
-                        <input id="email" v-model="email" type="email" placeholder="your.magic@email.com" required
-                            class="form-input" />
-                    </div>
-
-                    <div class="form-group">
-                        <label for="password">
-                            <i class="fas fa-lock"></i>
-                            Secret Code
-                        </label>
-                        <input id="password" v-model="password" type="password"
-                            placeholder="Create a strong secret code" required class="form-input" />
-                    </div>
-
-                    <div class="form-group">
-                        <label for="confirmPassword">
-                            <i class="fas fa-shield-alt"></i>
-                            Confirm Secret Code
-                        </label>
-                        <input id="confirmPassword" v-model="confirmPassword" type="password"
-                            placeholder="Confirm your secret code" required class="form-input" />
-                    </div>
-
-                    <div class="form-group">
-                        <label for="role">
-                            <i class="fas fa-user-tag"></i>
-                            I am a...
-                        </label>
-                        <select id="role" v-model="role" class="form-input">
-                            <option value="child">Young Adventurer (Child)</option>
-                            <option value="user">Adult Adventurer (User)</option>
-                        </select>
-                    </div>
-
-                    <button type="submit" class="btn-primary" :disabled="isLoading">
-                        <span v-if="!isLoading" class="btn-content">
-                            <span class="btn-icon">✨</span>
-                            Begin My Quest
-                        </span>
-                        <span v-else class="btn-loading">
-                            <span class="spinner"></span>
-                            Creating...
-                        </span>
-                    </button>
-                </form>
-            </div>
-
-            <!-- Footer -->
-            <div class="modal-footer">
-                <p>Already have an adventure?</p>
-                <button @click="$emit('switchToLogin')" class="link-btn">
-                    Continue Your Quest <span>🗝️</span>
-                </button>
-            </div>
-
-            <!-- Decorative Elements -->
-            <div class="floating-icons">
-                <div class="float-icon" style="--delay: 0s; --x: 15%; --y: 20%;">🌟</div>
-                <div class="float-icon" style="--delay: 1s; --x: 80%; --y: 15%;">🎯</div>
-                <div class="float-icon" style="--delay: 2s; --x: 20%; --y: 80%;">🏆</div>
-                <div class="float-icon" style="--delay: 3s; --x: 85%; --y: 75%;">⚡</div>
-                <div class="float-icon" style="--delay: 4s; --x: 50%; --y: 90%;">🌈</div>
-            </div>
+  <div class="modal-backdrop" @click="closeModal">
+    <div class="auth-modal fade-in" @click.stop>
+ 
+      <!-- Step 1: Role Selection View -->
+      <div v-if="!userType" class="user-role-selection">
+        <h2>Who’s Signing Up?</h2>
+        <div class="role-buttons">
+          <button @click="userType = 'kid'" class="role-btn kid-btn">🧒 I am a Kid</button>
+          <button @click="userType = 'parent'" class="role-btn parent-btn">👨‍👩‍👧 I am a Parent</button>
         </div>
+      </div>
+
+      <!-- Step 2: Kid Registration -->
+      <div v-else-if="userType === 'kid'">
+        <!-- Header -->
+        <div class="modal-header">
+          <div class="header-icon">🚀</div>
+          <h2>Start Your Adventure</h2>
+          <p>Create your quest profile and begin the journey!</p>
+          <button @click="$emit('close')" class="close-btn">&times;</button>
+        </div>
+
+        <!-- Form -->
+        <div class="modal-body">
+          <form @submit.prevent="handleRegister" class="auth-form">
+            <div class="form-group">
+              <label for="username"><i class="fas fa-user"></i> Adventurer Name</label>
+              <input id="username" v-model="username" type="text" placeholder="Choose your adventure name" required class="form-input" />
+            </div>
+
+            <div class="form-group">
+              <label for="email"><i class="fas fa-envelope"></i> Magic Mail</label>
+              <input id="email" v-model="email" type="email" placeholder="your.magic@email.com" required class="form-input" />
+            </div>
+
+            <div class="form-group">
+              <label for="password"><i class="fas fa-lock"></i> Secret Code</label>
+              <input id="password" v-model="password" type="password" placeholder="Create a strong secret code" required class="form-input" />
+            </div>
+
+            <div class="form-group">
+              <label for="confirmPassword"><i class="fas fa-shield-alt"></i> Confirm Secret Code</label>
+              <input id="confirmPassword" v-model="confirmPassword" type="password" placeholder="Confirm your secret code" required class="form-input" />
+            </div>
+            
+            <!--
+            <div class="form-group">
+              <label for="dob"><i class="fas fa-birthday-cake"></i> Birthday</label>
+              <input id="dob" v-model="dateOfBirth" type="date" required class="form-input" />
+            </div>
+
+            <div class="form-group">
+              <label for="gender"><i class="fas fa-venus-mars"></i> Identity</label>
+              <select id="gender" v-model="gender" class="form-input" required>
+                <option disabled value="">Choose your identity</option>
+                <option>Male</option>
+                <option>Female</option>
+                <option>Other</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="grade"><i class="fas fa-school"></i> Level of Wisdom</label>
+              <input id="grade" v-model="gradeLevel" type="number" min="1" max="12" placeholder="Your grade in school" class="form-input" />
+            </div>
+
+            <div class="form-group">
+              <label for="interests"><i class="fas fa-star"></i> Quest Interests</label>
+              <textarea id="interests" v-model="interests" class="form-input" placeholder="e.g. Math, Space, Dragons"></textarea>
+            </div>
+            -->
+
+            <button type="submit" class="btn-primary" :disabled="isLoading">
+              <span v-if="!isLoading" class="btn-content">
+                <span class="btn-icon">✨</span>
+                Begin My Quest
+              </span>
+              <span v-else class="btn-loading">
+                <span class="spinner"></span>
+                Creating...
+              </span>
+            </button>
+          </form>
+        </div>
+
+        <!-- Footer -->
+        <div class="modal-footer">
+          <p>Already have an adventure?</p>
+          <button @click="$emit('switchToLogin')" class="link-btn">Continue Your Quest <span>🗝️</span></button>
+        </div>
+      </div>
+
+      <!-- Step 3: Parent Registration -->
+      <div v-else>
+        <!-- Header -->
+        <div class="modal-header">
+          <div class="header-icon">🛡️</div>
+          <h2>Protect the Quest</h2>
+          <p>Register as a guardian to oversee the adventure!</p>
+          <button @click="$emit('close')" class="close-btn">&times;</button>
+        </div>
+
+        <!-- Form -->
+        <div class="modal-body">
+          <form @submit.prevent="handleRegister" class="auth-form">
+            <div class="form-group">
+              <label for="parentName"><i class="fas fa-user-shield"></i> Guardian Username</label>
+              <input id="parentName" v-model="parentName" type="text" placeholder="Your full name" required class="form-input" />
+            </div>
+
+            <div class="form-group">
+              <label for="parentPassword"><i class="fas fa-lock"></i> Guardian Code</label>
+              <input id="parentPassword" v-model="parentPassword" type="password" placeholder="Strong password" required class="form-input" />
+            </div>
+
+            
+            <div class="form-group">
+              <label for="parentConfirmPassword"><i class="fas fa-shield-alt"></i> Confirm Guardian Code</label>
+              <input id="parentConfirmPassword" v-model="parentConfirmPassword" type="password" placeholder="Re-enter password" required class="form-input" />
+            </div>
+
+            <div class="form-group">
+              <label for="parentEmail"><i class="fas fa-envelope"></i> Contact Scroll</label>
+              <input id="parentEmail" v-model="parentEmail" type="email" placeholder="you@guardian.com" required class="form-input" />
+            </div>
+            
+
+            <div class="form-group">
+              <label for="relationship"><i class="fas fa-user-friends"></i> Bond of Guardianship</label>
+              <select id="relationship" v-model="relationshipType" class="form-input" required>
+                <option disabled value="">Choose relationship</option>
+                <option>Mother</option>
+                <option>Father</option>
+                <option>Guardian</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="childUsername"><i class="fas fa-child"></i> Adventurer Username</label>
+              <input id="childUsername" v-model="childUsername" type="text" placeholder="Your child's username" required class="form-input" />
+            </div>
+
+            <button type="submit" class="btn-primary" :disabled="isLoading">
+              <span v-if="!isLoading" class="btn-content">
+                <span class="btn-icon">🛡️</span>
+                Register as Guardian
+              </span>
+              <span v-else class="btn-loading">
+                <span class="spinner"></span>
+                Creating...
+              </span>
+            </button>
+          </form>
+        </div>
+   
+        <!-- Footer -->
+        <div class="modal-footer">
+          <p>Already guarding an adventure?</p>
+          <button @click="$emit('switchToLogin')" class="link-btn">Continue as Guardian <span>🔐</span></button>
+        </div>
+      </div>
+
+      <!-- Floating Icons -->
+      <div v-if="userType" class="floating-icons" :class="userType">
+        <div class="float-icon fade-in" style="--delay: 0s; --x: 15%; --y: 20%;">🌟</div>
+        <div class="float-icon fade-in" style="--delay: 1s; --x: 80%; --y: 15%;">🎯</div>
+        <div class="float-icon fade-in" style="--delay: 2s; --x: 20%; --y: 80%;">🏆</div>
+        <div class="float-icon fade-in" style="--delay: 3s; --x: 85%; --y: 75%;">⚡</div>
+        <div class="float-icon fade-in" style="--delay: 4s; --x: 50%; --y: 90%;">🌈</div>
+      </div>
     </div>
+  </div>
 </template>
+
 
 <script>
 import { ref } from 'vue'
@@ -98,113 +180,167 @@ import { apiService } from '@/services/api'
 import Swal from 'sweetalert2'
 
 export default {
-    name: 'RegisterModal',
-    emits: ['close', 'success', 'switchToLogin'],
-    setup(props, { emit }) {
-        const username = ref('')
-        const email = ref('')
-        const password = ref('')
-        const confirmPassword = ref('')
-        const role = ref('child')
-        const isLoading = ref(false)
+  name: 'RegisterModal',
+  emits: ['close', 'success', 'switchToLogin'],
+  setup(props, { emit }) {
+    const userType = ref(null)
 
-        const handleRegister = async () => {
-            if (isLoading.value) return
+    // Kid fields
+    const username = ref('')
+    const password = ref('')
+    const confirmPassword = ref('')
+    const email = ref('')
+    // Parent fields
+    const parentName = ref('')
+    const parentPassword = ref('')
+    const parentConfirmPassword = ref('')
+    const parentEmail = ref('')
+    const relationshipType = ref('')
+    const childUsername = ref('')
 
-            // Validation
-            if (password.value !== confirmPassword.value) {
-                await Swal.fire({
-                    icon: 'warning',
-                    title: 'Secret Codes Don\'t Match! 🔐',
-                    text: 'Make sure both secret codes are identical, young adventurer!',
-                    timer: 3000,
-                    showConfirmButton: false,
-                    background: 'linear-gradient(135deg, #ffa726, #ff9800)',
-                    color: 'white'
-                })
-                return
-            }
+    const isLoading = ref(false)
 
-            if (password.value.length < 6) {
-                await Swal.fire({
-                    icon: 'warning',
-                    title: 'Secret Code Too Weak! ⚠️',
-                    text: 'Your secret code needs at least 6 characters to protect your quest!',
-                    timer: 3000,
-                    showConfirmButton: false,
-                    background: 'linear-gradient(135deg, #ffa726, #ff9800)',
-                    color: 'white'
-                })
-                return
-            }
 
-            isLoading.value = true
+    const handleRegister = async () => {
+      console.log('Register clicked', userType.value)
+      if (isLoading.value) return
 
-            try {
-                const response = await apiService.register(username.value, email.value, password.value, role.value)
+      let payload = {}
 
-                if (response.success) {
-                    // Store user data in localStorage after successful registration
-                    localStorage.setItem('user', JSON.stringify(response.user))
-
-                    // Emit success immediately
-                    isLoading.value = false
-                    emit('success', response)
-
-                    // Show success message after modal closes
-                    setTimeout(() => {
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Welcome to KidQuest! 🎉',
-                            text: `Adventure awaits you, ${username.value}! Your quest begins now!`,
-                            timer: 3000,
-                            showConfirmButton: false,
-                            background: 'linear-gradient(135deg, #4caf50, #8bc34a)',
-                            color: 'white'
-                        })
-                    }, 300)
-                }
-            } catch (error) {
-                console.error('Registration failed:', error)
-
-                let errorMessage = 'Something went wrong! Please try again, brave adventurer!'
-                if (error.response?.data?.error) {
-                    errorMessage = error.response.data.error
-                }
-
-                await Swal.fire({
-                    icon: 'error',
-                    title: 'Quest Creation Failed! 😔',
-                    text: errorMessage,
-                    timer: 4000,
-                    showConfirmButton: false,
-                    background: 'linear-gradient(135deg, #ff6b6b, #f44336)',
-                    color: 'white'
-                })
-            } finally {
-                // isLoading is already handled in success/error cases
-            }
+      if (userType.value === 'kid') {
+        if (password.value !== confirmPassword.value) {
+          await Swal.fire({
+            icon: 'warning',
+            title: 'Secret Codes Don\'t Match! 🔐',
+            text: 'Make sure both secret codes are identical!',
+            timer: 3000,
+            showConfirmButton: false,
+            background: 'linear-gradient(135deg, #ffa726, #ff9800)',
+            color: 'white'
+          })
+          return
+        }
+        if (password.value.length < 6) {
+          await Swal.fire({
+            icon: 'warning',
+            title: 'Secret Code Too Weak! ⚠️',
+            text: 'Your secret code needs at least 6 characters!',
+            timer: 3000,
+            showConfirmButton: false,
+            background: 'linear-gradient(135deg, #ffa726, #ff9800)',
+            color: 'white'
+          })
+          return
         }
 
-        const closeModal = () => {
-            emit('close')
+        payload = {
+          role: 'child',
+          username: username.value,
+          password: password.value,
+          email: email.value,
+        }
+      } else {
+            if (parentPassword.value !== parentConfirmPassword.value) {
+          await Swal.fire({
+            icon: 'warning',
+            title: 'Guardian Codes Don\'t Match! 🔐',
+            text: 'Make sure both passwords match!',
+            timer: 3000,
+            showConfirmButton: false,
+            background: 'linear-gradient(135deg, #ffa726, #ff9800)',
+            color: 'white'
+          })
+          return
+        }
+        if (parentPassword.value.length < 6) {
+          await Swal.fire({
+            icon: 'warning',
+            title: 'Guardian Code Too Weak! ⚠️',
+            text: 'Your password needs at least 6 characters!',
+            timer: 3000,
+            showConfirmButton: false,
+            background: 'linear-gradient(135deg, #ffa726, #ff9800)',
+            color: 'white'
+          })
+          return
         }
 
-        return {
-            username,
-            email,
-            password,
-            confirmPassword,
-            role,
-            isLoading,
-            handleRegister,
-            closeModal
+        payload = {
+          role: 'parent',
+          username: parentName.value,
+          email: parentEmail.value,
+          password: parentPassword.value,
+          relationship_type: relationshipType.value,
+          child_username: childUsername.value
         }
+      }
+
+      isLoading.value = true
+
+      try {
+        const response = await apiService.register(payload)
+
+        if (response.success) {
+          await Swal.fire({
+            icon: 'success',
+            title: userType.value === 'kid' ? 'Welcome to KidQuest! 🎉' : 'Welcome, Guardian! 🛡️',
+            text: `Your quest begins now, ${payload.username}!`,
+            timer: 3000,
+            showConfirmButton: false,
+            background: 'linear-gradient(135deg, #4caf50, #8bc34a)',
+            color: 'white',
+            backdrop: 'rgba(0,0,0,0.8)'
+          })
+
+          emit('success', response)
+        }
+      } catch (error) {
+        console.error('Registration failed:', error)
+        let errorMessage = 'Something went wrong! Please try again.'
+        if (error.response?.data?.error) {
+          errorMessage = error.response.data.error
+        }
+
+        await Swal.fire({
+          icon: 'error',
+          title: 'Registration Failed! 😔',
+          text: errorMessage,
+          timer: 4000,
+          showConfirmButton: false,
+          background: 'linear-gradient(135deg, #ff6b6b, #f44336)',
+          color: 'white'
+        })
+      } finally {
+        isLoading.value = false
+      }
     }
+
+    const closeModal = () => {
+      emit('close')
+    }
+
+    return {
+      userType,
+      username,
+      password,
+      email,
+      confirmPassword,
+      parentName,
+      parentConfirmPassword,
+      parentEmail,
+      parentPassword,
+      relationshipType,
+      childUsername,
+      isLoading,
+      handleRegister,
+      closeModal
+    }
+  }
 }
 </script>
 
 <style scoped>
+
 .modal-backdrop {
     position: fixed;
     top: 0;
@@ -568,5 +704,46 @@ export default {
     .auth-form {
         gap: 1.2rem;
     }
+}
+/* Role Selection */
+.user-role-selection {
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+.role-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 1rem;
+  margin-top: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.role-btn {
+  flex: 1 1 45%;
+  padding: 1rem;
+  font-size: 1.1rem;
+  font-weight: bold;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.kid-btn {
+  background-color: #fff3cd;
+  color: #333;
+}
+.kid-btn:hover {
+  background-color: #ffe082;
+}
+
+.parent-btn {
+  background-color: #c8e6c9;
+  color: #333;
+}
+.parent-btn:hover {
+  background-color: #81c784;
 }
 </style>

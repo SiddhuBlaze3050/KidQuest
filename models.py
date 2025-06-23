@@ -3,32 +3,53 @@ from datetime import datetime, date, time
 
 db = SQLAlchemy()
 
-# ---------------------------
-# User & Profile
-# ---------------------------
 
+
+# ----------------------------
+# User Model
+# ----------------------------
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
-    role = db.Column(db.String(10), nullable=False)
+    role = db.Column(db.String(10), nullable=False)  # 'parent' or 'child'
+    
+   
 
-    profile = db.relationship('Profile', backref='user', uselist=False)
-    children = db.relationship('ParentChild', backref='parent', foreign_keys='ParentChild.parent_id')
-    parents = db.relationship('ParentChild', backref='child', foreign_keys='ParentChild.child_id')
+    # Relationships
+    child_profile = db.relationship('ChildProfile', backref='user', uselist=False)
+    parent_relationships = db.relationship('ParentChild', 
+                                           backref='parent', 
+                                           foreign_keys='ParentChild.parent_id')
+    child_relationships = db.relationship('ParentChild', 
+                                          backref='child', 
+                                          foreign_keys='ParentChild.child_id')
 
 
-class Profile(db.Model):
+# ----------------------------
+# Child Profile Model
+# ----------------------------
+class ChildProfile(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    mood = db.Column(db.String(20))
+    grade_level = db.Column(db.Integer)
+    date_of_birth = db.Column(db.Date)
+    gender = db.Column(db.String(10))
+    interests = db.Column(db.Text)
+    avatar_url = db.Column(db.String(255))
 
 
+# ----------------------------
+# Parent-Child Mapping
+# ----------------------------
 class ParentChild(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    parent_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    child_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    parent_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    child_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    relationship_type = db.Column(db.String(20))  # e.g., 'father', 'guardian'
+
+
 
 # ---------------------------
 # Time Management

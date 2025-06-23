@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, ChatSession
+from models import db, User, ChatSession,ChildProfile, ParentChild
 import re
 from config import Config
 from openai import OpenAI
@@ -111,28 +111,56 @@ def clear_chat_history(user_id):
 
 @app.route('/api/auth/register', methods=['POST'])
 def api_register():
-    """API endpoint for user registration"""
+    """API endpoint for simplified kid/parent registration"""
     try:
         data = request.get_json()
-        username = data.get('username')
-        email = data.get('email')
-        password = data.get('password')
-        role = data.get('role', 'user')
 
-        if not username or not email or not password:
+        username = data.get('username')
+        password = data.get('password')
+        role = data.get('role','user')
+        email = data.get('email', None)  # Optional
+
+        if not username or not password or not role:
             return jsonify({'success': False, 'error': 'Missing required fields'}), 400
-        if not EMAIL_REGEX.match(email):
+
+        if email and not EMAIL_REGEX.match(email):
             return jsonify({'success': False, 'error': 'Invalid email address'}), 400
-        if User.query.filter_by(username=username).first() or User.query.filter_by(email=email).first():
-            return jsonify({'success': False, 'error': 'Username or email already exists'}), 409
+
+        if User.query.filter_by(username=username).first():
+            return jsonify({'success': False, 'error': 'Username already exists'}), 409
+        if email and User.query.filter_by(email=email).first():
+            return jsonify({'success': False, 'error': 'Email already exists'}), 409
 
         password_hash = generate_password_hash(password)
-        user = User(username=username, email=email, password_hash=password_hash, role=role)
+        user = User(
+            username=username,
+            email=email,
+            password_hash=password_hash,
+            role=role
+        )
         db.session.add(user)
+        db.session.flush()  # Get user.id before commit
+
+        if role == 'parent':
+            relationship_type = data.get('relationship_type')
+            child_username = data.get('child_username')
+
+            if not relationship_type:
+                return jsonify({'success': False, 'error': 'Relationship type is required'}), 400
+
+            # Optional: Link to child if username exists
+            child = User.query.filter_by(username=child_username, role='child').first()
+            parent_relationship = ParentChild(
+                parent_id=user.id,
+                child_id=child.id if child else None,
+                relationship_type=relationship_type
+            )
+            db.session.add(parent_relationship)
+
         db.session.commit()
-        
+
         return jsonify({
-            'success': True, 
+            'success': True,
             'message': 'User registered successfully',
             'user': {
                 'id': user.id,
@@ -141,9 +169,12 @@ def api_register():
                 'role': user.role
             }
         }), 201
+
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
 
 @app.route('/api/auth/login', methods=['POST'])
 def api_login():

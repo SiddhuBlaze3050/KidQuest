@@ -68,23 +68,19 @@ export const apiService = {
     }
   },
 
-  async register(username, email, password, role = 'user') {
+  async register(payload) {
     try {
-      const response = await api.post('/api/auth/register', {
-        username,
-        email,
-        password,
-        role,
-      })
-
+      const response = await api.post('/api/auth/register', payload)
       if (response.data.success) {
         return response.data
       }
       throw new Error(response.data.error || 'Registration failed')
     } catch (error) {
       throw error
+      
     }
   },
+
 
   // User Profile
   async getUserProfile(userId) {
