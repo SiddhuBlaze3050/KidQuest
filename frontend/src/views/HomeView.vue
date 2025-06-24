@@ -88,7 +88,7 @@ export default {
           window.location.href = '/admin'
         } else if (user.value.role === 'child') {
           window.location.href = '/child-dashboard'
-        }else if (user.value.role === 'parent') {
+        } else if (user.value.role === 'parent') {
           window.location.href = '/parent-dashboard'
         }
       }
@@ -103,7 +103,7 @@ export default {
         window.location.href = '/admin'
       } else if (userData.user.role === 'child') {
         window.location.href = '/child-dashboard'
-      }else if (userData.user.role === 'parent') {
+      } else if (userData.user.role === 'parent') {
         window.location.href = '/parent-dashboard'
       }
     }
@@ -112,14 +112,17 @@ export default {
       user.value = userData.user
       showRegister.value = false
 
-      // Redirect users based on their role
-      if (userData.user.role === 'admin') {
-        window.location.href = '/admin'
-      } else if (userData.user.role === 'child') {
-        window.location.href = '/child-dashboard'
-      }else if (userData.user.role === 'parent') {
-        window.location.href = '/parent-dashboard'
-      }
+      // Delay redirect to allow success message to show
+      setTimeout(() => {
+        // Redirect users based on their role
+        if (userData.user.role === 'admin') {
+          window.location.href = '/admin'
+        } else if (userData.user.role === 'child') {
+          window.location.href = '/child-dashboard'
+        } else if (userData.user.role === 'parent') {
+          window.location.href = '/parent-dashboard'
+        }
+      }, 3500) // Wait for success message to finish (3000ms timer + 500ms buffer)
     }
 
     const logout = () => {
