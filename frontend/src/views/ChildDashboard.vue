@@ -129,12 +129,9 @@
                         </button>
                     </div>
                     <!-- Memory Game component rendered conditionally -->
-                    <MemoryGame
-                        v-if="selectedActivity === 'Memory Game'"
-                        @close="selectedActivity = null"
-                    />
+                    <MemoryGame v-if="selectedActivity === 'Memory Game'" @close="selectedActivity = null" />
 
-                
+
                 </div>
 
                 <!-- Achievements Showcase -->
@@ -304,6 +301,9 @@
         <!-- Drawing Pad Modal -->
         <DrawingPad v-if="showDrawingPad" @close="showDrawingPad = false" />
 
+        <!-- Story Builder Modal -->
+        <StoryBuilder v-if="showStoryBuilder" @close="showStoryBuilder = false" />
+
         <!-- Floating Magic Elements -->
         <div class="floating-magic">
             <div class="magic-element" style="--delay: 0s; --x: 10%; --y: 20%;">🌟</div>
@@ -321,6 +321,9 @@ import EnhancedChatBot from '@/components/chat/EnhancedChatBot.vue'
 import Swal from 'sweetalert2'
 import MemoryGame from '@/components/activities/MemoryGame.vue'
 import MusicPlayer from '@/components/activities/MusicPlayer.vue'
+import PomodoroTimer from '@/components/activities/PomodoroTimer.vue'
+import DrawingPad from '@/components/activities/DrawingPad.vue'
+import StoryBuilder from '@/components/activities/StoryBuilder.vue'
 
 
 export default {
@@ -328,13 +331,17 @@ export default {
     components: {
         EnhancedChatBot,
         MemoryGame,
-        MusicPlayer
+        MusicPlayer,
+        PomodoroTimer,
+        DrawingPad,
+        StoryBuilder
     },
     setup() {
         const showMemoryGame = ref(false)
         const showMusicPlayer = ref(false)
         const showPomodoroTimer = ref(false)
         const showDrawingPad = ref(false)
+        const showStoryBuilder = ref(false)
         const user = ref(null)
         const selectedActivity = ref(null)
         const showChat = ref(false)
@@ -685,12 +692,15 @@ export default {
                     break
                 case 'Music Player':
                     showMusicPlayer.value = true;
-                    break;    
+                    break;
                 case 'Psychometric Test':
                     startPsychometricTest()
                     break
                 case 'Finance Tracker':
                     openFinanceTracker()
+                    break
+                case 'Story Builder':
+                    showStoryBuilder.value = true
                     break
                 default:
                     Swal.fire({
@@ -798,6 +808,7 @@ export default {
             showMusicPlayer,
             showPomodoroTimer,
             showDrawingPad,
+            showStoryBuilder,
             recentAchievements,
 
             logout,
