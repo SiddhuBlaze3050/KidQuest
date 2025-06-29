@@ -128,6 +128,13 @@
                             <div class="activity-name">{{ activity.name }}</div>
                         </button>
                     </div>
+                    <!-- Memory Game component rendered conditionally -->
+                    <MemoryGame
+                        v-if="selectedActivity === 'Memory Game'"
+                        @close="selectedActivity = null"
+                    />
+
+                
                 </div>
 
                 <!-- Achievements Showcase -->
@@ -158,6 +165,14 @@
         <!-- 3D Chatbot Modal -->
         <EnhancedChatBot v-if="showChat" @close="showChat = false" :user="user" />
 
+        <!-- Memory Game -->
+        <MemoryGame v-if="showMemoryGame" @close="showMemoryGame = false" />
+
+        <!-- Music Player Modal -->
+        <MusicPlayer v-if="showMusicPlayer" @close="showMusicPlayer = false" />
+
+
+
         <!-- Floating Magic Elements -->
         <div class="floating-magic">
             <div class="magic-element" style="--delay: 0s; --x: 10%; --y: 20%;">🌟</div>
@@ -173,14 +188,22 @@ import { ref, onMounted } from 'vue'
 import { userUtils, apiService } from '@/services/api'
 import EnhancedChatBot from '@/components/chat/EnhancedChatBot.vue'
 import Swal from 'sweetalert2'
+import MemoryGame from '@/components/activities/MemoryGame.vue'
+import MusicPlayer from '@/components/activities/MusicPlayer.vue'
+
 
 export default {
     name: 'ChildDashboard',
     components: {
-        EnhancedChatBot
+        EnhancedChatBot,
+        MemoryGame,
+        MusicPlayer
     },
     setup() {
+        const showMemoryGame = ref(false)
+        const showMusicPlayer = ref(false)
         const user = ref(null)
+        const selectedActivity = ref(null)
         const showChat = ref(false)
         const streakDays = ref(0)
         const userLevel = ref(1)
@@ -363,6 +386,12 @@ export default {
                 case 'Pomodoro Timer':
                     startPomodoroTimer()
                     break
+                case 'Memory Game':
+                    startMemoryGame()
+                    break    
+                case 'Music Player':
+                    showMusicPlayer.value = true;
+                    break;    
                 case 'Psychometric Test':
                     startPsychometricTest()
                     break
@@ -461,6 +490,101 @@ export default {
             })
         }
 
+        const startMemoryGame = () => {
+            console.log('Starting Memory Game')
+
+            Swal.fire({
+                title: '🧠 Memory Game',
+                html: `
+                <style>
+                    .memory-grid {
+                    display: grid;
+                    grid-template-columns: repeat(4, 60px);
+                    grid-gap: 10px;
+                    justify-content: center;
+                    margin-top: 15px;
+                    }
+                    .memory-card {
+                    width: 60px;
+                    height: 60px;
+                    font-size: 24px;
+                    background-color: #ffffff;
+                    border-radius: 8px;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    cursor: pointer;
+                    user-select: none;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+                    }
+                    .flipped {
+                    background-color: #a0e3f0;
+                    }
+                    .matched {
+                    background-color: #a0f0c8;
+                    pointer-events: none;
+                    }
+                </style>
+                <div class="memory-grid" id="memory-grid"></div>
+                `,
+                showCloseButton: true,
+                showConfirmButton: false,
+                didOpen: () => {
+                const emojis = ['🐶','🐱','🐭','🐹','🦊','🐻','🐼','🐸']
+                let cards = [...emojis, ...emojis] // duplicate for matching
+                cards = cards.sort(() => Math.random() - 0.5)
+
+                const grid = document.getElementById('memory-grid')
+                const flipped = []
+                const matchedPairs = new Set()
+
+                cards.forEach((emoji, index) => {
+                    const card = document.createElement('div')
+                    card.classList.add('memory-card')
+                    card.dataset.emoji = emoji
+                    card.dataset.index = index
+                    card.textContent = '❓'
+
+                    card.addEventListener('click', () => {
+                    if (flipped.length === 2 || card.classList.contains('flipped') || matchedPairs.has(index)) return
+
+                    card.classList.add('flipped')
+                    card.textContent = emoji
+                    flipped.push({ index, card, emoji })
+
+                    if (flipped.length === 2) {
+                        const [first, second] = flipped
+                        if (first.emoji === second.emoji) {
+                        first.card.classList.add('matched')
+                        second.card.classList.add('matched')
+                        matchedPairs.add(first.index)
+                        matchedPairs.add(second.index)
+                        } else {
+                        setTimeout(() => {
+                            first.card.classList.remove('flipped')
+                            second.card.classList.remove('flipped')
+                            first.card.textContent = '❓'
+                            second.card.textContent = '❓'
+                        }, 700)
+                        }
+                        flipped.length = 0
+                    }
+                    })
+
+                    grid.appendChild(card)
+                })
+                }
+            })
+            }
+        function openMusicPlayer() {
+        console.log('Starting activity: Music Player')
+        showMusicPlayer.value = true
+        }
+
+        function closeMusicPlayer() {
+        showMusicPlayer.value = false
+        }
+
         const startPsychometricTest = () => {
             Swal.fire({
                 title: '🧩 Psychometric Test',
@@ -522,6 +646,9 @@ export default {
             todayQuests,
             skillAreas,
             funActivities,
+            selectedActivity,
+            showMemoryGame,
+            showMusicPlayer,
             recentAchievements,
             logout,
             toggleQuest,
@@ -1130,5 +1257,42 @@ export default {
         flex-direction: column;
         text-align: center;
     }
+}
+.dashboard {
+  padding: 2rem;
+}
+
+
+.fun-activities {
+  margin-top: 2rem;
+}
+
+.activities-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.activity-card {
+  width: 200px;
+  height: 150px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.activity-card:hover {
+  transform: scale(1.05);
+}
+
+.activity-card .icon {
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
 }
 </style>
