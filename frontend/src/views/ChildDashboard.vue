@@ -154,7 +154,135 @@
                 </div>
             </div>
         </main>
+        <!-- Update the finance tracker modal section -->
+        <div v-if="showFinanceTracker" class="finance-tracker-modal">
+            <div class="finance-tracker-content">
+                <div class="finance-header">
+                    <h2>💰 Treasure Chest</h2>
+                    <button @click="showFinanceTracker = false" class="close-btn">×</button>
+                </div>
+                
+                <div class="savings-container">
+                    <!-- Money Plant Animation -->
+                    <div class="money-plant-animation">
+                        <div class="money-plant">
+                            <div class="coin-leaves">
+                                <span class="coin-leaf">₹</span>
+                                <span class="coin-leaf">₹</span>
+                                <span class="coin-leaf">₹</span>
+                            </div>
+                            <div class="plant-stem">
+                                <div class="branch branch-1"></div>
+                                <div class="branch branch-2"></div>
+                                <div class="branch branch-3"></div>
+                            </div>
+                            <div class="pot"></div>
+                        </div>
+                    </div>
 
+                    <!-- Current Savings Box -->
+                    <div class="current-savings-box">
+                        <div class="savings-content">
+                            <h3>Your Treasure</h3>
+                            <div class="savings-amount">₹{{ currentSavings }}</div>
+                            <div v-if="completedGoals > 0" class="savings-badges">
+                                <div class="badge">
+                                    <span>🏆</span>
+                                    <span>{{ completedGoals }} Goal{{ completedGoals > 1 ? 's' : '' }} Achieved!</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Treasure Animation -->
+                    <div class="treasure-animation">
+                        <div class="treasure-box">
+                            <div class="treasure-lid">
+                                <div class="lock"></div>
+                            </div>
+                            <div class="treasure-base">
+                                <div class="coin-pile">
+                                    <div class="coin-stack">
+                                        <span class="floating-coin">₹</span>
+                                        <span class="floating-coin">₹</span>
+                                        <span class="floating-coin">₹</span>
+                                    </div>
+                                    <div class="sparkles">
+                                        <span class="sparkle">✨</span>
+                                        <span class="sparkle">✨</span>
+                                        <span class="sparkle">✨</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="finance-grid">
+                    <div class="transactions-box">
+                        <h3>Manage Treasure</h3>
+                        <div class="action-buttons">
+                            <button @click="addTransaction('income')" class="add-income-btn">
+                                <span>➕</span> Add Income
+                            </button>
+                            <button @click="addTransaction('expense')" class="add-expense-btn">
+                                <span>➖</span> Add Expense
+                            </button>
+                        </div>
+                        
+                        <div class="transaction-history">
+                            <h4>Recent Adventures</h4>
+                            <div class="transaction-list">
+                                <div v-for="t in transactions" :key="t.id" 
+                                    :class="['transaction-item', t.type]">
+                                    <div class="transaction-date">{{ formatDate(t.date) }}</div>
+                                    <div class="transaction-desc">{{ t.description }}</div>
+                                    <div class="transaction-amount">
+                                        {{ t.type === 'income' ? '+' : '-' }}₹{{ t.amount }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="goals-box">
+                        <div class="goals-header">
+                            <h3>Treasure Goals</h3>
+                            <button @click="addSavingsGoal" class="add-goal-btn">
+                                <span>🎯</span> New Goal
+                            </button>
+                        </div>
+                        
+                        <div class="goals-list">
+                            <div v-for="goal in savingsGoals" :key="goal.id" class="goal-item">
+                                <h4>{{ goal.label }}</h4>
+                                <div class="goal-progress">
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" 
+                                            :style="{ width: `${calculateGoalProgress(goal)}%` }">
+                                        </div>
+                                    </div>
+                                    <div class="progress-text">
+                                        ₹{{ goal.current_amount }} / ₹{{ goal.target_amount }}
+                                        <span class="progress-percentage">
+                                            ({{ calculateGoalProgress(goal) }}%)
+                                        </span>
+                                    </div>
+                                </div>
+                                <div v-if="goal.current_amount >= goal.target_amount" class="goal-complete">
+                                    <div class="goal-status">
+                                        {{ !goal.spent ? '🏆 Goal Complete!' : '✨ Goal Achieved & Spent!' }}
+                                    </div>
+                                    <button v-if="!goal.spent" @click="spendGoalSavings(goal)" class="spend-btn">
+                                        Use Savings
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
         <!-- Floating Gandalf Chatbot -->
         <div class="floating-wizard" @click="showChat = true">
             <div class="wizard-icon">🧙‍♂️</div>
@@ -184,7 +312,7 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { userUtils, apiService } from '@/services/api'
 import EnhancedChatBot from '@/components/chat/EnhancedChatBot.vue'
 import Swal from 'sweetalert2'
@@ -207,6 +335,10 @@ export default {
         const showChat = ref(false)
         const streakDays = ref(0)
         const userLevel = ref(1)
+        const showFinanceTracker = ref(false)
+        const currentSavings = ref(0)
+        const transactions = ref([])
+        const savingsGoals = ref([])
 
         // User stats
         const userStats = ref({
@@ -312,8 +444,163 @@ export default {
             { id: 4, name: "Music Player", icon: "🎵" },
             { id: 5, name: "Story Builder", icon: "📝" },
             { id: 6, name: "Quiz Time", icon: "❓" },
-            { id: 7, name: "Psychometric Test", icon: "🧩" }
+            { id: 7, name: "Psychometric Test", icon: "🧩" },
+            { id: 8, name: "Finance Tracker", icon: "💰" }
         ])
+        const openFinanceTracker = async () => {
+            showFinanceTracker.value = true
+            await loadTransactions()
+            await loadSavingsGoals()
+            calculateCurrentSavings()
+        }
+
+        const loadTransactions = async () => {
+            try {
+                const response = await apiService.getTransactions(user.value.id)
+                if (response.success) {
+                    transactions.value = response.transactions
+                    calculateCurrentSavings()
+                }
+            } catch (error) {
+                console.error('Error loading transactions:', error)
+            }
+        }
+
+        const loadSavingsGoals = async () => {
+            try {
+                const response = await apiService.getSavingsGoals(user.value.id)
+                if (response.success) {
+                    // Sort goals by creation date (assuming older goals get priority)
+                    const sortedGoals = [...response.goals].sort((a, b) => 
+                        new Date(a.created_at) - new Date(b.created_at)
+                    )
+                    
+                    let remainingSavings = currentSavings.value
+
+                    // Update each goal's current amount based on available savings
+                    savingsGoals.value = sortedGoals.map(goal => {
+                        const currentAmount = Math.min(remainingSavings, goal.target_amount)
+                        remainingSavings = Math.max(0, remainingSavings - currentAmount)
+                        
+                        return {
+                            ...goal,
+                            current_amount: currentAmount
+                        }
+                    })
+                }
+            } catch (error) {
+                console.error('Error loading goals:', error)
+            }
+        }
+
+        const calculateCurrentSavings = () => {
+            currentSavings.value = transactions.value.reduce((total, t) => {
+                return total + (t.type === 'income' ? t.amount : -t.amount)
+            }, 0)
+        }
+
+        const addTransaction = async (type, goalAmount = null) => {
+            const { value: formValues } = await Swal.fire({
+                title: `Add ${type}`,
+                html: `
+                    <input id="amount" class="swal2-input" type="number" placeholder="Amount" 
+                        ${goalAmount ? `value="${goalAmount}" readonly` : ''}>
+                    <input id="description" class="swal2-input" placeholder="Description">
+                `,
+                focusConfirm: false,
+                preConfirm: () => {
+                    const amount = document.getElementById('amount').value
+                    const description = document.getElementById('description').value
+                    
+                    if (!amount || amount <= 0) {
+                        Swal.showValidationMessage('Please enter a valid amount')
+                        return false
+                    }
+                    if (!description) {
+                        Swal.showValidationMessage('Please enter a description')
+                        return false
+                    }
+                    
+                    return { amount, description }
+                }
+            })
+
+            if (formValues) {
+                try {
+                    const response = await apiService.addTransaction({
+                        user_id: user.value.id,
+                        amount: parseFloat(formValues.amount),
+                        type,
+                        description: formValues.description
+                    })
+                    
+                    if (response.success) {
+                        await loadTransactions()
+                        calculateCurrentSavings()
+                        await loadSavingsGoals() // Reload goals to update progress
+                        Swal.fire('Success!', `${type} added successfully!`, 'success')
+                    }
+                } catch (error) {
+                    Swal.fire('Error', 'Failed to add transaction', 'error')
+                }
+            }
+        }
+
+        const addSavingsGoal = async () => {
+            const { value: formValues } = await Swal.fire({
+                title: 'Add Savings Goal',
+                html: `
+                    <div class="mb-3">Current Savings: ₹${currentSavings.value}</div>
+                    <input id="goalAmount" class="swal2-input" type="number" placeholder="Goal Amount">
+                    <input id="goalLabel" class="swal2-input" placeholder="Goal Description">
+                `,
+                focusConfirm: false,
+                preConfirm: () => {
+                    const amount = document.getElementById('goalAmount').value
+                    const label = document.getElementById('goalLabel').value
+                    
+                    if (!amount || amount <= 0) {
+                        Swal.showValidationMessage('Please enter a valid goal amount')
+                        return false
+                    }
+                    if (!label) {
+                        Swal.showValidationMessage('Please enter a goal description')
+                        return false
+                    }
+                    
+                    return { amount, label }
+                }
+            })
+
+            if (formValues) {
+                try {
+                    const response = await apiService.addSavingsGoal({
+                        user_id: user.value.id,
+                        target_amount: parseFloat(formValues.amount),
+                        label: formValues.label,
+                        current_amount: Math.min(currentSavings.value, parseFloat(formValues.amount))
+                    })
+                    
+                    if (response.success) {
+                        await loadSavingsGoals()
+                        Swal.fire('Success!', 'Savings goal added!', 'success')
+                    }
+                } catch (error) {
+                    Swal.fire('Error', 'Failed to add savings goal', 'error')
+                }
+            }
+        }
+
+        const spendGoalSavings = async (goal) => {
+            await addTransaction('expense', goal.target_amount)
+            goal.spent = true
+            await apiService.updateSavingsGoal({
+                ...goal,
+                spent: true
+            })
+            await loadSavingsGoals() // Reload goals to update progress
+        }
+
 
         // Recent achievements
         const recentAchievements = ref([
@@ -394,6 +681,9 @@ export default {
                     break;    
                 case 'Psychometric Test':
                     startPsychometricTest()
+                    break
+                case 'Finance Tracker':
+                    openFinanceTracker()
                     break
                 default:
                     Swal.fire({
@@ -629,10 +919,28 @@ export default {
 
 
 
-        const formatDate = (date) => {
-            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+        
+        const completedGoals = computed(() => {
+            return savingsGoals.value.filter(goal => 
+                goal.current_amount >= goal.target_amount
+            ).length
+        })
+
+        const calculateGoalProgress = (goal) => {
+            return Math.min(Math.round((goal.current_amount / goal.target_amount) * 100), 100)
         }
 
+        // Update your existing formatDate method to handle both Date objects and strings
+        const formatDate = (date) => {
+            if (typeof date === 'string') {
+                return new Date(date).toLocaleDateString('en-IN', {
+                    day: 'numeric',
+                    month: 'short',
+                    year: 'numeric'
+                })
+            }
+            return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })
+        }
         onMounted(() => {
             checkChildAccess()
         })
@@ -657,7 +965,16 @@ export default {
             startActivity,
             startPomodoroTimer,
             startPsychometricTest,
-            formatDate
+            formatDate,
+            showFinanceTracker,
+            currentSavings,
+            transactions,
+            savingsGoals,
+            addTransaction,
+            addSavingsGoal,
+            completedGoals,
+            calculateGoalProgress,
+            spendGoalSavings
         }
     }
 }
@@ -1129,6 +1446,635 @@ export default {
 .wizard-icon {
     font-size: 2.5rem;
     animation: float 3s ease-in-out infinite;
+}
+.finance-tracker-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.finance-tracker-content {
+    background: white;
+    border-radius: 20px;
+    width: 90%;
+    max-width: 1200px;
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 2rem;
+    position: relative;
+}
+
+.finance-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.close-btn {
+    font-size: 2rem;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #666;
+}
+
+.current-savings-box {
+    background: linear-gradient(135deg, #4CAF50, #45a049);
+    color: white;
+    padding: 2rem;
+    border-radius: 15px;
+    text-align: center;
+    margin-bottom: 2rem;
+}
+
+.savings-amount {
+    font-size: 3rem;
+    font-weight: bold;
+    margin-top: 1rem;
+}
+
+.finance-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+}
+
+.transactions-box, .goals-box {
+    background: #f5f5f5;
+    border-radius: 15px;
+    padding: 1.5rem;
+}
+
+.action-buttons {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.add-income-btn, .add-expense-btn {
+    flex: 1;
+    padding: 1rem;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.add-income-btn {
+    background: #4CAF50;
+    color: white;
+}
+
+.add-expense-btn {
+    background: #ff5252;
+    color: white;
+}
+
+.transaction-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.transaction-item {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 1rem;
+    padding: 1rem;
+    border-radius: 10px;
+    margin-bottom: 0.5rem;
+}
+
+.transaction-item.income {
+    background: rgba(76, 175, 80, 0.1);
+    color: #4CAF50;
+}
+
+.transaction-item.expense {
+    background: rgba(255, 82, 82, 0.1);
+    color: #ff5252;
+}
+
+.goals-list {
+    margin-top: 1.5rem;
+}
+
+.goal-item {
+    background: white;
+    border-radius: 10px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.goal-progress {
+    margin-top: 1rem;
+}
+
+.progress-bar {
+    background: #eee;
+    height: 10px;
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.progress-fill {
+    background: #4CAF50;
+    height: 100%;
+    transition: width 0.3s;
+}
+
+.progress-text {
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+    color: #666;
+}
+
+.goal-complete {
+    margin-top: 0.5rem;
+    color: #4CAF50;
+    font-weight: bold;
+}
+
+@media (max-width: 768px) {
+    .finance-grid {
+        grid-template-columns: 1fr;
+    }
+}
+.current-savings-box {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 20px;
+    padding: 2rem;
+    display: flex;
+    align-items: center;
+    max-width: 400px;
+    margin: 0 auto 2rem;
+    position: relative;
+    overflow: hidden;
+}
+
+.savings-animation {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    top: 0;
+    left: 0;
+    opacity: 0.1;
+}
+
+.money-tree {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.tree-trunk {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    width: 20px;
+    height: 60%;
+    background: #4a5568;
+    transform: translateX(-50%);
+}
+
+.coin {
+    position: absolute;
+    font-size: 24px;
+    color: #ffd700;
+    animation: growCoin 3s infinite;
+}
+
+.coin-1 { left: 30%; bottom: 40%; animation-delay: 0s; }
+.coin-2 { left: 50%; bottom: 60%; animation-delay: 1s; }
+.coin-3 { left: 70%; bottom: 50%; animation-delay: 2s; }
+
+@keyframes growCoin {
+    0% { transform: scale(1) translateY(0); opacity: 0; }
+    50% { transform: scale(1.5) translateY(-20px); opacity: 1; }
+    100% { transform: scale(1) translateY(-40px); opacity: 0; }
+}
+
+.savings-content {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    text-align: center;
+}
+
+.savings-amount {
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: white;
+    margin: 0.5rem 0;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.savings-badges {
+    display: flex;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.badge {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    color: white;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.add-goal-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 15px;
+    font-weight: bold;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s;
+}
+
+.add-goal-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.goals-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+.savings-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2rem;
+    padding: 0 2rem;
+}
+
+.plant-animation {
+    width: 100px;
+    height: 150px;
+    position: relative;
+}
+
+.plant {
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    animation: growPlant 4s ease-in-out infinite;
+}
+
+.stem {
+    width: 4px;
+    height: 60px;
+    background: #4CAF50;
+    margin: 0 auto;
+}
+
+.leaf {
+    width: 20px;
+    height: 30px;
+    background: #81C784;
+    border-radius: 0 50% 50% 0;
+    position: absolute;
+}
+
+.leaf-1 {
+    left: 4px;
+    top: 20px;
+    transform: rotate(45deg);
+}
+
+.leaf-2 {
+    right: 4px;
+    top: 40px;
+    transform: rotate(-45deg);
+}
+
+/* Money Plant Animation */
+.money-plant-animation {
+    width: 120px;
+    height: 180px;
+    position: relative;
+}
+
+.money-plant {
+    position: relative;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.coin-leaves {
+    position: relative;
+    height: 80px;
+    width: 80px;
+}
+
+.coin-leaf {
+    position: absolute;
+    color: #4CAF50;
+    font-size: 24px;
+    font-weight: bold;
+    text-shadow: 0 0 5px rgba(76, 175, 80, 0.3);
+    animation: floatLeaf 3s ease-in-out infinite;
+}
+
+.coin-leaf:nth-child(1) {
+    left: 0;
+    animation-delay: 0s;
+}
+
+.coin-leaf:nth-child(2) {
+    left: 50%;
+    top: 20px;
+    animation-delay: 0.5s;
+}
+
+.coin-leaf:nth-child(3) {
+    right: 0;
+    animation-delay: 1s;
+}
+
+@keyframes floatLeaf {
+    0%, 100% {
+        transform: translateY(0) rotate(0deg);
+    }
+    50% {
+        transform: translateY(-10px) rotate(5deg);
+    }
+}
+
+.plant-stem {
+    width: 8px;
+    height: 100px;
+    background: linear-gradient(to bottom, #4CAF50, #2E7D32);
+    position: relative;
+}
+
+.branch {
+    position: absolute;
+    width: 30px;
+    height: 4px;
+    background: #4CAF50;
+    border-radius: 2px;
+}
+
+.branch-1 {
+    top: 30%;
+    right: 0;
+    transform: rotate(45deg);
+}
+
+.branch-2 {
+    top: 50%;
+    left: 0;
+    transform: rotate(-45deg);
+}
+
+.branch-3 {
+    top: 70%;
+    right: 0;
+    transform: rotate(45deg);
+}
+
+.pot {
+    width: 40px;
+    height: 35px;
+    background: linear-gradient(to bottom, #795548, #5D4037);
+    border-radius: 0 0 20px 20px;
+    position: relative;
+}
+
+/* Treasure Animation */
+.treasure-animation {
+    width: 140px;
+    height: 180px;
+    position: relative;
+}
+
+.treasure-box {
+    position: absolute;
+    bottom: 20px;
+    width: 120px;
+    height: 90px;
+}
+
+.treasure-lid {
+    width: 100%;
+    height: 40px;
+    background: linear-gradient(45deg, #CD853F, #8B4513);
+    border-radius: 10px 10px 0 0;
+    position: relative;
+    transform-origin: bottom;
+    animation: openLid 4s ease-in-out infinite;
+}
+
+.lock {
+    position: absolute;
+    width: 20px;
+    height: 25px;
+    background: #FFD700;
+    border-radius: 5px;
+    left: 50%;
+    bottom: -10px;
+    transform: translateX(-50%);
+}
+
+.treasure-base {
+    width: 100%;
+    height: 60px;
+    background: linear-gradient(45deg, #8B4513, #654321);
+    border-radius: 10px;
+    position: relative;
+    overflow: hidden;
+}
+
+.coin-pile {
+    position: absolute;
+    bottom: 5px;
+    width: 100%;
+    text-align: center;
+}
+
+.floating-coin {
+    display: inline-block;
+    color: #FFD700;
+    font-size: 24px;
+    text-shadow: 0 0 5px rgba(255, 215, 0, 0.5);
+    animation: floatCoin 2s ease-in-out infinite;
+    margin: 0 3px;
+}
+
+.floating-coin:nth-child(2) {
+    animation-delay: 0.3s;
+}
+
+.floating-coin:nth-child(3) {
+    animation-delay: 0.6s;
+}
+
+.sparkles {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+}
+
+.sparkle {
+    position: absolute;
+    font-size: 12px;
+    animation: sparkle 1.5s ease-in-out infinite;
+}
+
+.sparkle:nth-child(1) { left: 20%; top: 20%; animation-delay: 0s; }
+.sparkle:nth-child(2) { left: 50%; top: 40%; animation-delay: 0.5s; }
+.sparkle:nth-child(3) { left: 80%; top: 60%; animation-delay: 1s; }
+
+@keyframes openLid {
+    0%, 100% { transform: rotate(0); }
+    50% { transform: rotate(-30deg); }
+}
+
+@keyframes floatCoin {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-15px); }
+}
+
+@keyframes sparkle {
+    0%, 100% { 
+        transform: scale(1);
+        opacity: 0.5;
+    }
+    50% { 
+        transform: scale(1.2);
+        opacity: 1;
+    }
+}
+
+@keyframes growPlant {
+    0%, 100% { transform: scale(1) translateY(0); }
+    50% { transform: scale(1.2) translateY(-10px); }
+}
+
+.treasure-chest-animation {
+    width: 100px;
+    height: 150px;
+    position: relative;
+}
+
+.chest {
+    position: absolute;
+    bottom: 0;
+    width: 80px;
+    height: 60px;
+    background: #8B4513;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.lid {
+    width: 80px;
+    height: 20px;
+    background: #A0522D;
+    border-radius: 10px 10px 0 0;
+    position: absolute;
+    top: 0;
+    transform-origin: bottom;
+    animation: openChest 4s ease-in-out infinite;
+}
+
+.coins {
+    position: absolute;
+    bottom: 10px;
+    width: 100%;
+    text-align: center;
+}
+
+.coin {
+    display: inline-block;
+    color: #FFD700;
+    font-size: 20px;
+    animation: bounceCoin 2s ease-in-out infinite;
+    margin: 0 2px;
+}
+
+.coin:nth-child(2) { animation-delay: 0.3s; }
+.coin:nth-child(3) { animation-delay: 0.6s; }
+
+@keyframes openChest {
+    0%, 100% { transform: rotate(0); }
+    50% { transform: rotate(-45deg); }
+}
+
+@keyframes bounceCoin {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-15px); }
+}
+
+/* Update your existing current-savings-box style */
+.current-savings-box {
+    flex: 1;
+    margin: 0 2rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 20px;
+    padding: 2rem;
+    text-align: center;
+    color: white;
+}
+
+/* Update your existing spend-btn style */
+.spend-btn {
+    background: linear-gradient(135deg, #00b09b 0%, #96c93d 100%);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.spend-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 176, 155, 0.4);
+}
+
+.spend-btn {
+    background: linear-gradient(135deg, #00b09b 0%, #96c93d 100%);
+    color: white;
+    border: none;
+    padding: 0.5rem 1rem;
+    border-radius: 10px;
+    margin-left: 1rem;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.spend-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0, 176, 155, 0.4);
 }
 
 @keyframes float {

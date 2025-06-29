@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, ChatSession,ChildProfile, ParentChild
+from models import db, User, ChatSession,ChildProfile, ParentChild, SavingGoal, Transaction
 import re
 from config import Config
 from openai import OpenAI
@@ -423,6 +423,95 @@ def chatbot_logic(user_id, user_message):
         'response': bot_reply,
         'timestamp': bot_chat.timestamp.isoformat()
     }
+
+#Finance tracker APIs
+@app.route('/api/finance/transactions/<int:user_id>', methods=['GET'])
+def get_transactions(user_id):
+    try:
+        transactions = Transaction.query.filter_by(user_id=user_id)\
+                                     .order_by(Transaction.date.desc()).all()
+        
+        return jsonify({
+            'success': True,
+            'transactions': [{
+                'id': t.id,
+                'amount': t.amount,
+                'type': t.type,
+                'description': t.description,
+                'date': t.date.isoformat()
+            } for t in transactions]
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/finance/transaction', methods=['POST'])
+def add_transaction():
+    try:
+        data = request.get_json()
+        transaction = Transaction(
+            user_id=data['user_id'],
+            amount=data['amount'],
+            type=data['type'],
+            description=data['description']
+        )
+        db.session.add(transaction)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'transaction': {
+                'id': transaction.id,
+                'amount': transaction.amount,
+                'type': transaction.type,
+                'description': transaction.description,
+                'date': transaction.date.isoformat()
+            }
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/finance/goals/<int:user_id>', methods=['GET'])
+def get_savings_goals(user_id):
+    try:
+        goals = SavingGoal.query.filter_by(user_id=user_id).all()
+        return jsonify({
+            'success': True,
+            'goals': [{
+                'id': g.id,
+                'label': g.label,
+                'target_amount': g.target_amount,
+                'current_amount': g.current_amount
+            } for g in goals]
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/finance/goal', methods=['POST'])
+def add_savings_goal():
+    try:
+        data = request.get_json()
+        goal = SavingGoal(
+            user_id=data['user_id'],
+            label=data['label'],
+            target_amount=data['target_amount'],
+            current_amount=0
+        )
+        db.session.add(goal)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'goal': {
+                'id': goal.id,
+                'label': goal.label,
+                'target_amount': goal.target_amount,
+                'current_amount': goal.current_amount
+            }
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # ---------------------------
 # Error Handlers
