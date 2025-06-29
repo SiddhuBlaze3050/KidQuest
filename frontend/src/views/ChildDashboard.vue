@@ -128,13 +128,6 @@
                             <div class="activity-name">{{ activity.name }}</div>
                         </button>
                     </div>
-                    <!-- Memory Game component rendered conditionally -->
-                    <MemoryGame
-                        v-if="selectedActivity === 'Memory Game'"
-                        @close="selectedActivity = null"
-                    />
-
-                
                 </div>
 
                 <!-- Achievements Showcase -->
@@ -161,7 +154,7 @@
                     <h2>💰 Treasure Chest</h2>
                     <button @click="showFinanceTracker = false" class="close-btn">×</button>
                 </div>
-                
+
                 <div class="savings-container">
                     <!-- Money Plant Animation -->
                     <div class="money-plant-animation">
@@ -217,7 +210,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="finance-grid">
                     <div class="transactions-box">
                         <h3>Manage Treasure</h3>
@@ -229,12 +222,11 @@
                                 <span>➖</span> Add Expense
                             </button>
                         </div>
-                        
+
                         <div class="transaction-history">
                             <h4>Recent Adventures</h4>
                             <div class="transaction-list">
-                                <div v-for="t in transactions" :key="t.id" 
-                                    :class="['transaction-item', t.type]">
+                                <div v-for="t in transactions" :key="t.id" :class="['transaction-item', t.type]">
                                     <div class="transaction-date">{{ formatDate(t.date) }}</div>
                                     <div class="transaction-desc">{{ t.description }}</div>
                                     <div class="transaction-amount">
@@ -244,7 +236,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="goals-box">
                         <div class="goals-header">
                             <h3>Treasure Goals</h3>
@@ -252,13 +244,13 @@
                                 <span>🎯</span> New Goal
                             </button>
                         </div>
-                        
+
                         <div class="goals-list">
                             <div v-for="goal in savingsGoals" :key="goal.id" class="goal-item">
                                 <h4>{{ goal.label }}</h4>
                                 <div class="goal-progress">
                                     <div class="progress-bar">
-                                        <div class="progress-fill" 
+                                        <div class="progress-fill"
                                             :style="{ width: `${calculateGoalProgress(goal)}%` }">
                                         </div>
                                     </div>
@@ -299,7 +291,11 @@
         <!-- Music Player Modal -->
         <MusicPlayer v-if="showMusicPlayer" @close="showMusicPlayer = false" />
 
+        <!-- Pomodoro Timer Modal -->
+        <PomodoroTimer v-if="showPomodoroTimer" @close="showPomodoroTimer = false" />
 
+        <!-- Drawing Pad Modal -->
+        <DrawingPad v-if="showDrawingPad" @close="showDrawingPad = false" />
 
         <!-- Floating Magic Elements -->
         <div class="floating-magic">
@@ -318,6 +314,8 @@ import EnhancedChatBot from '@/components/chat/EnhancedChatBot.vue'
 import Swal from 'sweetalert2'
 import MemoryGame from '@/components/activities/MemoryGame.vue'
 import MusicPlayer from '@/components/activities/MusicPlayer.vue'
+import PomodoroTimer from '@/components/activities/PomodoroTimer.vue'
+import DrawingPad from '@/components/activities/DrawingPad.vue'
 
 
 export default {
@@ -325,11 +323,15 @@ export default {
     components: {
         EnhancedChatBot,
         MemoryGame,
-        MusicPlayer
+        MusicPlayer,
+        PomodoroTimer,
+        DrawingPad
     },
     setup() {
         const showMemoryGame = ref(false)
         const showMusicPlayer = ref(false)
+        const showPomodoroTimer = ref(false)
+        const showDrawingPad = ref(false)
         const user = ref(null)
         const selectedActivity = ref(null)
         const showChat = ref(false)
@@ -443,7 +445,6 @@ export default {
             { id: 3, name: "Drawing Pad", icon: "🖌️" },
             { id: 4, name: "Music Player", icon: "🎵" },
             { id: 5, name: "Story Builder", icon: "📝" },
-            { id: 6, name: "Quiz Time", icon: "❓" },
             { id: 7, name: "Psychometric Test", icon: "🧩" },
             { id: 8, name: "Finance Tracker", icon: "💰" }
         ])
@@ -471,17 +472,17 @@ export default {
                 const response = await apiService.getSavingsGoals(user.value.id)
                 if (response.success) {
                     // Sort goals by creation date (assuming older goals get priority)
-                    const sortedGoals = [...response.goals].sort((a, b) => 
+                    const sortedGoals = [...response.goals].sort((a, b) =>
                         new Date(a.created_at) - new Date(b.created_at)
                     )
-                    
+
                     let remainingSavings = currentSavings.value
 
                     // Update each goal's current amount based on available savings
                     savingsGoals.value = sortedGoals.map(goal => {
                         const currentAmount = Math.min(remainingSavings, goal.target_amount)
                         remainingSavings = Math.max(0, remainingSavings - currentAmount)
-                        
+
                         return {
                             ...goal,
                             current_amount: currentAmount
@@ -511,7 +512,7 @@ export default {
                 preConfirm: () => {
                     const amount = document.getElementById('amount').value
                     const description = document.getElementById('description').value
-                    
+
                     if (!amount || amount <= 0) {
                         Swal.showValidationMessage('Please enter a valid amount')
                         return false
@@ -520,7 +521,7 @@ export default {
                         Swal.showValidationMessage('Please enter a description')
                         return false
                     }
-                    
+
                     return { amount, description }
                 }
             })
@@ -533,7 +534,7 @@ export default {
                         type,
                         description: formValues.description
                     })
-                    
+
                     if (response.success) {
                         await loadTransactions()
                         calculateCurrentSavings()
@@ -558,7 +559,7 @@ export default {
                 preConfirm: () => {
                     const amount = document.getElementById('goalAmount').value
                     const label = document.getElementById('goalLabel').value
-                    
+
                     if (!amount || amount <= 0) {
                         Swal.showValidationMessage('Please enter a valid goal amount')
                         return false
@@ -567,7 +568,7 @@ export default {
                         Swal.showValidationMessage('Please enter a goal description')
                         return false
                     }
-                    
+
                     return { amount, label }
                 }
             })
@@ -580,7 +581,7 @@ export default {
                         label: formValues.label,
                         current_amount: Math.min(currentSavings.value, parseFloat(formValues.amount))
                     })
-                    
+
                     if (response.success) {
                         await loadSavingsGoals()
                         Swal.fire('Success!', 'Savings goal added!', 'success')
@@ -671,14 +672,17 @@ export default {
 
             switch (activity.name) {
                 case 'Pomodoro Timer':
-                    startPomodoroTimer()
+                    showPomodoroTimer.value = true
                     break
                 case 'Memory Game':
-                    startMemoryGame()
-                    break    
+                    showMemoryGame.value = true
+                    break
+                case 'Drawing Pad':
+                    showDrawingPad.value = true
+                    break
                 case 'Music Player':
                     showMusicPlayer.value = true;
-                    break;    
+                    break;
                 case 'Psychometric Test':
                     startPsychometricTest()
                     break
@@ -698,181 +702,13 @@ export default {
             }
         }
 
-        const startPomodoroTimer = () => {
-            Swal.fire({
-                title: '🍅 Pomodoro Timer',
-                html: `
-                    <div style="text-align: center; padding: 20px;">
-                        <div style="font-size: 3rem; margin: 20px 0;" id="timer-display">25:00</div>
-                        <div style="margin: 20px 0;">
-                            <button id="start-timer" style="background: #4CAF50; color: white; border: none; padding: 10px 20px; margin: 5px; border-radius: 5px; cursor: pointer;">Start</button>
-                            <button id="pause-timer" style="background: #FF9800; color: white; border: none; padding: 10px 20px; margin: 5px; border-radius: 5px; cursor: pointer;">Pause</button>
-                            <button id="reset-timer" style="background: #F44336; color: white; border: none; padding: 10px 20px; margin: 5px; border-radius: 5px; cursor: pointer;">Reset</button>
-                        </div>
-                        <p style="font-size: 0.9rem; color: #666;">Work for 25 minutes, then take a 5-minute break!</p>
-                    </div>
-                `,
-                showConfirmButton: false,
-                showCloseButton: true,
-                allowOutsideClick: false,
-                width: 400,
-                didOpen: () => {
-                    let minutes = 25
-                    let seconds = 0
-                    let isRunning = false
-                    let interval
-
-                    const display = document.getElementById('timer-display')
-                    const startBtn = document.getElementById('start-timer')
-                    const pauseBtn = document.getElementById('pause-timer')
-                    const resetBtn = document.getElementById('reset-timer')
-
-                    const updateDisplay = () => {
-                        display.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-                    }
-
-                    const startTimer = () => {
-                        if (!isRunning) {
-                            isRunning = true
-                            interval = setInterval(() => {
-                                if (seconds === 0) {
-                                    if (minutes === 0) {
-                                        clearInterval(interval)
-                                        isRunning = false
-                                        Swal.fire({
-                                            icon: 'success',
-                                            title: 'Time\'s Up! 🎉',
-                                            text: 'Great job! Time for a break!',
-                                            timer: 3000,
-                                            showConfirmButton: false
-                                        })
-                                        return
-                                    }
-                                    minutes--
-                                    seconds = 59
-                                } else {
-                                    seconds--
-                                }
-                                updateDisplay()
-                            }, 1000)
-                        }
-                    }
-
-                    const pauseTimer = () => {
-                        if (isRunning) {
-                            clearInterval(interval)
-                            isRunning = false
-                        }
-                    }
-
-                    const resetTimer = () => {
-                        clearInterval(interval)
-                        isRunning = false
-                        minutes = 25
-                        seconds = 0
-                        updateDisplay()
-                    }
-
-                    startBtn.addEventListener('click', startTimer)
-                    pauseBtn.addEventListener('click', pauseTimer)
-                    resetBtn.addEventListener('click', resetTimer)
-                }
-            })
-        }
-
-        const startMemoryGame = () => {
-            console.log('Starting Memory Game')
-
-            Swal.fire({
-                title: '🧠 Memory Game',
-                html: `
-                <style>
-                    .memory-grid {
-                    display: grid;
-                    grid-template-columns: repeat(4, 60px);
-                    grid-gap: 10px;
-                    justify-content: center;
-                    margin-top: 15px;
-                    }
-                    .memory-card {
-                    width: 60px;
-                    height: 60px;
-                    font-size: 24px;
-                    background-color: #ffffff;
-                    border-radius: 8px;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    cursor: pointer;
-                    user-select: none;
-                    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-                    }
-                    .flipped {
-                    background-color: #a0e3f0;
-                    }
-                    .matched {
-                    background-color: #a0f0c8;
-                    pointer-events: none;
-                    }
-                </style>
-                <div class="memory-grid" id="memory-grid"></div>
-                `,
-                showCloseButton: true,
-                showConfirmButton: false,
-                didOpen: () => {
-                const emojis = ['🐶','🐱','🐭','🐹','🦊','🐻','🐼','🐸']
-                let cards = [...emojis, ...emojis] // duplicate for matching
-                cards = cards.sort(() => Math.random() - 0.5)
-
-                const grid = document.getElementById('memory-grid')
-                const flipped = []
-                const matchedPairs = new Set()
-
-                cards.forEach((emoji, index) => {
-                    const card = document.createElement('div')
-                    card.classList.add('memory-card')
-                    card.dataset.emoji = emoji
-                    card.dataset.index = index
-                    card.textContent = '❓'
-
-                    card.addEventListener('click', () => {
-                    if (flipped.length === 2 || card.classList.contains('flipped') || matchedPairs.has(index)) return
-
-                    card.classList.add('flipped')
-                    card.textContent = emoji
-                    flipped.push({ index, card, emoji })
-
-                    if (flipped.length === 2) {
-                        const [first, second] = flipped
-                        if (first.emoji === second.emoji) {
-                        first.card.classList.add('matched')
-                        second.card.classList.add('matched')
-                        matchedPairs.add(first.index)
-                        matchedPairs.add(second.index)
-                        } else {
-                        setTimeout(() => {
-                            first.card.classList.remove('flipped')
-                            second.card.classList.remove('flipped')
-                            first.card.textContent = '❓'
-                            second.card.textContent = '❓'
-                        }, 700)
-                        }
-                        flipped.length = 0
-                    }
-                    })
-
-                    grid.appendChild(card)
-                })
-                }
-            })
-            }
         function openMusicPlayer() {
-        console.log('Starting activity: Music Player')
-        showMusicPlayer.value = true
+            console.log('Starting activity: Music Player')
+            showMusicPlayer.value = true
         }
 
         function closeMusicPlayer() {
-        showMusicPlayer.value = false
+            showMusicPlayer.value = false
         }
 
         const startPsychometricTest = () => {
@@ -919,9 +755,9 @@ export default {
 
 
 
-        
+
         const completedGoals = computed(() => {
-            return savingsGoals.value.filter(goal => 
+            return savingsGoals.value.filter(goal =>
                 goal.current_amount >= goal.target_amount
             ).length
         })
@@ -957,13 +793,14 @@ export default {
             selectedActivity,
             showMemoryGame,
             showMusicPlayer,
+            showPomodoroTimer,
+            showDrawingPad,
             recentAchievements,
-            
+
             logout,
             toggleQuest,
             openSkillArea,
             startActivity,
-            startPomodoroTimer,
             startPsychometricTest,
             formatDate,
             showFinanceTracker,
@@ -1447,6 +1284,7 @@ export default {
     font-size: 2.5rem;
     animation: float 3s ease-in-out infinite;
 }
+
 .finance-tracker-modal {
     position: fixed;
     top: 0;
@@ -1461,7 +1299,10 @@ export default {
 }
 
 .finance-tracker-content {
-    background: white;
+    background: rgba(46, 38, 70, 0.85);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
     border-radius: 20px;
     width: 90%;
     max-width: 1200px;
@@ -1478,12 +1319,22 @@ export default {
     margin-bottom: 2rem;
 }
 
+.finance-header h2 {
+    color: white;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
 .close-btn {
     font-size: 2rem;
     background: none;
     border: none;
     cursor: pointer;
-    color: #666;
+    color: rgba(255, 255, 255, 0.7);
+    transition: color 0.3s;
+}
+
+.close-btn:hover {
+    color: white;
 }
 
 .current-savings-box {
@@ -1507,10 +1358,19 @@ export default {
     gap: 2rem;
 }
 
-.transactions-box, .goals-box {
-    background: #f5f5f5;
+.transactions-box,
+.goals-box {
+    background: rgba(0, 0, 0, 0.2);
     border-radius: 15px;
     padding: 1.5rem;
+}
+
+.transactions-box h3,
+.goals-box h3,
+.transactions-box h4 {
+    color: white;
+    opacity: 0.9;
+    margin-bottom: 1rem;
 }
 
 .action-buttons {
@@ -1519,7 +1379,8 @@ export default {
     margin-bottom: 1.5rem;
 }
 
-.add-income-btn, .add-expense-btn {
+.add-income-btn,
+.add-expense-btn {
     flex: 1;
     padding: 1rem;
     border: none;
@@ -1530,6 +1391,7 @@ export default {
     align-items: center;
     justify-content: center;
     gap: 0.5rem;
+    transition: all 0.3s;
 }
 
 .add-income-btn {
@@ -1537,9 +1399,19 @@ export default {
     color: white;
 }
 
+.add-income-btn:hover {
+    box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+    transform: translateY(-2px);
+}
+
 .add-expense-btn {
     background: #ff5252;
     color: white;
+}
+
+.add-expense-btn:hover {
+    box-shadow: 0 5px 15px rgba(255, 82, 82, 0.4);
+    transform: translateY(-2px);
 }
 
 .transaction-list {
@@ -1554,16 +1426,27 @@ export default {
     padding: 1rem;
     border-radius: 10px;
     margin-bottom: 0.5rem;
+    border-left: 3px solid transparent;
 }
 
 .transaction-item.income {
-    background: rgba(76, 175, 80, 0.1);
-    color: #4CAF50;
+    background: rgba(76, 175, 80, 0.2);
+    color: #a5d6a7;
+    border-left-color: #4CAF50;
 }
 
 .transaction-item.expense {
-    background: rgba(255, 82, 82, 0.1);
-    color: #ff5252;
+    background: rgba(255, 82, 82, 0.2);
+    color: #ef9a9a;
+    border-left-color: #ff5252;
+}
+
+.transaction-date {
+    opacity: 0.8;
+}
+
+.transaction-desc {
+    font-weight: bold;
 }
 
 .goals-list {
@@ -1571,10 +1454,15 @@ export default {
 }
 
 .goal-item {
-    background: white;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 10px;
     padding: 1rem;
     margin-bottom: 1rem;
+}
+
+.goal-item h4 {
+    color: white;
 }
 
 .goal-progress {
@@ -1582,7 +1470,7 @@ export default {
 }
 
 .progress-bar {
-    background: #eee;
+    background: rgba(255, 255, 255, 0.2);
     height: 10px;
     border-radius: 5px;
     overflow: hidden;
@@ -1597,12 +1485,17 @@ export default {
 .progress-text {
     margin-top: 0.5rem;
     font-size: 0.9rem;
-    color: #666;
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.progress-text .progress-percentage {
+    opacity: 0.7;
 }
 
 .goal-complete {
     margin-top: 0.5rem;
-    color: #4CAF50;
+    color: #81C784;
+    /* Brighter green */
     font-weight: bold;
 }
 
@@ -1611,6 +1504,7 @@ export default {
         grid-template-columns: 1fr;
     }
 }
+
 .current-savings-box {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border-radius: 20px;
@@ -1655,14 +1549,39 @@ export default {
     animation: growCoin 3s infinite;
 }
 
-.coin-1 { left: 30%; bottom: 40%; animation-delay: 0s; }
-.coin-2 { left: 50%; bottom: 60%; animation-delay: 1s; }
-.coin-3 { left: 70%; bottom: 50%; animation-delay: 2s; }
+.coin-1 {
+    left: 30%;
+    bottom: 40%;
+    animation-delay: 0s;
+}
+
+.coin-2 {
+    left: 50%;
+    bottom: 60%;
+    animation-delay: 1s;
+}
+
+.coin-3 {
+    left: 70%;
+    bottom: 50%;
+    animation-delay: 2s;
+}
 
 @keyframes growCoin {
-    0% { transform: scale(1) translateY(0); opacity: 0; }
-    50% { transform: scale(1.5) translateY(-20px); opacity: 1; }
-    100% { transform: scale(1) translateY(-40px); opacity: 0; }
+    0% {
+        transform: scale(1) translateY(0);
+        opacity: 0;
+    }
+
+    50% {
+        transform: scale(1.5) translateY(-20px);
+        opacity: 1;
+    }
+
+    100% {
+        transform: scale(1) translateY(-40px);
+        opacity: 0;
+    }
 }
 
 .savings-content {
@@ -1820,9 +1739,12 @@ export default {
 }
 
 @keyframes floatLeaf {
-    0%, 100% {
+
+    0%,
+    100% {
         transform: translateY(0) rotate(0deg);
     }
+
     50% {
         transform: translateY(-10px) rotate(5deg);
     }
@@ -1949,34 +1871,72 @@ export default {
     animation: sparkle 1.5s ease-in-out infinite;
 }
 
-.sparkle:nth-child(1) { left: 20%; top: 20%; animation-delay: 0s; }
-.sparkle:nth-child(2) { left: 50%; top: 40%; animation-delay: 0.5s; }
-.sparkle:nth-child(3) { left: 80%; top: 60%; animation-delay: 1s; }
+.sparkle:nth-child(1) {
+    left: 20%;
+    top: 20%;
+    animation-delay: 0s;
+}
+
+.sparkle:nth-child(2) {
+    left: 50%;
+    top: 40%;
+    animation-delay: 0.5s;
+}
+
+.sparkle:nth-child(3) {
+    left: 80%;
+    top: 60%;
+    animation-delay: 1s;
+}
 
 @keyframes openLid {
-    0%, 100% { transform: rotate(0); }
-    50% { transform: rotate(-30deg); }
+
+    0%,
+    100% {
+        transform: rotate(0);
+    }
+
+    50% {
+        transform: rotate(-30deg);
+    }
 }
 
 @keyframes floatCoin {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-15px); }
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-15px);
+    }
 }
 
 @keyframes sparkle {
-    0%, 100% { 
+
+    0%,
+    100% {
         transform: scale(1);
         opacity: 0.5;
     }
-    50% { 
+
+    50% {
         transform: scale(1.2);
         opacity: 1;
     }
 }
 
 @keyframes growPlant {
-    0%, 100% { transform: scale(1) translateY(0); }
-    50% { transform: scale(1.2) translateY(-10px); }
+
+    0%,
+    100% {
+        transform: scale(1) translateY(0);
+    }
+
+    50% {
+        transform: scale(1.2) translateY(-10px);
+    }
 }
 
 .treasure-chest-animation {
@@ -2021,17 +1981,36 @@ export default {
     margin: 0 2px;
 }
 
-.coin:nth-child(2) { animation-delay: 0.3s; }
-.coin:nth-child(3) { animation-delay: 0.6s; }
+.coin:nth-child(2) {
+    animation-delay: 0.3s;
+}
+
+.coin:nth-child(3) {
+    animation-delay: 0.6s;
+}
 
 @keyframes openChest {
-    0%, 100% { transform: rotate(0); }
-    50% { transform: rotate(-45deg); }
+
+    0%,
+    100% {
+        transform: rotate(0);
+    }
+
+    50% {
+        transform: rotate(-45deg);
+    }
 }
 
 @keyframes bounceCoin {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-15px); }
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-15px);
+    }
 }
 
 /* Update your existing current-savings-box style */
@@ -2205,41 +2184,42 @@ export default {
         text-align: center;
     }
 }
+
 .dashboard {
-  padding: 2rem;
+    padding: 2rem;
 }
 
 
 .fun-activities {
-  margin-top: 2rem;
+    margin-top: 2rem;
 }
 
 .activities-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
 }
 
 .activity-card {
-  width: 200px;
-  height: 150px;
-  background: white;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: transform 0.2s;
+    width: 200px;
+    height: 150px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s;
 }
 
 .activity-card:hover {
-  transform: scale(1.05);
+    transform: scale(1.05);
 }
 
 .activity-card .icon {
-  font-size: 2.5rem;
-  margin-bottom: 0.5rem;
+    font-size: 2.5rem;
+    margin-bottom: 0.5rem;
 }
 </style>

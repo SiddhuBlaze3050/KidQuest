@@ -62,7 +62,7 @@ db.sqlite3
 db.sqlite3-journal
 
 # Flask stuff:
-instance/
+
 .webassets-cache
 
 # Scrapy stuff:
@@ -244,12 +244,6 @@ $RECYCLE.BIN/
 # .nfs files are created when an open file is removed but is still being accessed
 .nfs*
 
-# Project-specific files
-# Database files
-*.db
-*.sqlite
-*.sqlite3
-instance/
 
 # Environment variables
 .env
