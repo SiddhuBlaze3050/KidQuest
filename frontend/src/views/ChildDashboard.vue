@@ -128,6 +128,13 @@
                             <div class="activity-name">{{ activity.name }}</div>
                         </button>
                     </div>
+                    <!-- Memory Game component rendered conditionally -->
+                    <MemoryGame
+                        v-if="selectedActivity === 'Memory Game'"
+                        @close="selectedActivity = null"
+                    />
+
+                
                 </div>
 
                 <!-- Achievements Showcase -->
@@ -314,8 +321,6 @@ import EnhancedChatBot from '@/components/chat/EnhancedChatBot.vue'
 import Swal from 'sweetalert2'
 import MemoryGame from '@/components/activities/MemoryGame.vue'
 import MusicPlayer from '@/components/activities/MusicPlayer.vue'
-import PomodoroTimer from '@/components/activities/PomodoroTimer.vue'
-import DrawingPad from '@/components/activities/DrawingPad.vue'
 
 
 export default {
@@ -323,9 +328,7 @@ export default {
     components: {
         EnhancedChatBot,
         MemoryGame,
-        MusicPlayer,
-        PomodoroTimer,
-        DrawingPad
+        MusicPlayer
     },
     setup() {
         const showMemoryGame = ref(false)
@@ -682,7 +685,7 @@ export default {
                     break
                 case 'Music Player':
                     showMusicPlayer.value = true;
-                    break;
+                    break;    
                 case 'Psychometric Test':
                     startPsychometricTest()
                     break
