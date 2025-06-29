@@ -650,6 +650,7 @@ export default {
             showMemoryGame,
             showMusicPlayer,
             recentAchievements,
+            
             logout,
             toggleQuest,
             openSkillArea,
