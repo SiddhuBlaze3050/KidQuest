@@ -92,6 +92,52 @@ export const apiService = {
     }
   },
 
+  // Finance Tracker
+  async getTransactions(userId) {
+    try {
+        const response = await api.get(`/api/finance/transactions/${userId}`)
+        return response.data
+    } catch (error) {
+        throw error
+    }
+  },
+
+  async addTransaction(payload) {
+    try {
+        const response = await api.post('/api/finance/transaction', payload)
+        return response.data
+    } catch (error) {
+        throw error
+    }
+  },
+
+  async getSavingsGoals(userId) {
+    try {
+        const response = await api.get(`/api/finance/goals/${userId}`)
+        return response.data
+    } catch (error) {
+        throw error
+    }
+  },
+
+  async addSavingsGoal(payload) {
+    try {
+        const response = await api.post('/api/finance/goal', payload)
+        return response.data
+    } catch (error) {
+        throw error
+    }
+  },
+
+  async updateSavingsGoal(payload) {
+    try {
+        const response = await api.put(`/api/finance/goal/${payload.id}`, payload)
+        return response.data
+    } catch (error) {
+        throw error
+    }
+  },
+
   // Chat
   async sendMessage(message, userId = 1) {
     try {
