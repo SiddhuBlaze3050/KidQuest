@@ -5,6 +5,7 @@ import ChildDashboard from '../views/ChildDashboard.vue'
 import { userUtils } from '@/services/api'
 import ParentDashboard from '../views/ParentDashboard.vue'
 
+
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -67,6 +68,8 @@ const router = createRouter({
       path: '/:pathMatch(.*)*',
       redirect: '/',
     },
+    
+
   ],
 })
 
