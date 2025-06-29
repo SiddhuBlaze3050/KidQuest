@@ -132,9 +132,14 @@
                     <MemoryGame
                         v-if="selectedActivity === 'Memory Game'"
                         @close="selectedActivity = null"
-                    />
+                    />                                
 
-                
+                    <!-- Story Builder component rendered conditionally -->
+                    <StoryBuilder
+                        v-if="selectedActivity === 'Story Builder'"
+                        @close="selectedActivity = null"
+                        />
+
                 </div>
 
                 <!-- Achievements Showcase -->
@@ -318,6 +323,8 @@ import EnhancedChatBot from '@/components/chat/EnhancedChatBot.vue'
 import Swal from 'sweetalert2'
 import MemoryGame from '@/components/activities/MemoryGame.vue'
 import MusicPlayer from '@/components/activities/MusicPlayer.vue'
+import StoryBuilder from '@/components/activities/StoryBuilder.vue'
+
 
 
 export default {
@@ -325,7 +332,9 @@ export default {
     components: {
         EnhancedChatBot,
         MemoryGame,
-        MusicPlayer
+        MusicPlayer,
+        StoryBuilder
+
     },
     setup() {
         const showMemoryGame = ref(false)
@@ -678,7 +687,10 @@ export default {
                     break    
                 case 'Music Player':
                     showMusicPlayer.value = true;
-                    break;    
+                    break;   
+                case 'Story Builder':
+                    selectedActivity.value = 'Story Builder'
+                    break     
                 case 'Psychometric Test':
                     startPsychometricTest()
                     break
