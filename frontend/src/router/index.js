@@ -4,6 +4,7 @@ import AdminDashboard from '../views/AdminDashboard.vue'
 import ChildDashboard from '../views/ChildDashboard.vue'
 import { userUtils } from '@/services/api'
 import ParentDashboard from '../views/ParentDashboard.vue'
+import PyschometricAssessment from '../views/PyschometricAssessment.vue'
 
 
 const router = createRouter({
@@ -62,6 +63,11 @@ const router = createRouter({
           }
         }
       },
+    },
+    {
+      path: '/psychomtric-assessment',
+      name: 'psychomtric-assessment',
+      component: PyschometricAssessment,
     },
     // Redirect any unknown routes to home
     {

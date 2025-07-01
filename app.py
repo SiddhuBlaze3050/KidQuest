@@ -5,9 +5,16 @@ from models import db, User, ChatSession,ChildProfile, ParentChild, SavingGoal, 
 import re
 from config import Config
 from openai import OpenAI
+import secrets
+import time
+import traceback
+
+# Import our psychometry module
+from psychometry import PsychometryService
 
 app = Flask(__name__)
 app.config.from_object(Config)
+app.secret_key = secrets.token_hex(16)
 
 # Configure CORS for Vue.js frontend
 CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"])
@@ -514,9 +521,157 @@ def add_savings_goal():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ---------------------------
-# Error Handlers
+# Psychometric test routes
 # ---------------------------
 
+
+# Configuration - Move these to environment variables in production
+OPENROUTER_API_KEY = app.config['OPENROUTER_API_KEY']
+OPENROUTER_API_URL = app.config['OPENROUTER_API_URL']
+
+# Initialize Psychometry Service
+psychometry_service = PsychometryService(OPENROUTER_API_KEY, OPENROUTER_API_URL)
+
+# Psychometry Assessment Routes
+@app.route('/api/psychometry/start', methods=['POST'])
+def start_psychometry_test():
+    """Initialize a new psychometry assessment test session"""
+    try:
+        # Initialize assessment
+        test_questions = psychometry_service.initialize_assessment()
+        
+        # Store in session
+        session['psychometry_questions'] = test_questions
+        session['psychometry_current_index'] = 0
+        session['psychometry_responses'] = []
+        session['psychometry_start_time'] = time.time()
+        session.permanent = True
+        
+        print(f"Starting new psychometry assessment with {len(test_questions)} questions...")
+        
+        # Return first question
+        return get_next_psychometry_question()
+        
+    except Exception as e:
+        print(f"Error in start_psychometry_test: {e}")
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to start psychometry test', 'message': str(e)}), 500
+
+@app.route('/api/psychometry/submit', methods=['POST'])
+def submit_psychometry_answer():
+    """Submit an answer for psychometry assessment"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No data received'}), 400
+            
+        user_answer = data.get('answer')
+        if not user_answer:
+            return jsonify({'error': 'No answer provided'}), 400
+        
+        # Get current question
+        current_index = session.get('psychometry_current_index', 0)
+        questions = session.get('psychometry_questions', [])
+        
+        if current_index >= len(questions):
+            return jsonify({'error': 'Invalid question index'}), 400
+            
+        current_question = questions[current_index]
+        
+        # Process answer through psychometry service
+        psychometry_service.process_answer(current_question, user_answer)
+        
+        # Record response in session
+        session['psychometry_responses'].append({
+            'question': current_question['question'],
+            'user_answer': user_answer,
+            'correct_answer': current_question['correct_answer'],
+            'category': current_question['category'],
+            'is_correct': user_answer == current_question['correct_answer']
+        })
+        
+        # Update session
+        session['psychometry_current_index'] = current_index + 1
+        
+        print(f"Answer submitted for {current_question['category']}: {user_answer} vs {current_question['correct_answer']}")
+        
+        # Check if test is complete
+        if session['psychometry_current_index'] >= len(questions):
+            return complete_psychometry_assessment()
+        
+        # Get next question
+        return get_next_psychometry_question()
+        
+    except Exception as e:
+        print(f"Error in submit_psychometry_answer: {e}")
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to submit answer', 'message': str(e)}), 500
+
+def get_next_psychometry_question():
+    """Get the next question in the psychometry assessment"""
+    try:
+        current_index = session.get('psychometry_current_index', 0)
+        questions = session.get('psychometry_questions', [])
+        
+        if current_index >= len(questions):
+            return complete_psychometry_assessment()
+        
+        current_question = questions[current_index]
+        
+        return jsonify({
+            'question': current_question['question'],
+            'options': current_question['options'],
+            'correct_answer': current_question['correct_answer'],
+            'category': current_question['category'],
+            'question_number': current_index + 1,
+            'total_questions': len(questions),
+            'progress': round((current_index / len(questions)) * 100, 1)
+        })
+        
+    except Exception as e:
+        print(f"Error in get_next_psychometry_question: {e}")
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to get next question', 'message': str(e)}), 500
+
+
+def complete_psychometry_assessment():
+    """Complete the psychometry assessment and generate results"""
+    try:
+        # Get results from psychometry service
+        assessment_results = psychometry_service.get_results()
+        
+        # Calculate additional metrics
+        responses = session.get('psychometry_responses', [])
+        total_questions = len(responses)
+        total_correct = sum(1 for response in responses if response['is_correct'])
+        accuracy = (total_correct / total_questions * 100) if total_questions > 0 else 0
+        
+        start_time = session.get('psychometry_start_time', time.time())
+        test_duration = round(time.time() - start_time, 1)
+
+        # Optionally clear session data (uncomment if you want to reset after completion)
+        # session.pop('psychometry_questions', None)
+        # session.pop('psychometry_current_index', None)
+        # session.pop('psychometry_responses', None)
+        # session.pop('psychometry_start_time', None)
+
+        return jsonify({
+            'results': assessment_results,
+            'responses': responses,
+            'total_questions': total_questions,
+            'total_correct': total_correct,
+            'accuracy': round(accuracy, 1),
+            'duration_seconds': test_duration
+        })
+    except Exception as e:
+        print(f"Error in complete_psychometry_assessment: {e}")
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to complete assessment', 'message': str(e)}), 500
+
+
+# ---------------------------
+# Error Handlers
+# ---------------------------
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({'error': 'Not found'}), 404
