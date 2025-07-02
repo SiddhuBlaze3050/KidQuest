@@ -330,7 +330,6 @@ export default {
     },
     setup() {
         const router = useRouter()
-        const showMemoryGame = ref(false)
         const showMusicPlayer = ref(false)
         const showPomodoroTimer = ref(false)
         const showDrawingPad = ref(false)
@@ -720,7 +719,7 @@ export default {
                     showPomodoroTimer.value = true
                     break
                 case 'Memory Game':
-                    showMemoryGame.value = true
+                    selectedActivity.value = 'Memory Game'
                     break
                 case 'Drawing Pad':
                     showDrawingPad.value = true
@@ -831,7 +830,6 @@ export default {
             skillAreas,
             funActivities,
             selectedActivity,
-            showMemoryGame,
             showMusicPlayer,
             showPomodoroTimer,
             showDrawingPad,
