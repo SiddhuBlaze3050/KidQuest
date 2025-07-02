@@ -1,8 +1,8 @@
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, ChatSession,ChildProfile, ParentChild, SavingGoal, Transaction, HomeworkSchedule, PomodoroSession, ScreenTime, Notification
-import re
+from models import db, User, ChatSession,ChildProfile, ParentChild, SavingGoal, Transaction, HomeworkSchedule, PomodoroSession, Notification, ScreenTime, HealthTask, HealthStreak, WaterLog
+import re, requests
 from config import Config
 from openai import OpenAI
 import secrets
@@ -287,6 +287,10 @@ def api_user_profile(user_id):
             'error': str(e)
         }), 500
 
+# ---------------------------
+# Health Tab
+# ---------------------------
+
 @app.route('/api/health', methods=['GET'])
 def api_health():
     """API health check endpoint"""
@@ -295,6 +299,119 @@ def api_health():
         'message': 'API is running',
         'status': 'healthy'
     }), 200
+
+@app.route('/api/health/tasks/<int:user_id>', methods=['GET'])
+def get_health_tasks(user_id):
+    today = date.today()
+    tasks = HealthTask.query.filter_by(user_id=user_id, date=today).all()
+
+    if not tasks:
+        # Default tasks if none exist for today
+        default_tasks = ['Running', 'Yoga', 'Meditation', 'Helping in household chores']
+        for name in default_tasks:
+            db.session.add(HealthTask(user_id=user_id, task_name=name, date=today))
+        db.session.commit()
+        tasks = HealthTask.query.filter_by(user_id=user_id, date=today).all()
+
+    return jsonify({
+        'success': True,
+        'tasks': [
+            {'id': t.id, 'name': t.task_name, 'completed': t.completed} for t in tasks
+        ]
+    }), 200
+
+@app.route('/api/health/tasks/<int:task_id>/toggle', methods=['POST'])
+def toggle_task_completion(task_id):
+    task = HealthTask.query.get(task_id)
+    if not task:
+        return jsonify({'success': False, 'error': 'Task not found'}), 404
+
+    task.completed = not task.completed
+    db.session.commit()
+
+    # Automatically evaluate streak after toggling
+    evaluate_streak_internal(task.user_id)
+
+    return jsonify({'success': True, 'completed': task.completed}), 200
+
+
+@app.route('/api/health/streak/<int:user_id>', methods=['GET'])
+def get_streak(user_id):
+    streak = HealthStreak.query.filter_by(user_id=user_id).first()
+    return jsonify({
+        'success': True,
+        'streak': streak.current_streak if streak else 0
+    }), 200
+
+
+@app.route('/api/health/water/<int:user_id>', methods=['POST'])
+def increment_water(user_id):
+    today = date.today()
+    log = WaterLog.query.filter_by(user_id=user_id, date=today).first()
+
+    if not log:
+        log = WaterLog(user_id=user_id, count=1, date=today)
+        db.session.add(log)
+    else:
+        log.count += 1
+
+    db.session.commit()
+    return jsonify({'success': True, 'count': log.count}), 200
+
+@app.route('/api/health/water/<int:user_id>', methods=['GET'])
+def get_today_water_count(user_id):
+    today = date.today()
+    entry = WaterLog.query.filter_by(user_id=user_id, date=today).first()
+    count = entry.count if entry else 0
+    return jsonify({'success': True, 'count': count}), 200
+
+@app.route('/api/health/water/log/<int:user_id>', methods=['GET'])
+def get_water_log(user_id):
+    logs = WaterLog.query.filter_by(user_id=user_id).order_by(WaterLog.date.desc()).limit(7).all()
+    log_data = [
+        {
+            'date': log.date.strftime('%a'),  # "Mon", "Tue", etc.
+            'count': log.count
+        } for log in reversed(logs)
+    ]
+    return jsonify({'success': True, 'log': log_data}), 200
+
+def evaluate_streak_internal(user_id):  # Internal Function to Evaluate Streak
+
+    today = date.today()
+    completed_count = HealthTask.query.filter_by(user_id=user_id, date=today, completed=True).count()
+
+    if completed_count >= 2:
+        streak = HealthStreak.query.filter_by(user_id=user_id).first()
+
+        if not streak:
+            streak = HealthStreak(user_id=user_id, current_streak=1, last_updated=today)
+            db.session.add(streak)
+        elif streak.last_updated != today:
+            streak.current_streak += 1
+            streak.last_updated = today
+
+        db.session.commit()
+
+# -----------------------
+# Motivational Quotes
+# -----------------------        
+
+@app.route('/api/quote/<int:user_id>', methods=['GET'])
+def get_motivational_quote(user_id):
+    try:
+        response = requests.get('https://zenquotes.io/api/today')
+        if response.status_code == 200:
+            quote_data = response.json()[0]
+            quote = f"{quote_data['q']} — {quote_data['a']}"
+            return jsonify({'success': True, 'quote': quote}), 200
+        else:
+            raise Exception("API call failed")
+    except Exception as e:
+        print("Error fetching quote:", e)
+        fallback_quote = "Believe in yourself and magic will happen! ✨"
+        return jsonify({'success': False, 'quote': fallback_quote}), 200
+            
 
 # ---------------------------
 # Child Dashboard Routes

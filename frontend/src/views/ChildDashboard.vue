@@ -33,6 +33,10 @@
                     <div class="welcome-card">
                         <h1>Welcome back, brave adventurer! 🏰</h1>
                         <p>Ready for today's exciting quests? Let's learn and have fun together!</p>
+                        <div class="qoute-box">
+                            <div class="quote-icon">💬</div>
+                            <p class="quote-text">''{{ Quote }}''</p>
+                        </div>
                         <div class="daily-streak">
                             <span class="streak-icon">🔥</span>
                             <span class="streak-text">{{ streakDays }} day streak!</span>
@@ -264,6 +268,15 @@
                 </div>
             </div>
         </div>
+
+        <!-- Health Tracker Modal -->
+        <div v-if="showHealthTracker" class="modal-overlay">
+            <div class="modal-content">
+                <button class="close-btn" @click="showHealthTracker = false">✖</button>
+                <HealthTracker />
+            </div>
+        </div>
+
         <!-- Floating Gandalf Chatbot -->
         <div class="floating-wizard" @click="showChat = true">
             <div class="wizard-icon">🧙‍♂️</div>
@@ -313,7 +326,8 @@ import StoryBuilder from '@/components/activities/StoryBuilder.vue'
 import TaskTracker from '@/components/activities/TaskTracker.vue'
 import BubbleTimer from '@/components/activities/BubbleTimer.vue'
 import NotificationBell from '@/components/NotificationBell.vue'
-
+import axios from 'axios'
+import HealthTracker from './HealthTracker.vue'
 
 export default {
     name: 'ChildDashboard',
@@ -326,7 +340,8 @@ export default {
         StoryBuilder,
         TaskTracker,
         BubbleTimer,
-        NotificationBell
+        NotificationBell,
+        HealthTracker
     },
     setup() {
         const router = useRouter()
@@ -344,6 +359,8 @@ export default {
         const currentSavings = ref(0)
         const transactions = ref([])
         const savingsGoals = ref([])
+        const Quote = ref("Believe in yourself and magic will happen! ✨")
+        const showHealthTracker = ref(false)
 
         // Screen Time Tracking
         const sessionStartTime = ref(null)
@@ -386,6 +403,20 @@ export default {
             skillsLearned: 0,
             todayGoals: 0
         })
+
+        // Motivational quote
+        const fetchQuote = async () => {
+            try {
+                const userId = user.value?.id
+                if (!userId) return
+
+                    const { data } = await axios.get(`/api/quote/${userId}`)
+                    Quote.value = data.quote
+            } catch (error) {
+                console.error('Error fetching quote:', error)
+                Quote.value = "Believe in yourself and magic will happen! ✨"
+            }
+        }
 
         const statsCards = ref([
             {
@@ -773,13 +804,7 @@ export default {
         };
 
         const openHealthTracker = () => {
-            Swal.fire({
-                icon: 'info',
-                title: 'Health Tracker Coming Soon! ❤️‍🩹',
-                text: 'A new adventure to track your health and habits is on the way!',
-                background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                color: 'white'
-            });
+            showHealthTracker.value = true;
         };
 
         const openTaskTracker = () => {
@@ -810,6 +835,7 @@ export default {
         onMounted(() => {
             checkChildAccess()
             startScreenTimeSession()
+            fetchQuote()
 
             // Add event listener for page unload
             window.addEventListener('beforeunload', logScreenTime)
@@ -855,6 +881,8 @@ export default {
             mainFeatures,
             handleFeatureClick,
             statsCards,
+            Quote,
+            showHealthTracker
         }
     }
 }
@@ -2447,4 +2475,82 @@ export default {
     font-size: 2.5rem;
     margin-bottom: 0.5rem;
 }
+
+.quote-box {
+  background: linear-gradient(135deg, #fdfbfb, #ebedee);
+  border-left: 6px solid #764ba2;
+  padding: 1rem 1.5rem;
+  border-radius: 1rem;
+  margin-top: 1rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+  position: relative;
+  animation: fadeInUp 0.8s ease;
+}
+
+.quote-icon {
+  font-size: 1.8rem;
+  position: absolute;
+  top: -10px;
+  left: -10px;
+}
+
+.quote-text {
+  font-size: 1.1rem;
+  font-style: italic;
+  color: #333;
+  margin: 0;
+  padding-left: 1.5rem;
+  line-height: 1.5;
+}
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 999;
+}
+
+.modal-content {
+  background: white;
+  padding: 20px;
+  border-radius: 20px;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  animation: fadeIn 0.3s ease-out;
+}
+
+.close-btn {
+  position: absolute;
+  top: 10px;
+  right: 15px;
+  background: transparent;
+  font-size: 1.5rem;
+  cursor: pointer;
+  border: none;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 </style>
