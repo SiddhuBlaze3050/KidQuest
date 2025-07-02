@@ -1,13 +1,14 @@
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, ChatSession,ChildProfile, ParentChild, SavingGoal, Transaction
+from models import db, User, ChatSession,ChildProfile, ParentChild, SavingGoal, Transaction, HomeworkSchedule, PomodoroSession, ScreenTime, Notification
 import re
 from config import Config
 from openai import OpenAI
 import secrets
 import time
 import traceback
+from datetime import datetime, date
 
 # Import our psychometry module
 from psychometry import PsychometryService
@@ -267,7 +268,7 @@ def api_chat_history(user_id):
 def api_user_profile(user_id):
     """API endpoint to get user profile"""
     try:
-        user = User.query.get(user_id)
+        user = db.session.get(User, user_id)
         if not user:
             return jsonify({'success': False, 'error': 'User not found'}), 404
         
@@ -668,6 +669,249 @@ def complete_psychometry_assessment():
         traceback.print_exc()
         return jsonify({'error': 'Failed to complete assessment', 'message': str(e)}), 500
 
+
+# ---------------------------
+# Task Tracker (Homework) Routes
+# ---------------------------
+@app.route('/api/tasks/<int:user_id>', methods=['GET'])
+def get_tasks(user_id):
+    """Get all tasks for a specific user"""
+    try:
+        tasks = HomeworkSchedule.query.filter_by(user_id=user_id).order_by(HomeworkSchedule.due_date.asc()).all()
+        
+        tasks_data = []
+        for task in tasks:
+            total_duration = db.session.query(db.func.sum(PomodoroSession.duration)).filter_by(homework_id=task.id, completed=True).scalar() or 0
+            
+            tasks_data.append({
+                'id': task.id,
+                'subject': task.subject,
+                'task': task.task,
+                'due_date': task.due_date.isoformat() if task.due_date else None,
+                'status': task.status,
+                'time_spent': total_duration
+            })
+
+        return jsonify({
+            'success': True,
+            'tasks': tasks_data
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/tasks', methods=['POST'])
+def create_task():
+    """Create a new task"""
+    try:
+        data = request.get_json()
+        new_task = HomeworkSchedule(
+            user_id=data['user_id'],
+            subject=data.get('subject'),
+            task=data['task'],
+            due_date=date.fromisoformat(data['due_date']) if data.get('due_date') else None
+        )
+        db.session.add(new_task)
+        db.session.commit()
+        return jsonify({
+            'success': True, 
+            'message': 'Task created successfully',
+            'task': {
+                'id': new_task.id,
+                'subject': new_task.subject,
+                'task': new_task.task,
+                'due_date': new_task.due_date.isoformat() if new_task.due_date else None,
+                'status': new_task.status
+            }
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/tasks/<int:task_id>/status', methods=['PUT'])
+def update_task_status(task_id):
+    """Update a task's status"""
+    try:
+        data = request.get_json()
+        new_status = data.get('status')
+
+        task = db.session.get(HomeworkSchedule, task_id)
+        if not task:
+            return jsonify({'success': False, 'error': 'Task not found'}), 404
+
+        task.status = new_status
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': f'Task status updated to {new_status}'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ---------------------------
+# Pomodoro Session Routes
+# ---------------------------
+@app.route('/api/pomodoro/start', methods=['POST'])
+def start_pomodoro():
+    """Start a new pomodoro session for a task"""
+    try:
+        data = request.get_json()
+        session = PomodoroSession(
+            user_id=data['user_id'],
+            homework_id=data['homework_id'],
+            start_time=datetime.utcnow()
+        )
+        db.session.add(session)
+
+        # Update task status to 'in-progress'
+        task = db.session.get(HomeworkSchedule, data['homework_id'])
+        if task:
+            task.status = 'in-progress'
+
+        db.session.commit()
+        return jsonify({'success': True, 'session_id': session.id}), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/pomodoro/complete/<int:session_id>', methods=['PUT'])
+def complete_pomodoro(session_id):
+    """Complete a pomodoro session"""
+    try:
+        data = request.get_json()
+        duration = data.get('duration') # in minutes
+
+        session = db.session.get(PomodoroSession, session_id)
+        if not session:
+            return jsonify({'success': False, 'error': 'Session not found'}), 404
+
+        session.duration = duration
+        session.completed = True
+        db.session.commit()
+
+        return jsonify({'success': True, 'message': 'Pomodoro session completed'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ---------------------------
+# Screen Time Routes
+# ---------------------------
+@app.route('/api/screen-time/log', methods=['POST'])
+def log_screen_time():
+    """Log screen time for a user"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        duration_seconds = data.get('duration_seconds')
+        
+        if not user_id or duration_seconds is None:
+            return jsonify({'success': False, 'error': 'user_id and duration_seconds are required'}), 400
+        
+        # Convert seconds to hours for storage
+        duration_hours = duration_seconds / 3600.0
+        today = date.today()
+        
+        # Check if there's already a record for today
+        existing_record = ScreenTime.query.filter_by(user_id=user_id, date=today).first()
+        
+        if existing_record:
+            # Add to existing record
+            existing_record.hours += duration_hours
+        else:
+            # Create new record
+            new_record = ScreenTime(
+                user_id=user_id,
+                hours=duration_hours,
+                date=today
+            )
+            db.session.add(new_record)
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Screen time logged successfully'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ---------------------------
+# Notification Routes
+# ---------------------------
+@app.route('/api/notifications/<int:user_id>', methods=['GET'])
+def get_notifications(user_id):
+    """Get all notifications for a user"""
+    try:
+        notifications = Notification.query.filter_by(user_id=user_id)\
+                                         .order_by(Notification.timestamp.desc()).all()
+        
+        return jsonify({
+            'success': True,
+            'notifications': [{
+                'id': n.id,
+                'content': n.content,
+                'is_read': n.is_read,
+                'timestamp': n.timestamp.isoformat()
+            } for n in notifications]
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/notifications/mark-read', methods=['POST'])
+def mark_notifications_read():
+    """Mark notifications as read"""
+    try:
+        data = request.get_json()
+        notification_ids = data.get('notification_ids', [])
+        
+        if not notification_ids:
+            return jsonify({'success': False, 'error': 'notification_ids are required'}), 400
+        
+        # Update notifications
+        notifications = Notification.query.filter(Notification.id.in_(notification_ids)).all()
+        for notification in notifications:
+            notification.is_read = True
+        
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'{len(notifications)} notifications marked as read'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/notifications/create-sample', methods=['POST'])
+def create_sample_notifications():
+    """Create sample notifications for testing (development only)"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id is required'}), 400
+        
+        sample_notifications = [
+            "🎉 Welcome to your magical adventure world!",
+            "⭐ You've earned 50 stars today! Keep up the great work!",
+            "📚 New reading quest available: 'The Dragon's Tale'",
+            "🏆 Achievement unlocked: Math Master Level 1!",
+            "💰 Your savings goal is 80% complete!",
+            "🎨 New drawing tools have been added to your art pad!"
+        ]
+        
+        created_notifications = []
+        for content in sample_notifications:
+            notification = Notification(
+                user_id=user_id,
+                content=content,
+                is_read=False
+            )
+            db.session.add(notification)
+            created_notifications.append(notification)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'{len(created_notifications)} sample notifications created'
+        }), 201
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # ---------------------------
 # Error Handlers

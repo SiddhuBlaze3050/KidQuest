@@ -58,6 +58,7 @@ class ParentChild(db.Model):
 class PomodoroSession(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
+    homework_id = db.Column(db.Integer, db.ForeignKey('homework_schedule.id'), nullable=True)
     start_time = db.Column(db.DateTime)
     duration = db.Column(db.Integer)
     completed = db.Column(db.Boolean, default=False)
@@ -68,6 +69,8 @@ class HomeworkSchedule(db.Model):
     subject = db.Column(db.String(100))
     task = db.Column(db.String(255))
     due_date = db.Column(db.Date)
+    status = db.Column(db.String(20), default='pending') # pending, in-progress, completed
+    pomodoro_sessions = db.relationship('PomodoroSession', backref='homework', lazy=True)
 
 class PuzzleAlarm(db.Model):
     id = db.Column(db.Integer, primary_key=True)

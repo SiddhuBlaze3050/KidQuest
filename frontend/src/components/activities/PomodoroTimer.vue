@@ -67,12 +67,20 @@
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted, watch } from 'vue';
+import { ref, computed, onUnmounted, watch, defineProps, defineEmits } from 'vue';
+import { apiService } from '@/services/api';
 
-const emit = defineEmits(['close']);
+const props = defineProps({
+    task: {
+        type: Object,
+        required: true,
+    },
+});
+const emit = defineEmits(['close', 'session-complete']);
 
 const workMinutes = ref(25);
 const breakMinutes = ref(5);
+const audioCtx = ref(null);
 
 const MODES = computed(() => ({
     WORK: {
@@ -93,6 +101,7 @@ const currentModeId = ref('WORK');
 const currentMode = computed(() => MODES.value[currentModeId.value]);
 const timeRemaining = ref(currentMode.value.duration);
 let timerInterval = null;
+const activeSessionId = ref(null);
 
 const showSettings = ref(false);
 const tempWorkMinutes = ref(workMinutes.value);
@@ -110,13 +119,49 @@ watch(currentMode, (newMode) => {
     }
 });
 
-const startTimer = () => {
+const playBeep = () => {
+    try {
+        if (!audioCtx.value) {
+            audioCtx.value = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        const oscillator = audioCtx.value.createOscillator();
+        const gainNode = audioCtx.value.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioCtx.value.destination);
+        gainNode.gain.value = 0.1;
+        oscillator.frequency.value = 523.25; // C5
+        oscillator.type = 'sine';
+        oscillator.start(audioCtx.value.currentTime);
+        oscillator.stop(audioCtx.value.currentTime + 0.5);
+    } catch (e) {
+        console.error("Could not play beep sound", e);
+    }
+};
+
+const startTimer = async () => {
     if (isRunning.value) return;
+
+    if (currentMode.value.id === 'WORK' && !activeSessionId.value) {
+        try {
+            const response = await apiService.startPomodoro(props.task.user_id, props.task.id);
+            if (response.success) {
+                activeSessionId.value = response.session_id;
+            } else {
+                console.error("Failed to start pomodoro session");
+                return;
+            }
+        } catch (error) {
+            console.error("Error starting pomodoro session:", error);
+            return;
+        }
+    }
+
     isRunning.value = true;
     timerInterval = setInterval(() => {
         if (timeRemaining.value > 0) {
             timeRemaining.value--;
         } else {
+            playBeep();
             switchMode(true);
         }
     }, 1000);
@@ -135,24 +180,46 @@ const toggleTimer = () => {
     }
 };
 
+const completeSession = async () => {
+    if (activeSessionId.value) {
+        const duration = workMinutes.value; // Always record the full duration for a completed session
+        try {
+            await apiService.completePomodoro(activeSessionId.value, duration);
+            emit('session-complete');
+            activeSessionId.value = null;
+        } catch (error) {
+            console.error("Error completing pomodoro session:", error);
+        }
+    }
+};
+
 const resetTimer = () => {
     pauseTimer();
     timeRemaining.value = currentMode.value.duration;
 };
 
-const switchMode = (playAlert = false) => {
+const switchMode = (autoStartNext = false) => {
+    if (currentMode.value.id === 'WORK') {
+        completeSession();
+    }
     pauseTimer();
     const newModeId = currentModeId.value === 'WORK' ? 'BREAK' : 'WORK';
     currentModeId.value = newModeId;
 
-    if (playAlert) {
-        // Basic alert, can be replaced with a nicer notification
-        alert(`${currentMode.value.label} has started!`);
+    if (autoStartNext && newModeId === 'BREAK') {
+        setTimeout(() => {
+            startTimer();
+        }, 1000);
     }
 };
 
 const skipMode = () => {
-    switchMode(false);
+    // When skipping, we don't count it as a completed session.
+    // We just switch modes without auto-starting.
+    pauseTimer();
+    const newModeId = currentModeId.value === 'WORK' ? 'BREAK' : 'WORK';
+    currentModeId.value = newModeId;
+    timeRemaining.value = MODES.value[newModeId].duration;
 };
 
 const toggleMinimize = () => {
@@ -170,6 +237,9 @@ const saveSettings = () => {
         workMinutes.value = tempWorkMinutes.value;
         breakMinutes.value = tempBreakMinutes.value;
         showSettings.value = false;
+        if (!isRunning.value) {
+            timeRemaining.value = currentMode.value.duration;
+        }
     } else {
         alert('Please enter valid durations (greater than 0).');
     }

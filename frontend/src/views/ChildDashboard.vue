@@ -14,6 +14,8 @@
                             <span class="user-greeting">Hi {{ user?.username }}! 👋</span>
                             <span class="user-level">Level {{ userLevel }} Adventurer</span>
                         </div>
+                        <NotificationBell v-if="user" :user-id="user.id" />
+                        <BubbleTimer v-if="sessionStartTime" :start-time="sessionStartTime" />
                         <button @click="logout" class="logout-btn">
                             <i class="fas fa-sign-out-alt"></i>
                             Exit
@@ -284,6 +286,9 @@
         <!-- Story Builder Modal -->
         <StoryBuilder v-if="showStoryBuilder" @close="showStoryBuilder = false" />
 
+        <!-- Task Tracker Modal -->
+        <TaskTracker v-if="showTaskTracker" :user="user" @close="showTaskTracker = false" />
+
         <!-- Floating Magic Elements -->
         <div class="floating-magic">
             <div class="magic-element" style="--delay: 0s; --x: 10%; --y: 20%;">🌟</div>
@@ -295,7 +300,7 @@
 </template>
 
 <script>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { userUtils, apiService } from '@/services/api'
 import EnhancedChatBot from '@/components/chat/EnhancedChatBot.vue'
@@ -305,6 +310,9 @@ import MusicPlayer from '@/components/activities/MusicPlayer.vue'
 import PomodoroTimer from '@/components/activities/PomodoroTimer.vue'
 import DrawingPad from '@/components/activities/DrawingPad.vue'
 import StoryBuilder from '@/components/activities/StoryBuilder.vue'
+import TaskTracker from '@/components/activities/TaskTracker.vue'
+import BubbleTimer from '@/components/activities/BubbleTimer.vue'
+import NotificationBell from '@/components/NotificationBell.vue'
 
 
 export default {
@@ -315,7 +323,10 @@ export default {
         MusicPlayer,
         PomodoroTimer,
         DrawingPad,
-        StoryBuilder
+        StoryBuilder,
+        TaskTracker,
+        BubbleTimer,
+        NotificationBell
     },
     setup() {
         const router = useRouter()
@@ -324,6 +335,7 @@ export default {
         const showPomodoroTimer = ref(false)
         const showDrawingPad = ref(false)
         const showStoryBuilder = ref(false)
+        const showTaskTracker = ref(false)
         const user = ref(null)
         const selectedActivity = ref(null)
         const showChat = ref(false)
@@ -333,6 +345,9 @@ export default {
         const currentSavings = ref(0)
         const transactions = ref([])
         const savingsGoals = ref([])
+
+        // Screen Time Tracking
+        const sessionStartTime = ref(null)
 
         const mainFeatures = ref([
             {
@@ -652,7 +667,25 @@ export default {
             user.value = currentUser
         }
 
-        const logout = () => {
+        // Screen Time Tracking Functions
+        const startScreenTimeSession = () => {
+            sessionStartTime.value = Date.now()
+        }
+
+        const logScreenTime = async () => {
+            if (sessionStartTime.value && user.value) {
+                const durationSeconds = Math.floor((Date.now() - sessionStartTime.value) / 1000)
+                try {
+                    await apiService.logScreenTime(user.value.id, durationSeconds)
+                    console.log(`Screen time logged: ${durationSeconds} seconds`)
+                } catch (error) {
+                    console.error('Failed to log screen time:', error)
+                }
+            }
+        }
+
+        const logout = async () => {
+            await logScreenTime()
             userUtils.logout()
         }
 
@@ -698,6 +731,9 @@ export default {
                 case 'Story Builder':
                     showStoryBuilder.value = true
                     break
+                case 'Task Tracker':
+                    showTaskTracker.value = true
+                    break
                 default:
                     Swal.fire({
                         icon: 'info',
@@ -732,7 +768,7 @@ export default {
                     openHealthTracker();
                     break;
                 case 'openTaskTracker':
-                    openTaskTracker();
+                    showTaskTracker.value = true;
                     break;
             }
         };
@@ -748,13 +784,7 @@ export default {
         };
 
         const openTaskTracker = () => {
-            Swal.fire({
-                icon: 'info',
-                title: 'Task Tracker Coming Soon! 🎯',
-                text: 'A new and improved way to manage your quests is being forged!',
-                background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                color: 'white'
-            });
+            showTaskTracker.value = true;
         };
 
         const completedGoals = computed(() => {
@@ -780,6 +810,16 @@ export default {
         }
         onMounted(() => {
             checkChildAccess()
+            startScreenTimeSession()
+
+            // Add event listener for page unload
+            window.addEventListener('beforeunload', logScreenTime)
+        })
+
+        onBeforeUnmount(() => {
+            // Remove event listener and log screen time
+            window.removeEventListener('beforeunload', logScreenTime)
+            logScreenTime()
         })
 
         return {
@@ -796,7 +836,9 @@ export default {
             showPomodoroTimer,
             showDrawingPad,
             showStoryBuilder,
+            showTaskTracker,
             recentAchievements,
+            sessionStartTime,
 
             logout,
             toggleQuest,
