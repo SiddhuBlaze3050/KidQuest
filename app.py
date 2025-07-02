@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, ChatSession,ChildProfile, ParentChild, SavingGoal, Transaction
@@ -17,7 +17,7 @@ app.config.from_object(Config)
 app.secret_key = secrets.token_hex(16)
 
 # Configure CORS for Vue.js frontend
-CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"])
+CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"], supports_credentials=True)
 
 db.init_app(app)
 

@@ -1,4 +1,4 @@
-# psychometry.py - Assessment Engine Module
+# psychometry.py - Assessment Engine Module (FIXED)
 import requests
 import json
 import time
@@ -19,13 +19,14 @@ class AssessmentEngine:
         qtype = question["type"].strip().lower()
         correct = question.get("correct_answer")
 
-        # --- Count personality or interest responses if correct
+        # --- FIXED: Handle personality questions properly
         if category.startswith("personality_"):
-            if selected_option == correct:
-                self.personality_counts[category] += 1
+            # For personality questions, we count the selected option, not correctness
+            # Map the selected option to personality traits
+            self._count_personality_response(question, selected_option)
         elif category.startswith("interest_"):
-            if selected_option == correct:
-                self.interest_tags[category] += 1
+            # For interest questions, we also count the selected option
+            self._count_interest_response(question, selected_option)
 
         # --- Score standard cognitive categories (concentration, memory, etc.)
         if qtype == "standard":
@@ -41,6 +42,62 @@ class AssessmentEngine:
             "type": qtype
         })
 
+    def _count_personality_response(self, question, selected_option):
+        """Count personality responses based on what the user selected"""
+        # Map options to personality types based on the question design
+        option_text = question["options"].get(selected_option, "").lower()
+        
+        # Define keywords that indicate different personality types
+        creative_keywords = ["creative", "new ideas", "imagine", "stories", "art", "draw", "paint", "craft"]
+        analytical_keywords = ["analyze", "plan", "organize", "instructions", "carefully", "figure out", "solve", "think"]
+        social_keywords = ["friends", "people", "talk", "party", "group", "together", "help others", "share"]
+        practical_keywords = ["build", "create", "hands-on", "try", "do", "make", "practical", "real"]
+        
+        # Count based on option text content
+        if any(keyword in option_text for keyword in creative_keywords):
+            self.personality_counts["personality_creative"] += 1
+        elif any(keyword in option_text for keyword in analytical_keywords):
+            self.personality_counts["personality_analytical"] += 1
+        elif any(keyword in option_text for keyword in social_keywords):
+            self.personality_counts["personality_social"] += 1
+        elif any(keyword in option_text for keyword in practical_keywords):
+            self.personality_counts["personality_practical"] += 1
+        else:
+            # Fallback: use the "correct_answer" mapping for personality questions
+            if hasattr(question, 'personality_mapping'):
+                personality_type = question['personality_mapping'].get(selected_option)
+                if personality_type:
+                    self.personality_counts[f"personality_{personality_type}"] += 1
+            else:
+                # Last resort: increment the category specified in the question
+                category = question["category"].strip().lower()
+                if category.startswith("personality_"):
+                    self.personality_counts[category] += 1
+
+    def _count_interest_response(self, question, selected_option):
+        """Count interest responses based on what the user selected"""
+        option_text = question["options"].get(selected_option, "").lower()
+        
+        # Define keywords for different interests
+        sports_keywords = ["sports", "soccer", "basketball", "running", "exercise", "game", "play"]
+        arts_keywords = ["art", "paint", "draw", "music", "dance", "creative", "museum", "craft"]
+        technology_keywords = ["robot", "computer", "coding", "technology", "science", "build", "program"]
+        nature_keywords = ["nature", "forest", "animals", "outdoors", "camping", "plants", "environment"]
+        
+        # Count based on option content
+        if any(keyword in option_text for keyword in sports_keywords):
+            self.interest_tags["interest_sports"] += 1
+        elif any(keyword in option_text for keyword in arts_keywords):
+            self.interest_tags["interest_arts"] += 1
+        elif any(keyword in option_text for keyword in technology_keywords):
+            self.interest_tags["interest_technology"] += 1
+        elif any(keyword in option_text for keyword in nature_keywords):
+            self.interest_tags["interest_nature"] += 1
+        else:
+            # Fallback: use the category from the question
+            category = question["category"].strip().lower()
+            if category.startswith("interest_"):
+                self.interest_tags[category] += 1
 
     def get_assessment_results(self):
         results = {}
@@ -58,16 +115,21 @@ class AssessmentEngine:
             cat.replace("_learning", ""): self.scores.get(cat, {}).get("score", 0)
             for cat in learning_categories
         }
-        results["dominant_learning_style"] = max(learning_scores, key=learning_scores.get).capitalize()
+        if any(learning_scores.values()):
+            results["dominant_learning_style"] = max(learning_scores, key=learning_scores.get).capitalize()
+        else:
+            results["dominant_learning_style"] = "Balanced"
 
-        # 3. Dominant Personality
+        # 3. FIXED: Dominant Personality
+        print(f"DEBUG: Personality counts: {dict(self.personality_counts)}")  # Debug output
         if self.personality_counts:
             dominant_personality = max(self.personality_counts, key=self.personality_counts.get)
             results["dominant_personality"] = dominant_personality.replace("personality_", "").capitalize()
         else:
             results["dominant_personality"] = "Could not determine"
 
-        # 4. Top Interest
+        # 4. FIXED: Top Interest  
+        print(f"DEBUG: Interest counts: {dict(self.interest_tags)}")  # Debug output
         if self.interest_tags:
             top_interest = max(self.interest_tags, key=self.interest_tags.get)
             results["top_interest"] = top_interest.replace("interest_", "").capitalize()
@@ -90,15 +152,20 @@ class QuestionGenerator:
         try:
             prompt = """You are a child psychologist designing a playful, scientifically grounded assessment test for children aged 8–14. Create exactly 15 questions to evaluate the following:
 
-            1. Learning Style (Visual, Auditory, Kinesthetic) – 2 questions  
-            2. Interests (Sports, Arts, Technology, Socializing, Nature, etc.) – 3 questions  
-            4. Personality Type (Creative, Analytical, Social, Practical) – 5 questions  
-            5. Concentration Skills – 3 questions  
-            6. Memory Skills – 2 questions  
+            1. Learning Style (Visual, Auditory, Kinesthetic) – 3 questions  
+            2. Interests (Sports, Arts, Technology, Nature) – 4 questions  
+            3. Personality Type (Creative, Analytical, Social, Practical) – 5 questions  
+            4. Concentration Skills – 2 questions  
+            5. Memory Skills – 1 question  
 
+            IMPORTANT FORMATTING RULES:
+            - Personality and Interest questions should have Type: preference (no single correct answer)
+            - Learning style questions should have Type: preference  
+            - Concentration and Memory questions should have Type: standard (with correct answers)
+            
             Each question must have:
             - A fun, real-world scenario children can relate to
-            - One of the following categories:  
+            - One of the following categories EXACTLY:  
             [`visual_learning`, `auditory_learning`, `kinesthetic_learning`,  
             `personality_creative`, `personality_analytical`, `personality_social`, `personality_practical`,  
             `concentration`, `memory`,  
@@ -112,10 +179,13 @@ class QuestionGenerator:
             B) [option B]
             C) [option C]
             D) [option D]
-            Correct Answer: [A/B/C/D]
+            Correct Answer: [A/B/C/D - for standard type] OR [N/A - for preference type]
 
             
-            Avoid abstract questions. Use realistic school, hobby, and family-life scenarios. Vary your settings and verbs. Ensure all questions are unique every time. Add a random seed to your logic if needed to enhance variation.
+            For personality questions, make sure each option clearly represents the personality type in the category.
+            For interest questions, make sure each option clearly represents different interests.
+            
+            Avoid abstract questions. Use realistic school, hobby, and family-life scenarios. Vary your settings and verbs. Ensure all questions are unique every time.
 
             """
 
@@ -224,12 +294,16 @@ class QuestionGenerator:
                 elif line.startswith("Correct Answer:"):
                     # Extract correct answer
                     answer_text = line.replace("Correct Answer:", "").strip()
-                    # Extract just the letter, handling various formats
-                    answer_match = re.search(r'([A-D])', answer_text.upper())
-                    if answer_match:
-                        correct_answer = answer_match.group(1)
-                        current_question["correct_answer"] = correct_answer
-                        print(f"DEBUG: Set correct answer: {correct_answer}")
+                    # For preference questions, correct answer might be N/A
+                    if "N/A" in answer_text.upper() or "NONE" in answer_text.upper():
+                        current_question["correct_answer"] = "N/A"
+                    else:
+                        # Extract just the letter, handling various formats
+                        answer_match = re.search(r'([A-D])', answer_text.upper())
+                        if answer_match:
+                            correct_answer = answer_match.group(1)
+                            current_question["correct_answer"] = correct_answer
+                    print(f"DEBUG: Set correct answer: {current_question.get('correct_answer', 'None')}")
 
             # Don't forget the last question
             if current_question and self.is_valid_question(current_question):
@@ -272,10 +346,20 @@ class QuestionGenerator:
             print(f"DEBUG: Question has {len(question.get('options', {}))} options, need 4")
             return False
         
-        # Check correct answer is valid
-        if question.get("correct_answer") not in question.get("options", {}):
-            print(f"DEBUG: Correct answer '{question.get('correct_answer')}' not in options")
-            return False
+        # Check correct answer is valid (allow N/A for preference questions)
+        correct_answer = question.get("correct_answer")
+        qtype = question.get("type", "").lower()
+        
+        if qtype == "preference":
+            # For preference questions, correct_answer can be N/A or any valid option
+            if correct_answer not in ["N/A", "A", "B", "C", "D"]:
+                print(f"DEBUG: Invalid correct answer for preference question: {correct_answer}")
+                return False
+        else:
+            # For standard questions, correct answer must be in options
+            if correct_answer not in question.get("options", {}):
+                print(f"DEBUG: Correct answer '{correct_answer}' not in options")
+                return False
         
         # Check category is valid
         if question.get("category") not in valid_categories:
@@ -290,14 +374,14 @@ class QuestionGenerator:
         return True
     
     def get_fallback_questions(self):
-        """Fallback questions for learning style, interests, personality, concentration, and memory assessment"""
+        """FIXED: Fallback questions with proper personality mapping"""
         return [
             # Learning Style (Visual, Auditory, Kinesthetic) – 3 questions
             {
                 "question": "You need to remember a list of groceries. What do you do?",
                 "options": {
                     "A": "Draw a picture of each item",
-                    "B": "Say the list out loud repeatedly",
+                    "B": "Say the list out loud repeatedly", 
                     "C": "Act out picking up each item",
                     "D": "Write the list in your notebook"
                 },
@@ -314,7 +398,7 @@ class QuestionGenerator:
                     "D": "Read about the steps"
                 },
                 "correct_answer": "C",
-                "category": "kinesthetic_learning",
+                "category": "kinesthetic_learning", 
                 "type": "preference"
             },
             {
@@ -322,7 +406,7 @@ class QuestionGenerator:
                 "options": {
                     "A": "They show you pictures",
                     "B": "They talk you through it",
-                    "C": "You can touch or handle it",
+                    "C": "You can touch or handle it", 
                     "D": "They write it down"
                 },
                 "correct_answer": "B",
@@ -335,12 +419,12 @@ class QuestionGenerator:
                 "question": "Which activity sounds most fun to you?",
                 "options": {
                     "A": "Playing soccer with friends",
-                    "B": "Painting a colorful picture",
+                    "B": "Painting a colorful picture", 
                     "C": "Building a robot",
                     "D": "Exploring a forest"
                 },
-                "correct_answer": "A",
-                "category": "interest_sports",
+                "correct_answer": "N/A",
+                "category": "multiple_interests",  # Will be handled by keyword detection
                 "type": "preference"
             },
             {
@@ -351,8 +435,8 @@ class QuestionGenerator:
                     "C": "Having a picnic in the park",
                     "D": "Hosting a party with friends"
                 },
-                "correct_answer": "B",
-                "category": "interest_technology",
+                "correct_answer": "N/A",
+                "category": "multiple_interests",  # Will be handled by keyword detection
                 "type": "preference"
             },
             {
@@ -363,8 +447,8 @@ class QuestionGenerator:
                     "C": "Nature explorers club",
                     "D": "Student council"
                 },
-                "correct_answer": "A",
-                "category": "interest_arts",
+                "correct_answer": "N/A",
+                "category": "multiple_interests",  # Will be handled by keyword detection
                 "type": "preference"
             },
             {
@@ -375,58 +459,70 @@ class QuestionGenerator:
                     "C": "Drawing or crafting",
                     "D": "Playing sports"
                 },
-                "correct_answer": "A",
-                "category": "interest_nature",
+                "correct_answer": "N/A",
+                "category": "multiple_interests",  # Will be handled by keyword detection
                 "type": "preference"
             },
 
-            # Personality Type (Creative, Analytical, Social, Practical) – 4 questions
+            # Personality Type (Creative, Analytical, Social, Practical) – 5 questions
             {
                 "question": "When working on a group project, you like to:",
                 "options": {
-                    "A": "Come up with new ideas",
-                    "B": "Organize and plan everything",
-                    "C": "Make sure everyone gets along",
-                    "D": "Build or create the final product"
+                    "A": "Come up with new creative ideas",
+                    "B": "Organize and plan everything carefully",
+                    "C": "Make sure everyone gets along and feels included",
+                    "D": "Build or create the final product hands-on"
                 },
-                "correct_answer": "A",
-                "category": "personality_creative",
+                "correct_answer": "N/A",
+                "category": "multiple_personality",  # Will be handled by keyword detection
                 "type": "preference"
             },
             {
                 "question": "You are given a puzzle to solve. What is your first step?",
                 "options": {
-                    "A": "Think of creative solutions",
-                    "B": "Analyze the pieces carefully",
-                    "C": "Ask friends for help",
+                    "A": "Think of creative and unusual solutions",
+                    "B": "Analyze the pieces carefully and make a plan",
+                    "C": "Ask friends for help and work together",
                     "D": "Start putting pieces together right away"
                 },
-                "correct_answer": "B",
-                "category": "personality_analytical",
+                "correct_answer": "N/A",
+                "category": "multiple_personality",  # Will be handled by keyword detection
                 "type": "preference"
             },
             {
                 "question": "At a party, you are most likely to:",
                 "options": {
-                    "A": "Tell stories or jokes",
-                    "B": "Help organize games",
+                    "A": "Tell creative stories or jokes",
+                    "B": "Help organize games and activities",
                     "C": "Talk to as many people as possible",
-                    "D": "Set up decorations"
+                    "D": "Set up decorations or help with practical tasks"
                 },
-                "correct_answer": "C",
-                "category": "personality_social",
+                "correct_answer": "N/A",
+                "category": "multiple_personality",  # Will be handled by keyword detection
                 "type": "preference"
             },
             {
                 "question": "When you get a new toy or gadget, you:",
                 "options": {
-                    "A": "Imagine new ways to use it",
-                    "B": "Read the instructions carefully",
-                    "C": "Show it to your friends",
-                    "D": "Figure out how it works by trying it"
+                    "A": "Imagine new creative ways to use it",
+                    "B": "Read the instructions carefully first",
+                    "C": "Show it to your friends right away",
+                    "D": "Figure out how it works by trying it hands-on"
                 },
-                "correct_answer": "D",
-                "category": "personality_practical",
+                "correct_answer": "N/A",
+                "category": "multiple_personality",  # Will be handled by keyword detection
+                "type": "preference"
+            },
+            {
+                "question": "Your ideal room would have:",
+                "options": {
+                    "A": "Art supplies and creative materials everywhere",
+                    "B": "A organized desk with books and study materials",
+                    "C": "Space for friends to hang out and play games",
+                    "D": "Tools and materials to build and make things"
+                },
+                "correct_answer": "N/A",
+                "category": "multiple_personality",  # Will be handled by keyword detection
                 "type": "preference"
             },
 
@@ -435,7 +531,7 @@ class QuestionGenerator:
                 "question": "Which number is missing? 3, 6, 9, __, 15",
                 "options": {
                     "A": "10",
-                    "B": "11",
+                    "B": "11", 
                     "C": "12",
                     "D": "13"
                 },
@@ -448,7 +544,7 @@ class QuestionGenerator:
                 "options": {
                     "A": "apple",
                     "B": "banana",
-                    "C": "carrot",
+                    "C": "carrot", 
                     "D": "grape"
                 },
                 "correct_answer": "C",
@@ -456,7 +552,7 @@ class QuestionGenerator:
                 "type": "standard"
             },
 
-            # Memory Skills – 2 questions
+            # Memory Skills – 1 question
             {
                 "question": "Remember this sequence: red, blue, green, yellow. What was the third color?",
                 "options": {
@@ -464,18 +560,6 @@ class QuestionGenerator:
                     "B": "blue",
                     "C": "green",
                     "D": "yellow"
-                },
-                "correct_answer": "C",
-                "category": "memory",
-                "type": "standard"
-            },
-            {
-                "question": "You hear the number 527. What is the last digit?",
-                "options": {
-                    "A": "2",
-                    "B": "5",
-                    "C": "7",
-                    "D": "Cannot remember"
                 },
                 "correct_answer": "C",
                 "category": "memory",

@@ -302,7 +302,7 @@ export default {
               text: `Your quest begins now, ${payload.username}!`,
               timer: 3000,
               showConfirmButton: false,
-              background: 'linear-gradient(135deg, #4caf50, #8bc34a)',
+              background: 'linear-gradient(135deg, #667eea, #764ba2)',
               color: 'white',
               backdrop: 'rgba(0,0,0,0.8)',
               customClass: {
@@ -393,7 +393,7 @@ export default {
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(135deg, #4caf50, #8bc34a, #ff6b6b, #ffa726);
+  background: linear-gradient(135deg, #667eea, #764ba2, #ff6b6b, #ffa726);
   border-radius: 25px;
   padding: 3px;
   mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
@@ -415,7 +415,7 @@ export default {
 
 /* Header */
 .modal-header {
-  background: linear-gradient(135deg, #4caf50, #8bc34a);
+  background: linear-gradient(135deg, #667eea, #764ba2);
   color: white;
   padding: 2.5rem 2rem 2rem;
   text-align: center;
@@ -502,7 +502,7 @@ export default {
 }
 
 .form-group label i {
-  color: #4caf50;
+  color: #667eea;
   width: 16px;
 }
 
@@ -517,9 +517,9 @@ export default {
 
 .form-input:focus {
   outline: none;
-  border-color: #4caf50;
+  border-color: #667eea;
   background: white;
-  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
   transform: translateY(-2px);
 }
 
@@ -529,7 +529,7 @@ export default {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #4caf50, #8bc34a);
+  background: linear-gradient(135deg, #667eea, #764ba2);
   color: white;
   border: none;
   padding: 1.2rem 2rem;
@@ -538,13 +538,13 @@ export default {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  box-shadow: 0 8px 25px rgba(76, 175, 80, 0.4);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
   margin-top: 1rem;
 }
 
 .btn-primary:hover:not(:disabled) {
   transform: translateY(-3px);
-  box-shadow: 0 12px 35px rgba(76, 175, 80, 0.6);
+  box-shadow: 0 12px 35px rgba(102, 126, 234, 0.6);
 }
 
 .btn-primary:disabled {
@@ -603,7 +603,7 @@ export default {
 .link-btn {
   background: none;
   border: none;
-  color: #4caf50;
+  color: #667eea;
   font-weight: 600;
   cursor: pointer;
   font-size: 1rem;
@@ -613,7 +613,7 @@ export default {
 }
 
 .link-btn:hover {
-  background: rgba(76, 175, 80, 0.1);
+  background: rgba(102, 126, 234, 0.1);
   transform: translateY(-2px);
 }
 
@@ -681,12 +681,12 @@ export default {
 }
 
 .auth-modal::-webkit-scrollbar-thumb {
-  background: #4caf50;
+  background: #667eea;
   border-radius: 10px;
 }
 
 .auth-modal::-webkit-scrollbar-thumb:hover {
-  background: #8bc34a;
+  background: #764ba2;
 }
 
 /* Responsive */
