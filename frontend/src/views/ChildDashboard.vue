@@ -316,6 +316,7 @@
 
 <script>
 import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
 import { userUtils, apiService } from '@/services/api'
 import EnhancedChatBot from '@/components/chat/EnhancedChatBot.vue'
 import Swal from 'sweetalert2'
@@ -337,6 +338,7 @@ export default {
         StoryBuilder
     },
     setup() {
+        const router = useRouter()
         const showMemoryGame = ref(false)
         const showMusicPlayer = ref(false)
         const showPomodoroTimer = ref(false)
@@ -753,15 +755,8 @@ export default {
                 width: 500
             }).then((result) => {
                 if (result.isConfirmed) {
-                    Swal.fire({
-                        icon: 'info',
-                        title: 'Coming Soon! 🔬',
-                        text: 'Our psychometric test is being developed by education experts. Stay tuned!',
-                        timer: 3000,
-                        showConfirmButton: false,
-                        background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                        color: 'white'
-                    })
+                    // Navigate to the psychometric assessment route
+                    router.push('/psychometric-assessment')
                 }
             })
         }

@@ -594,7 +594,7 @@ class QuestionGenerator:
     8. Be around 100-150 words,no need of high spacing or line breaks,no more than 15 lines in total
     9. Return the entire response in HTML format (with <h3>, <ul>, <li>, <p>, or <b> tags as appropriate)
 
-    Make it personal and actionable for the child and their parents."""
+    Make it personal and actionable for the child and their parents.Try not to use the name of the child in the response.Only wishes is necessary"""
 
             payload = {
                 "model": "meta-llama/llama-3.1-8b-instruct:free",

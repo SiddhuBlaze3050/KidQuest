@@ -342,7 +342,7 @@ import { userUtils } from '@/services/api'
 export default {
     name: 'ParentDashboard',
     setup() {
-        const childName = ref("Alex")
+        const childName = ref("Aleena")
         const selectedPeriod = ref("week")
         const selectedTimePeriod = ref("7D")
         const timePeriods = ["1D", "7D", "30D"]
@@ -433,7 +433,7 @@ export default {
                 {
                     id: 1,
                     topic: 'School Friends',
-                    text: 'Alex shared excitement about making a new friend in art class and working on a group project together.',
+                    text:  childName.value +' shared excitement about making a new friend in art class and working on a group project together.',
                     sentiment: 'positive'
                 },
                 {
@@ -485,14 +485,14 @@ export default {
                 id: 1,
                 icon: '📚',
                 title: 'Increase Reading Time',
-                description: 'Alex shows strong comprehension skills. Consider adding 15 more minutes of daily reading to boost vocabulary.',
+                description: childName.value+'shows strong comprehension skills. Consider adding 15 more minutes of daily reading to boost vocabulary.',
                 priority: 'medium'
             },
             {
                 id: 2,
                 icon: '🎵',
                 title: 'Explore Music Learning',
-                description: 'Based on conversations, Alex is interested in learning guitar. This could enhance cognitive development.',
+                description: 'Based on conversations, '+childName.value+' is interested in learning guitar. This could enhance cognitive development.',
                 priority: 'high'
             },
             {
@@ -506,7 +506,7 @@ export default {
                 id: 4,
                 icon: '🤝',
                 title: 'Social Activities',
-                description: 'Alex enjoys group activities. Consider enrolling in team sports or group learning programs.',
+                description: childName.value+' enjoys group activities. Consider enrolling in team sports or group learning programs.',
                 priority: 'medium'
             }
         ])

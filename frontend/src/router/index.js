@@ -65,8 +65,8 @@ const router = createRouter({
       },
     },
     {
-      path: '/psychomtric-assessment',
-      name: 'psychomtric-assessment',
+      path: '/psychometric-assessment',
+      name: 'psychometric-assessment',
       component: PyschometricAssessment,
     },
     // Redirect any unknown routes to home
