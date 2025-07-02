@@ -376,15 +376,18 @@ export default {
 </template>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700;900&display=swap');
+
 * {
   box-sizing: border-box;
 }
 
 .kidquest-home {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #31417A 0%, #667eea 100%);
   position: relative;
   overflow-x: hidden;
+  font-family: 'Merriweather', serif;
 }
 
 /* Navigation */
@@ -427,23 +430,25 @@ export default {
 
 .nav-btn {
   padding: 0.5rem 1.5rem;
-  border: none;
+  border: 1px solid rgba(255, 255, 255, 0.5);
   border-radius: 25px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
   background: transparent;
-  color: #6366f1;
+  color: white;
 }
 
 .nav-btn.primary {
   background: linear-gradient(135deg, #ff6b6b, #ffa726);
   color: white;
+  border-color: transparent;
 }
 
 .nav-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 /* Hero Section */
@@ -546,7 +551,7 @@ export default {
 }
 
 .phone-mockup {
-  background: #333;
+  background: #1a1a1a;
   border-radius: 25px;
   padding: 20px;
   width: 250px;
@@ -554,10 +559,11 @@ export default {
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
   transform: rotate(-10deg);
   z-index: 2;
+  border: 2px solid rgba(255, 255, 255, 0.1);
 }
 
 .phone-screen {
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #222F5B, #0B0C10);
   border-radius: 15px;
   height: 100%;
   padding: 1rem;
@@ -693,17 +699,19 @@ export default {
   0%,
   100% {
     transform: translateY(0px) rotate(0deg);
+    opacity: 0.5;
   }
 
   50% {
     transform: translateY(-30px) rotate(180deg);
+    opacity: 1;
   }
 }
 
 /* Features Section */
 .features-section {
   padding: 80px 0;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .section-header {
@@ -713,8 +721,13 @@ export default {
 
 .section-header h2 {
   font-size: 2.5rem;
-  color: #333;
+  color: white;
   margin-bottom: 1rem;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.section-header p {
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .features-grid {
@@ -724,18 +737,20 @@ export default {
 }
 
 .feature-card {
-  background: white;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
   padding: 2.5rem;
   border-radius: 20px;
   text-align: center;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   transition: all 0.3s ease;
-  border: 1px solid rgba(102, 126, 234, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
 }
 
 .feature-card:hover {
   transform: translateY(-10px);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
 }
 
 .feature-icon {
@@ -744,15 +759,19 @@ export default {
 }
 
 .feature-card h3 {
-  color: #333;
+  color: white;
   margin-bottom: 1rem;
   font-size: 1.3rem;
+}
+
+.feature-card p {
+  color: rgba(255, 255, 255, 0.8);
 }
 
 /* Dashboard Section */
 .dashboard-section {
   padding: 80px 0;
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(0, 0, 0, 0.2);
 }
 
 .dashboard-header {
@@ -762,8 +781,13 @@ export default {
 
 .dashboard-header h2 {
   font-size: 2.5rem;
-  color: #333;
+  color: white;
   margin-bottom: 1rem;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.dashboard-header p {
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .dashboard-grid {
@@ -773,16 +797,18 @@ export default {
 }
 
 .dashboard-card {
-  background: white;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
   padding: 2.5rem;
   border-radius: 20px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-  border: 1px solid rgba(102, 126, 234, 0.1);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
 }
 
 .dashboard-card h3 {
   margin-bottom: 2rem;
-  color: #333;
+  color: white;
   font-size: 1.3rem;
 }
 
@@ -820,16 +846,20 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 1rem 0;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .stat-item:last-child {
   border-bottom: none;
 }
 
+.stat-label {
+  color: rgba(255, 255, 255, 0.8);
+}
+
 .stat-value {
   font-weight: bold;
-  color: #6366f1;
+  color: #ffa726;
 }
 
 /* Floating Gandalf Button */

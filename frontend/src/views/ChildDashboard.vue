@@ -40,52 +40,35 @@
 
                 <!-- Quick Stats -->
                 <div class="stats-row">
-                    <div class="stat-bubble">
-                        <div class="stat-icon">⭐</div>
-                        <div class="stat-number">{{ userStats.totalStars }}</div>
-                        <div class="stat-label">Stars Earned</div>
-                    </div>
-
-                    <div class="stat-bubble">
-                        <div class="stat-icon">🏆</div>
-                        <div class="stat-number">{{ userStats.questsCompleted }}</div>
-                        <div class="stat-label">Quests Done</div>
-                    </div>
-
-                    <div class="stat-bubble">
-                        <div class="stat-icon">📚</div>
-                        <div class="stat-number">{{ userStats.skillsLearned }}</div>
-                        <div class="stat-label">Skills Learned</div>
-                    </div>
-
-                    <div class="stat-bubble">
-                        <div class="stat-icon">🎯</div>
-                        <div class="stat-number">{{ userStats.todayGoals }}</div>
-                        <div class="stat-label">Today's Goals</div>
+                    <div v-for="stat in statsCards" :key="stat.label" :class="['stat-card', stat.theme]">
+                        <div class="stat-icon-wrapper">
+                            <div class="stat-icon">{{ stat.icon }}</div>
+                            <div class="sparkles">
+                                <div class="sparkle" v-for="i in 3" :key="i"></div>
+                            </div>
+                        </div>
+                        <div class="stat-info">
+                            <div class="stat-number">{{ stat.value }}</div>
+                            <div class="stat-label">{{ stat.label }}</div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Today's Quests -->
-                <div class="quest-section">
+                <!-- Major Features Section -->
+                <div class="features-section">
                     <h2 class="section-title">
-                        <span class="title-icon">🎯</span>
-                        Today's Epic Quests
+                        <span class="title-icon">🚀</span>
+                        Your Main Adventures
                     </h2>
-                    <div class="quest-grid">
-                        <div v-for="quest in todayQuests" :key="quest.id" class="quest-card"
-                            :class="{ 'completed': quest.completed }" @click="toggleQuest(quest)">
-                            <div class="quest-icon">{{ quest.icon }}</div>
-                            <div class="quest-info">
-                                <h3>{{ quest.title }}</h3>
-                                <p>{{ quest.description }}</p>
-                                <div class="quest-reward">
-                                    <span class="reward-icon">⭐</span>
-                                    <span>{{ quest.stars }} stars</span>
-                                </div>
+                    <div class="features-grid">
+                        <div v-for="feature in mainFeatures" :key="feature.name" class="feature-card"
+                            @click="handleFeatureClick(feature)" :style="{ background: feature.gradient }">
+                            <div class="feature-icon-wrapper">
+                                <div class="feature-icon">{{ feature.icon }}</div>
                             </div>
-                            <div class="quest-status">
-                                <div v-if="quest.completed" class="completed-badge">✅</div>
-                                <div v-else class="incomplete-badge">○</div>
+                            <div class="feature-info">
+                                <h3>{{ feature.name }}</h3>
+                                <p>{{ feature.description }}</p>
                             </div>
                         </div>
                     </div>
@@ -99,17 +82,19 @@
                     </h2>
                     <div class="skills-grid">
                         <div v-for="skill in skillAreas" :key="skill.id" class="skill-card"
-                            @click="openSkillArea(skill)">
-                            <div class="skill-background" :style="{ background: skill.gradient }">
-                                <div class="skill-icon">{{ skill.icon }}</div>
-                                <h3>{{ skill.name }}</h3>
-                                <p>{{ skill.description }}</p>
-                                <div class="skill-progress">
-                                    <div class="progress-bar">
-                                        <div class="progress-fill" :style="{ width: skill.progress + '%' }"></div>
-                                    </div>
-                                    <span class="progress-text">{{ skill.progress }}% complete</span>
+                            @click="openSkillArea(skill)" :style="{ background: skill.gradient }">
+                            <div class="skill-header">
+                                <div class="skill-icon" :style="{ background: skill.gradient }">
+                                    {{ skill.icon }}
                                 </div>
+                                <h3>{{ skill.name }}</h3>
+                            </div>
+                            <div class="skill-progress">
+                                <div class="progress-bar">
+                                    <div class="progress-fill"
+                                        :style="{ width: skill.progress + '%', background: skill.gradient }"></div>
+                                </div>
+                                <span class="progress-text">{{ skill.progress }}% complete</span>
                             </div>
                         </div>
                     </div>
@@ -130,8 +115,6 @@
                     </div>
                     <!-- Memory Game component rendered conditionally -->
                     <MemoryGame v-if="selectedActivity === 'Memory Game'" @close="selectedActivity = null" />
-
-
                 </div>
 
                 <!-- Achievements Showcase -->
@@ -289,9 +272,6 @@
         <!-- 3D Chatbot Modal -->
         <EnhancedChatBot v-if="showChat" @close="showChat = false" :user="user" />
 
-        <!-- Memory Game -->
-        <MemoryGame v-if="showMemoryGame" @close="showMemoryGame = false" />
-
         <!-- Music Player Modal -->
         <MusicPlayer v-if="showMusicPlayer" @close="showMusicPlayer = false" />
 
@@ -354,6 +334,37 @@ export default {
         const transactions = ref([])
         const savingsGoals = ref([])
 
+        const mainFeatures = ref([
+            {
+                name: 'Psychometric Test',
+                icon: '🧠',
+                description: 'Discover your unique learning style and personality traits.',
+                action: 'startPsychometricTest',
+                gradient: 'linear-gradient(135deg, #667eea, #764ba2)'
+            },
+            {
+                name: 'Finance Tracker',
+                icon: '💰',
+                description: 'Manage your savings and learn about money.',
+                action: 'openFinanceTracker',
+                gradient: 'linear-gradient(135deg, #4CAF50, #81C784)'
+            },
+            {
+                name: 'Health Tracker',
+                icon: '❤️‍🩹',
+                description: 'Monitor your physical wellness and healthy habits.',
+                action: 'openHealthTracker',
+                gradient: 'linear-gradient(135deg, #ff6b6b, #f093fb)'
+            },
+            {
+                name: 'Task Tracker',
+                icon: '🎯',
+                description: 'Complete your daily goals and earn rewards.',
+                action: 'openTaskTracker',
+                gradient: 'linear-gradient(135deg, #ffa726, #f5576c)'
+            }
+        ]);
+
         // User stats
         const userStats = ref({
             totalStars: 0,
@@ -362,41 +373,32 @@ export default {
             todayGoals: 0
         })
 
-        // Today's quests
-        const todayQuests = ref([
+        const statsCards = ref([
             {
-                id: 1,
-                title: "Math Adventure",
-                description: "Solve 10 fun math puzzles",
-                icon: "🔢",
-                stars: 10,
-                completed: false
+                label: "✨ Stars Collected",
+                icon: "★",
+                value: userStats.value.totalStars,
+                theme: "stars-theme",
             },
             {
-                id: 2,
-                title: "Reading Quest",
-                description: "Read for 20 minutes",
-                icon: "📖",
-                stars: 8,
-                completed: false
+                label: "📜 Quests Cast",
+                icon: "📜",
+                value: userStats.value.questsCompleted,
+                theme: "quests-theme",
             },
             {
-                id: 3,
-                title: "Tidy Up Mission",
-                description: "Clean your room",
-                icon: "🧹",
-                stars: 5,
-                completed: false
+                label: "🧠 Skills Mastered",
+                icon: "🧠",
+                value: userStats.value.skillsLearned,
+                theme: "skills-theme",
             },
             {
-                id: 4,
-                title: "Hydration Hero",
-                description: "Drink 6 glasses of water",
-                icon: "💧",
-                stars: 6,
-                completed: false
+                label: "🎯 Today's Goals",
+                icon: "🎯",
+                value: userStats.value.todayGoals,
+                theme: "goals-theme",
             }
-        ])
+        ]);
 
         // Skill areas
         const skillAreas = ref([
@@ -457,8 +459,6 @@ export default {
             { id: 3, name: "Drawing Pad", icon: "🖌️" },
             { id: 4, name: "Music Player", icon: "🎵" },
             { id: 5, name: "Story Builder", icon: "📝" },
-            { id: 7, name: "Psychometric Test", icon: "🧩" },
-            { id: 8, name: "Finance Tracker", icon: "💰" }
         ])
         const openFinanceTracker = async () => {
             showFinanceTracker.value = true
@@ -675,7 +675,7 @@ export default {
         }
 
         const openSkillArea = (skill) => {
-            console.log('Opening skill area:', skill.name)
+            console.log('Starting activity:', skill.name)
             // TODO: Navigate to skill detail page
         }
 
@@ -694,12 +694,6 @@ export default {
                     break
                 case 'Music Player':
                     showMusicPlayer.value = true;
-                    break;
-                case 'Psychometric Test':
-                    startPsychometricTest()
-                    break
-                case 'Finance Tracker':
-                    openFinanceTracker()
                     break
                 case 'Story Builder':
                     showStoryBuilder.value = true
@@ -726,43 +720,42 @@ export default {
             showMusicPlayer.value = false
         }
 
-        const startPsychometricTest = () => {
+        const handleFeatureClick = (feature) => {
+            switch (feature.action) {
+                case 'startPsychometricTest':
+                    router.push('/psychometric-assessment');
+                    break;
+                case 'openFinanceTracker':
+                    openFinanceTracker();
+                    break;
+                case 'openHealthTracker':
+                    openHealthTracker();
+                    break;
+                case 'openTaskTracker':
+                    openTaskTracker();
+                    break;
+            }
+        };
+
+        const openHealthTracker = () => {
             Swal.fire({
-                title: '🧩 Psychometric Test',
-                html: `
-                    <div style="text-align: center; padding: 20px;">
-                        <p style="margin-bottom: 20px;">Discover your learning style and personality traits!</p>
-                        <div style="margin: 20px 0;">
-                            <div style="background: linear-gradient(135deg, #667eea, #764ba2); color: white; padding: 15px; border-radius: 10px; margin: 10px 0;">
-                                <h4>🎨 Learning Style Assessment</h4>
-                                <p>Find out if you're a visual, auditory, or kinesthetic learner</p>
-                            </div>
-                            <div style="background: linear-gradient(135deg, #ff6b6b, #ffa726); color: white; padding: 15px; border-radius: 10px; margin: 10px 0;">
-                                <h4>🌟 Personality Discovery</h4>
-                                <p>Explore your unique strengths and interests</p>
-                            </div>
-                            <div style="background: linear-gradient(135deg, #4facfe, #00f2fe); color: white; padding: 15px; border-radius: 10px; margin: 10px 0;">
-                                <h4>🎯 Focus & Attention</h4>
-                                <p>Test your concentration and memory skills</p>
-                            </div>
-                        </div>
-                    </div>
-                `,
-                showCancelButton: true,
-                confirmButtonText: 'Start Test! 🚀',
-                cancelButtonText: 'Maybe Later',
-                confirmButtonColor: '#667eea',
-                width: 500
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    // Navigate to the psychometric assessment route
-                    router.push('/psychometric-assessment')
-                }
-            })
-        }
+                icon: 'info',
+                title: 'Health Tracker Coming Soon! ❤️‍🩹',
+                text: 'A new adventure to track your health and habits is on the way!',
+                background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                color: 'white'
+            });
+        };
 
-
-
+        const openTaskTracker = () => {
+            Swal.fire({
+                icon: 'info',
+                title: 'Task Tracker Coming Soon! 🎯',
+                text: 'A new and improved way to manage your quests is being forged!',
+                background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                color: 'white'
+            });
+        };
 
         const completedGoals = computed(() => {
             return savingsGoals.value.filter(goal =>
@@ -795,7 +788,6 @@ export default {
             streakDays,
             userLevel,
             userStats,
-            todayQuests,
             skillAreas,
             funActivities,
             selectedActivity,
@@ -810,7 +802,6 @@ export default {
             toggleQuest,
             openSkillArea,
             startActivity,
-            startPsychometricTest,
             formatDate,
             showFinanceTracker,
             currentSavings,
@@ -820,18 +811,24 @@ export default {
             addSavingsGoal,
             completedGoals,
             calculateGoalProgress,
-            spendGoalSavings
+            spendGoalSavings,
+            mainFeatures,
+            handleFeatureClick,
+            statsCards,
         }
     }
 }
 </script>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap');
+
 .child-dashboard {
     min-height: 100vh;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #31417A 0%, #667eea 100%);
     position: relative;
     overflow-x: hidden;
+    font-family: 'Merriweather', serif;
 }
 
 /* Header */
@@ -982,40 +979,153 @@ export default {
 /* Stats Row */
 .stats-row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.5rem;
     margin-bottom: 3rem;
 }
 
-.stat-bubble {
-    background: white;
-    border-radius: 20px;
+.stat-card {
+    background: #F0E6D2;
+    /* Parchment */
+    border-radius: 15px;
     padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-top: 4px solid var(--theme-color);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+    transition: all 0.4s ease;
     text-align: center;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s;
-    cursor: pointer;
 }
 
-.stat-bubble:hover {
-    transform: translateY(-5px);
+.stat-card:hover {
+    transform: translateY(-8px) scale(1.03);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6), 0 0 20px var(--theme-color);
+}
+
+.stat-icon-wrapper {
+    position: relative;
+    margin-bottom: 1rem;
 }
 
 .stat-icon {
-    font-size: 2.5rem;
-    margin-bottom: 0.5rem;
+    font-size: 3rem;
+    color: var(--theme-color);
+    position: relative;
+    z-index: 2;
+    transition: transform 0.4s ease;
+}
+
+.stat-card:hover .stat-icon {
+    animation: levitate 2s infinite ease-in-out;
+}
+
+@keyframes levitate {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-7px);
+    }
+}
+
+.sparkles {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.sparkle {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: var(--theme-color);
+    border-radius: 50%;
+    opacity: 0;
+    animation: sparkle-anim 2s infinite;
+}
+
+.stat-card:hover .sparkle {
+    opacity: 1;
+}
+
+.sparkle:nth-child(1) {
+    top: 20%;
+    left: 15%;
+    animation-delay: 0.2s;
+}
+
+.sparkle:nth-child(2) {
+    top: 40%;
+    left: 80%;
+    animation-delay: 0.8s;
+}
+
+.sparkle:nth-child(3) {
+    top: 70%;
+    left: 30%;
+    animation-delay: 1.4s;
+}
+
+@keyframes sparkle-anim {
+    0% {
+        transform: translateY(0) scale(1);
+        opacity: 0;
+    }
+
+    50% {
+        transform: translateY(-15px) scale(1.2);
+        opacity: 0.7;
+    }
+
+    100% {
+        transform: translateY(-30px) scale(1);
+        opacity: 0;
+    }
+}
+
+.stat-info {
+    color: #3B312E;
+    /* Dark charcoal */
 }
 
 .stat-number {
-    font-size: 2rem;
-    font-weight: bold;
-    color: #333;
-    margin-bottom: 0.25rem;
+    font-family: 'Merriweather', serif;
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 0.5rem;
+    color: #3B312E;
+    text-shadow: 1px 1px 1px rgba(255, 255, 255, 0.5);
 }
 
 .stat-label {
-    color: #666;
     font-size: 0.9rem;
+    color: #5a4f4a;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Theme specific styles */
+.stars-theme {
+    --theme-color: #FFD700;
+}
+
+.quests-theme {
+    --theme-color: #C9A270;
+}
+
+.skills-theme {
+    --theme-color: #2A623D;
+}
+
+.goals-theme {
+    --theme-color: #222F5B;
 }
 
 /* Section Titles */
@@ -1031,6 +1141,69 @@ export default {
 
 .title-icon {
     font-size: 2rem;
+}
+
+/* Features Section */
+.features-section {
+    margin-bottom: 3rem;
+}
+
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
+.feature-card {
+    color: white;
+    border-radius: 20px;
+    padding: 1.5rem;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+    overflow: hidden;
+    position: relative;
+}
+
+.feature-card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
+}
+
+.feature-icon-wrapper {
+    background: rgba(255, 255, 255, 0.2);
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 1.5rem auto;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.feature-icon {
+    font-size: 2.5rem;
+    color: white;
+}
+
+.feature-info h3 {
+    color: white;
+    font-size: 1.3rem;
+    margin-bottom: 0.5rem;
+}
+
+.feature-info p {
+    color: white;
+    opacity: 0.9;
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+/* Skills Section */
+.skills-section {
+    margin-bottom: 3rem;
 }
 
 /* Quest Section */
@@ -1117,41 +1290,43 @@ export default {
 
 .skills-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.5rem;
 }
 
 .skill-card {
-    border-radius: 20px;
-    overflow: hidden;
+    border-radius: 15px;
+    padding: 1.5rem;
+    color: white;
     cursor: pointer;
-    transition: transform 0.3s;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
 .skill-card:hover {
     transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
 }
 
-.skill-background {
-    padding: 2rem;
-    color: white;
-    text-align: center;
+.skill-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
 }
 
 .skill-icon {
-    font-size: 3rem;
-    margin-bottom: 1rem;
+    font-size: 2rem;
 }
 
-.skill-background h3 {
-    margin: 0 0 0.5rem 0;
-    font-size: 1.3rem;
-}
-
-.skill-background p {
-    margin: 0 0 1.5rem 0;
-    opacity: 0.9;
+.skill-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    color: white;
+    font-weight: 600;
 }
 
 .skill-progress {
@@ -1174,7 +1349,8 @@ export default {
 }
 
 .progress-text {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
+    color: white;
     opacity: 0.9;
 }
 
@@ -1198,6 +1374,7 @@ export default {
     cursor: pointer;
     transition: all 0.3s;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    color: #333;
 }
 
 .activity-btn:hover {
@@ -1212,7 +1389,6 @@ export default {
 
 .activity-name {
     font-weight: bold;
-    color: #333;
 }
 
 /* Achievements Section */

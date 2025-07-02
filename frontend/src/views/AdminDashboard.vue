@@ -203,9 +203,12 @@ export default {
 </script>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap');
+
 .admin-dashboard {
     min-height: 100vh;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #31417A 0%, #667eea 100%);
+    font-family: 'Merriweather', serif;
 }
 
 .admin-header {
@@ -276,39 +279,63 @@ export default {
 }
 
 .stat-card {
-    background: white;
+    background: #F0E6D2;
+    /* Parchment */
     padding: 2rem;
     border-radius: 15px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
     display: flex;
     align-items: center;
-    gap: 1rem;
-    transition: transform 0.3s;
+    gap: 1.5rem;
+    transition: all 0.4s ease;
+    border-top: 4px solid var(--theme-color);
 }
 
 .stat-card:hover {
-    transform: translateY(-5px);
+    transform: translateY(-8px) scale(1.03);
+    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6), 0 0 20px var(--theme-color);
+}
+
+.stat-card:nth-child(1) {
+    --theme-color: #FFD700;
+}
+
+.stat-card:nth-child(2) {
+    --theme-color: #C9A270;
+}
+
+.stat-card:nth-child(3) {
+    --theme-color: #2A623D;
+}
+
+.stat-card:nth-child(4) {
+    --theme-color: #222F5B;
 }
 
 .stat-icon {
     font-size: 3rem;
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    color: var(--theme-color);
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.stat-content {
+    color: #3B312E;
+    /* Dark charcoal */
 }
 
 .stat-content h3 {
     margin: 0 0 0.5rem 0;
-    color: #666;
+    color: #5a4f4a;
     font-size: 0.9rem;
     text-transform: uppercase;
     letter-spacing: 1px;
 }
 
 .stat-number {
-    font-size: 2rem;
-    font-weight: bold;
-    color: #333;
+    font-family: 'Merriweather', serif;
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #3B312E;
 }
 
 .admin-sections {
@@ -318,32 +345,37 @@ export default {
 }
 
 .section-card {
-    background: white;
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
     padding: 2rem;
     border-radius: 15px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    transition: all 0.3s ease;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
 }
 
 .section-card:hover {
     transform: translateY(-5px);
+    box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
 }
 
 .section-card h2 {
     margin: 0 0 1rem 0;
-    color: #333;
+    color: white;
     font-size: 1.3rem;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .section-card p {
-    color: #666;
+    color: rgba(255, 255, 255, 0.8);
     margin-bottom: 1.5rem;
     line-height: 1.6;
 }
 
 .action-btn {
     padding: 0.75rem 1.5rem;
-    border: none;
+    border: 1px solid rgba(255, 255, 255, 0.5);
     border-radius: 25px;
     cursor: pointer;
     font-weight: 600;
@@ -353,18 +385,20 @@ export default {
     gap: 0.5rem;
     margin-right: 0.5rem;
     margin-bottom: 0.5rem;
-    background: #f8f9fa;
-    color: #333;
+    background: rgba(255, 255, 255, 0.1);
+    color: white;
 }
 
 .action-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    background: rgba(255, 255, 255, 0.2);
 }
 
 .action-btn.primary {
-    background: linear-gradient(135deg, #667eea, #764ba2);
+    background: linear-gradient(135deg, #ff6b6b, #ffa726);
     color: white;
+    border: none;
 }
 
 .action-group {
