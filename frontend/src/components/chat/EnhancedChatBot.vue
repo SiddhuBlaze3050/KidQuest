@@ -1,7 +1,7 @@
 <template>
     <div class="enhanced-chatbot" @click="closeModal">
         <div class="chatbot-container" @click.stop>
-            <!-- Header -->
+            <!-- Header with session controls -->
             <div class="chat-header">
                 <div class="bot-info">
                     <h3>{{ botCharacter.name }}</h3>
@@ -13,16 +13,47 @@
                         </span>
                     </div>
                 </div>
-                <button @click="$emit('close')" class="close-btn">&times;</button>
+                
+                <!-- Session Controls -->
+                <div class="session-controls">
+                    <button @click="toggleSessionHistory" class="session-btn" title="Chat History">
+                        📚
+                    </button>
+                    <button @click="startNewSession" class="session-btn" title="New Chat">
+                        ➕
+                    </button>
+                    <button @click="$emit('close')" class="close-btn">&times;</button>
+                </div>
+            </div>
+
+            <!-- Session History Sidebar -->
+            <div v-if="showSessionHistory" class="session-sidebar">
+                <div class="session-header">
+                    <h4>Chat History</h4>
+                    <button @click="showSessionHistory = false" class="close-sidebar">×</button>
+                </div>
+                <div class="session-list">
+                    <div v-for="session in sessions" :key="session.id" 
+                         @click="loadSession(session.id)" 
+                         class="session-item"
+                         :class="{ active: session.id === currentSessionId }">
+                        <div class="session-date">{{ formatSessionDate(session.updated_at) }}</div>
+                        <div class="session-preview">{{ session.last_message_preview }}</div>
+                        <div class="session-meta">
+                            <span class="interaction-count">{{ session.interaction_count }} msgs</span>
+                            <span v-if="session.mood_tag" class="mood-tag">{{ session.mood_tag }}</span>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Chat Messages Area -->
-            <div class="chat-messages" ref="messagesContainer">
+            <div class="chat-messages" ref="messagesContainer" :class="{ 'with-sidebar': showSessionHistory }">
                 <!-- Welcome Message -->
                 <div class="welcome-message">
                     <div class="message-bubble bot-message">
                         <div class="message-avatar">
-                            <div class="mini-bot">🤖</div>
+                            <div class="mini-bot">🧙‍♂️</div>
                         </div>
                         <div class="message-content">
                             <p>{{ botCharacter.welcomeMessage }}</p>
@@ -95,14 +126,6 @@
                     </button>
                 </div>
             </div>
-
-            <!-- Bot Status Indicator -->
-            <div class="bot-status">
-                <div class="status-indicator" :class="botStatus">
-                    <span class="status-dot"></span>
-                    <span class="status-text">{{ getStatusText() }}</span>
-                </div>
-            </div>
         </div>
     </div>
 </template>
@@ -128,10 +151,14 @@ export default {
         const newMessage = ref('')
         const isTyping = ref(false)
         const currentEmotion = ref('neutral')
-        const botStatus = ref('online')
         const showSuggestions = ref(false)
         const messagesContainer = ref(null)
         const messageInput = ref(null)
+        
+        // Session management
+        const currentSessionId = ref(null)
+        const sessions = ref([])
+        const showSessionHistory = ref(false)
 
         // Bot configuration
         const botCharacterData = {
@@ -232,30 +259,80 @@ export default {
             return emojis[emotion] || '😌'
         }
 
-        const getStatusText = () => {
-            const statusTexts = {
-                online: 'Ready to help',
-                thinking: 'Processing wisdom...',
-                responding: 'Sharing knowledge...',
-                offline: 'Temporarily away'
-            }
-            return statusTexts[botStatus.value] || 'Ready to help'
-        }
-
+        // Session management methods
         const loadChatHistory = async () => {
             try {
                 const response = await apiService.getChatHistory(props.user?.id || 1)
                 if (response.success) {
                     messages.value = response.messages.map((msg, index) => ({
                         ...msg,
-                        id: index + 1
+                        id: msg.id || index + 1
                     }))
+                    
+                    // Set current session ID from latest message
+                    if (messages.value.length > 0) {
+                        const latestMessage = messages.value[messages.value.length - 1]
+                        currentSessionId.value = latestMessage.session_id
+                    }
                 }
             } catch (error) {
                 console.error('Failed to load chat history:', error)
             }
         }
 
+        const loadChatSessions = async () => {
+            try {
+                const response = await apiService.getChatSessions(props.user?.id || 1)
+                if (response.success) {
+                    sessions.value = response.sessions
+                }
+            } catch (error) {
+                console.error('Failed to load chat sessions:', error)
+            }
+        }
+
+        const loadSession = async (sessionId) => {
+            try {
+                const response = await apiService.getSession(sessionId)
+                if (response.success) {
+                    messages.value = response.session.messages.map((msg, index) => ({
+                        ...msg,
+                        id: msg.id || index + 1
+                    }))
+                    currentSessionId.value = sessionId
+                    showSessionHistory.value = false
+                    scrollToBottom()
+                }
+            } catch (error) {
+                console.error('Failed to load session:', error)
+            }
+        }
+
+        const startNewSession = () => {
+            messages.value = []
+            currentSessionId.value = null // This will force creation of new session
+            showSessionHistory.value = false
+            newMessage.value = ''
+            currentEmotion.value = 'neutral'
+        }
+
+        const toggleSessionHistory = () => {
+            showSessionHistory.value = !showSessionHistory.value
+            if (showSessionHistory.value) {
+                loadChatSessions()
+            }
+        }
+
+        const formatSessionDate = (dateString) => {
+            return new Date(dateString).toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            })
+        }
+
+        // Core chat methods
         const sendMessage = async () => {
             if (!newMessage.value.trim() || isTyping.value) return
 
@@ -263,39 +340,47 @@ export default {
             newMessage.value = ''
             showSuggestions.value = false
 
-            // Detect emotion from user message
-            const userEmotion = getMessageEmotion(userMessage)
-            currentEmotion.value = userEmotion
-
-            // Add user message
-            messages.value.push({
+            // Add user message to local state immediately
+            const tempUserMsg = {
                 id: Date.now(),
                 message: userMessage,
                 sender: 'user',
-                timestamp: new Date().toISOString()
-            })
+                timestamp: new Date().toISOString(),
+                session_id: currentSessionId.value
+            }
+            messages.value.push(tempUserMsg)
 
             scrollToBottom()
             isTyping.value = true
-            botStatus.value = 'thinking'
 
             try {
-                const response = await apiService.sendMessage(userMessage, props.user?.id || 1)
+                const response = await apiService.sendMessage(
+                    userMessage, 
+                    props.user?.id || 1, 
+                    currentSessionId.value
+                )
 
                 if (response.success) {
-                    // Detect emotion from bot response
-                    const botEmotion = getMessageEmotion(response.response)
-                    currentEmotion.value = botEmotion
+                    // Update session ID for future messages
+                    if (response.session_id) {
+                        currentSessionId.value = response.session_id
+                    }
+
+                    // Use mood detected by LLM instead of client-side detection
+                    if (response.mood) {
+                        currentEmotion.value = response.mood
+                        console.log('LLM detected mood:', response.mood)
+                    }
 
                     // Add bot response
                     messages.value.push({
                         id: Date.now() + 1,
                         message: response.response,
                         sender: 'assistant',
-                        timestamp: response.timestamp
+                        timestamp: response.timestamp,
+                        session_id: currentSessionId.value,
+                        mood: response.mood
                     })
-
-                    botStatus.value = 'online'
                 }
             } catch (error) {
                 console.error('Failed to send message:', error)
@@ -315,11 +400,11 @@ export default {
                     id: Date.now() + 1,
                     message: "My apologies, young friend. The paths between realms seem troubled. Perhaps we might try again? Even wisdom faces challenges on its journey. 🧙‍♂️✨",
                     sender: 'assistant',
-                    timestamp: new Date().toISOString()
+                    timestamp: new Date().toISOString(),
+                    session_id: currentSessionId.value
                 })
 
                 currentEmotion.value = 'thinking'
-                botStatus.value = 'online'
             } finally {
                 isTyping.value = false
                 scrollToBottom()
@@ -334,7 +419,10 @@ export default {
         const selectSuggestion = (suggestion) => {
             newMessage.value = suggestion
             showSuggestions.value = false
-            messageInput.value?.focus()
+            // Automatically send the suggestion
+            nextTick(() => {
+                sendMessage()
+            })
         }
 
         const scrollToBottom = () => {
@@ -449,6 +537,7 @@ export default {
         // Lifecycle
         onMounted(() => {
             loadChatHistory()
+            loadChatSessions()
 
             nextTick(() => {
                 if (messageInput.value) {
@@ -463,11 +552,15 @@ export default {
             newMessage,
             isTyping,
             currentEmotion,
-            botStatus,
             showSuggestions,
             suggestions,
             messagesContainer,
             messageInput,
+            
+            // Session management
+            currentSessionId,
+            sessions,
+            showSessionHistory,
 
             // Data
             botCharacter: botCharacterData,
@@ -488,7 +581,12 @@ export default {
             getMessageEmotion,
             getEmotionLabel,
             getEmotionEmoji,
-            getStatusText
+            
+            // Session methods
+            loadSession,
+            startNewSession,
+            toggleSessionHistory,
+            formatSessionDate
         }
     }
 }
@@ -521,6 +619,7 @@ export default {
     border: 3px solid #daa520;
     box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
     overflow: hidden;
+    position: relative;
 }
 
 @keyframes modalSlideIn {
@@ -528,7 +627,6 @@ export default {
         opacity: 0;
         transform: translateY(-50px) scale(0.9);
     }
-
     to {
         opacity: 1;
         transform: translateY(0) scale(1);
@@ -581,10 +679,35 @@ export default {
     font-weight: 600;
 }
 
+/* Session Controls */
+.session-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.session-btn {
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    color: white;
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1rem;
+    z-index: 5;
+}
+
+.session-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    transform: scale(1.05);
+}
+
 .close-btn {
-    position: absolute;
-    top: 1rem;
-    right: 1rem;
     background: none;
     border: none;
     font-size: 2rem;
@@ -597,11 +720,118 @@ export default {
     display: flex;
     align-items: center;
     justify-content: center;
+    z-index: 5;
 }
 
 .close-btn:hover {
     background: rgba(255, 255, 255, 0.2);
     transform: rotate(90deg);
+}
+
+/* Session Sidebar */
+.session-sidebar {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 300px;
+    height: 100%;
+    background: rgba(46, 38, 70, 0.98);
+    border-left: 2px solid #daa520;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+    }
+    to {
+        transform: translateX(0);
+    }
+}
+
+.session-header {
+    padding: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.session-header h4 {
+    margin: 0;
+    color: #daa520;
+    font-size: 1.1rem;
+}
+
+.close-sidebar {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.5rem;
+    cursor: pointer;
+    padding: 0;
+}
+
+.session-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+}
+
+.session-item {
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1px solid transparent;
+}
+
+.session-item:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateX(5px);
+}
+
+.session-item.active {
+    background: rgba(218, 165, 32, 0.3);
+    border-color: #daa520;
+}
+
+.session-date {
+    font-size: 0.8rem;
+    color: #daa520;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+}
+
+.session-preview {
+    font-size: 0.9rem;
+    color: white;
+    margin-bottom: 0.5rem;
+    line-height: 1.3;
+}
+
+.session-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.75rem;
+}
+
+.interaction-count {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.mood-tag {
+    background: rgba(218, 165, 32, 0.3);
+    color: #daa520;
+    padding: 0.2rem 0.5rem;
+    border-radius: 12px;
+    font-weight: 600;
 }
 
 /* Chat Messages Area */
@@ -611,6 +841,11 @@ export default {
     padding: 1.5rem;
     background: linear-gradient(135deg, #f8f9fa, #e9ecef);
     min-height: 300px;
+    transition: margin-right 0.3s ease;
+}
+
+.chat-messages.with-sidebar {
+    margin-right: 300px;
 }
 
 .message-wrapper {
@@ -655,24 +890,18 @@ export default {
 }
 
 @keyframes float {
-
-    0%,
-    100% {
+    0%, 100% {
         transform: translateY(0);
     }
-
     50% {
         transform: translateY(-2px);
     }
 }
 
 @keyframes pulse {
-
-    0%,
-    100% {
+    0%, 100% {
         transform: scale(1);
     }
-
     50% {
         transform: scale(1.1);
     }
@@ -766,14 +995,10 @@ export default {
 }
 
 @keyframes typingPulse {
-
-    0%,
-    80%,
-    100% {
+    0%, 80%, 100% {
         opacity: 0.3;
         transform: scale(0.8);
     }
-
     40% {
         opacity: 1;
         transform: scale(1);
@@ -814,6 +1039,7 @@ export default {
     transition: all 0.3s ease;
     background: rgba(255, 255, 255, 0.95);
     color: #333;
+    box-sizing: border-box;
 }
 
 .message-input:focus {
@@ -871,6 +1097,7 @@ export default {
     align-items: center;
     justify-content: center;
     box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+    z-index: 5;
 }
 
 .send-btn:hover:not(:disabled) {
@@ -888,6 +1115,7 @@ export default {
     display: flex;
     gap: 0.5rem;
     flex-wrap: wrap;
+    z-index: 5;
 }
 
 .quick-action-btn {
@@ -902,6 +1130,7 @@ export default {
     align-items: center;
     gap: 0.5rem;
     font-size: 0.85rem;
+    z-index: 5;
 }
 
 .quick-action-btn:hover:not(:disabled) {
@@ -915,56 +1144,16 @@ export default {
     cursor: not-allowed;
 }
 
-/* Bot status */
-.bot-status {
-    position: absolute;
-    bottom: 1rem;
-    left: 1rem;
-    z-index: 10;
-}
-
-.status-indicator {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.5rem 1rem;
-    background: rgba(0, 0, 0, 0.7);
-    border-radius: 20px;
-    color: white;
-    font-size: 0.8rem;
-}
-
-.status-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #4caf50;
-    animation: statusPulse 2s infinite;
-}
-
-.status-indicator.thinking .status-dot {
-    background: #ff9800;
-}
-
-.status-indicator.offline .status-dot {
-    background: #f44336;
-    animation: none;
-}
-
-@keyframes statusPulse {
-
-    0%,
-    100% {
-        opacity: 1;
-    }
-
-    50% {
-        opacity: 0.5;
-    }
-}
-
-/* Responsive */
+/* Responsive adjustments */
 @media (max-width: 768px) {
+    .session-sidebar {
+        width: 250px;
+    }
+    
+    .chat-messages.with-sidebar {
+        margin-right: 250px;
+    }
+    
     .chatbot-container {
         width: 95%;
         height: 90vh;
@@ -990,6 +1179,16 @@ export default {
     }
 }
 
+@media (max-width: 600px) {
+    .session-sidebar {
+        width: 100%;
+    }
+    
+    .chat-messages.with-sidebar {
+        display: none;
+    }
+}
+
 /* Custom scrollbar */
 .chat-messages::-webkit-scrollbar {
     width: 8px;
@@ -1007,5 +1206,19 @@ export default {
 
 .chat-messages::-webkit-scrollbar-thumb:hover {
     background: #ffeda7;
+}
+
+.session-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.session-list::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 5px;
+}
+
+.session-list::-webkit-scrollbar-thumb {
+    background: #daa520;
+    border-radius: 5px;
 }
 </style>

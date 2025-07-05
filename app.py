@@ -1,8 +1,13 @@
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, ChatSession,ChildProfile, ParentChild, SavingGoal, Transaction, HomeworkSchedule, PomodoroSession, Notification, ScreenTime, HealthTask, HealthStreak, WaterLog
+from models import db, User, Achievement, ChatSession,ChildProfile, DoodleSession, LLMInteractions, ParentChild, SavingGoal, Transaction, HomeworkSchedule, PomodoroSession, ScreenTime, Notification, HealthTask, HealthStreak, WaterLog
 import re, requests
+import PIL
+import os
+import random
+import glob
+import base64
 from config import Config
 from openai import OpenAI
 import secrets
@@ -63,6 +68,113 @@ def load_chatbot_prompt():
 # Load system prompt from markdown file
 SYSTEM_PROMPT = load_chatbot_prompt()
 
+@app.route('/api/chat/sessions/<int:user_id>', methods=['GET'])
+def api_chat_sessions(user_id):
+    """Get all chat sessions for a user"""
+    try:
+        sessions = ChatSession.query.filter_by(user_id=user_id)\
+                                   .order_by(ChatSession.updated_at.desc()).all()
+        
+        sessions_data = []
+        for session in sessions:
+            interaction_count = LLMInteractions.query.filter_by(session_id=session.id).count()
+            last_message = LLMInteractions.query.filter_by(session_id=session.id)\
+                                                .order_by(LLMInteractions.user_timestamp.desc()).first()
+            
+            sessions_data.append({
+                'id': session.id,
+                'created_at': session.created_at.isoformat(),
+                'updated_at': session.updated_at.isoformat() if session.updated_at else session.created_at.isoformat(),
+                'mood_tag': session.mood_tag,
+                'interaction_count': interaction_count,
+                'last_message_preview': last_message.user_message[:50] + '...' if last_message and len(last_message.user_message) > 50 else last_message.user_message if last_message else '',
+                'summary': session.summary
+            })
+        
+        return jsonify({
+            'success': True,
+            'sessions': sessions_data
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/chat/session/<int:session_id>', methods=['GET'])
+def api_get_session(session_id):
+    """Get detailed session with all interactions"""
+    try:
+        session = db.session.get(ChatSession, session_id)
+        if not session:
+            return jsonify({'success': False, 'error': 'Session not found'}), 404
+        
+        interactions = LLMInteractions.query.filter_by(session_id=session_id)\
+                                           .order_by(LLMInteractions.user_timestamp.asc()).all()
+        
+        messages = []
+        for interaction in interactions:
+            # Add user message
+            messages.append({
+                'id': f"user_{interaction.id}",
+                'message': interaction.user_message,
+                'sender': 'user',
+                'timestamp': interaction.user_timestamp.isoformat(),
+                'mood_tag': interaction.mood_tag
+            })
+            
+            # Add bot response if available
+            if interaction.llm_response:
+                messages.append({
+                    'id': f"bot_{interaction.id}",
+                    'message': interaction.llm_response,
+                    'sender': 'assistant',
+                    'timestamp': interaction.llm_timestamp.isoformat() if interaction.llm_timestamp else interaction.user_timestamp.isoformat()
+                })
+        
+        return jsonify({
+            'success': True,
+            'session': {
+                'id': session.id,
+                'created_at': session.created_at.isoformat(),
+                'updated_at': session.updated_at.isoformat() if session.updated_at else session.created_at.isoformat(),
+                'mood_tag': session.mood_tag,
+                'summary': session.summary,
+                'messages': messages
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/chat/session/<int:session_id>/summary', methods=['PUT'])
+def update_session_summary(session_id):
+    """Update session summary"""
+    try:
+        data = request.get_json()
+        summary = data.get('summary')
+        
+        session = db.session.get(ChatSession, session_id)
+        if not session:
+            return jsonify({'success': False, 'error': 'Session not found'}), 404
+        
+        session.summary = summary
+        session.updated_at = datetime.utcnow()
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Session summary updated'
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 # ---------------------------
 # Legacy Chatbot Routes (for backward compatibility)
 # ---------------------------
@@ -84,20 +196,74 @@ def chatbot():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/chat/sessions/<int:user_id>', methods=['GET'])
+def get_chat_sessions(user_id):
+    """Get all chat sessions for a user with metadata"""
+    try:
+        sessions = ChatSession.query.filter_by(user_id=user_id)\
+                                   .order_by(ChatSession.updated_at.desc()).all()
+        
+        session_list = []
+        for session in sessions:
+            # Get interaction count
+            interaction_count = LLMInteractions.query.filter_by(session_id=session.id).count()
+            
+            # Get last message preview
+            last_interaction = LLMInteractions.query.filter_by(session_id=session.id)\
+                                                   .order_by(LLMInteractions.user_timestamp.desc()).first()
+            
+            last_message_preview = "New conversation"
+            if last_interaction:
+                preview_text = last_interaction.user_message
+                last_message_preview = (preview_text[:50] + "...") if len(preview_text) > 50 else preview_text
+            
+            session_list.append({
+                'id': session.id,
+                'updated_at': session.updated_at.isoformat(),
+                'interaction_count': interaction_count,
+                'last_message_preview': last_message_preview,
+                'mood_tag': session.mood_tag  # Include mood_tag from session
+            })
+        
+        return jsonify({
+            'success': True,
+            'sessions': session_list
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+    
 @app.route('/chat-history/<int:user_id>', methods=['GET'])
 def get_chat_history(user_id):
+    """Legacy route - updated for new model"""
     try:
-        chats = ChatSession.query.filter_by(user_id=user_id)\
-                                 .order_by(ChatSession.timestamp.asc()).all()
+        # Get recent interactions across all sessions
+        interactions = db.session.query(LLMInteractions)\
+                                 .join(ChatSession)\
+                                 .filter(ChatSession.user_id == user_id)\
+                                 .order_by(LLMInteractions.user_timestamp.asc())\
+                                 .limit(50).all()
         
         chat_history = []
-        for chat in chats:
+        for interaction in interactions:
+            # Add user message
             chat_history.append({
-                'id': chat.id,
-                'message': chat.message,
-                'sender': chat.sender,
-                'timestamp': chat.timestamp.isoformat()
+                'id': f"user_{interaction.id}",
+                'message': interaction.user_message,
+                'sender': 'user',
+                'timestamp': interaction.user_timestamp.isoformat()
             })
+            
+            # Add bot response if available
+            if interaction.llm_response:
+                chat_history.append({
+                    'id': f"bot_{interaction.id}",
+                    'message': interaction.llm_response,
+                    'sender': 'assistant',
+                    'timestamp': interaction.llm_timestamp.isoformat() if interaction.llm_timestamp else interaction.user_timestamp.isoformat()
+                })
         
         return jsonify({'chat_history': chat_history}), 200
     except Exception as e:
@@ -105,8 +271,14 @@ def get_chat_history(user_id):
 
 @app.route('/clear-chat/<int:user_id>', methods=['DELETE'])
 def clear_chat_history(user_id):
+    """Legacy route - updated for new model"""
     try:
-        ChatSession.query.filter_by(user_id=user_id).delete()
+        # Delete all sessions and their interactions for user
+        sessions = ChatSession.query.filter_by(user_id=user_id).all()
+        for session in sessions:
+            LLMInteractions.query.filter_by(session_id=session.id).delete()
+            db.session.delete(session)
+        
         db.session.commit()
         return jsonify({'message': 'Chat history cleared successfully'}), 200
     except Exception as e:
@@ -214,21 +386,23 @@ def api_login():
 
 @app.route('/api/chat', methods=['POST'])
 def api_chat():
-    """API endpoint for chat interface"""
+    """API endpoint for chat interface with session support"""
     try:
         data = request.get_json()
         message = data.get('message')
-        user_id = data.get('user_id', 1)  # Default to user_id 1 for now
+        user_id = data.get('user_id', 1)
+        session_id = data.get('session_id')  # Add session_id support
         
         if not message:
             return jsonify({'success': False, 'error': 'Message is required'}), 400
         
-        # Use existing chatbot logic
-        response_data = chatbot_logic(user_id, message)
+        # Use existing chatbot logic with session support
+        response_data = chatbot_logic(user_id, message, session_id)
         return jsonify({
             'success': True,
             'response': response_data['response'],
-            'timestamp': response_data['timestamp']
+            'timestamp': response_data['timestamp'],
+            'session_id': response_data['session_id']  # Include session_id in response
         }), 200
     except Exception as e:
         db.session.rollback()
@@ -239,31 +413,48 @@ def api_chat():
 
 @app.route('/api/chat/history/<int:user_id>', methods=['GET'])
 def api_chat_history(user_id):
-    """API endpoint to get chat history"""
+    """API endpoint to get chat history with new session-based model"""
     try:
-        chats = ChatSession.query.filter_by(user_id=user_id)\
-                                 .order_by(ChatSession.timestamp.asc())\
-                                 .limit(50).all()
+        # Get recent chat sessions for user (last 5 sessions)
+        sessions = ChatSession.query.filter_by(user_id=user_id)\
+                                   .order_by(ChatSession.updated_at.desc())\
+                                   .limit(5).all()
         
         messages = []
-        for chat in chats:
-            messages.append({
-                'id': chat.id,
-                'message': chat.message,
-                'sender': chat.sender,
-                'timestamp': chat.timestamp.isoformat()
-            })
+        for session in reversed(sessions):  # Show oldest sessions first
+            interactions = LLMInteractions.query.filter_by(session_id=session.id)\
+                                               .order_by(LLMInteractions.user_timestamp.asc()).all()
+            
+            for interaction in interactions:
+                # Add user message
+                messages.append({
+                    'id': f"user_{interaction.id}",
+                    'message': interaction.user_message,
+                    'sender': 'user',
+                    'timestamp': interaction.user_timestamp.isoformat(),
+                    'session_id': session.id
+                })
+                
+                # Add bot response if available
+                if interaction.llm_response:
+                    messages.append({
+                        'id': f"bot_{interaction.id}",
+                        'message': interaction.llm_response,
+                        'sender': 'assistant',
+                        'timestamp': interaction.llm_timestamp.isoformat() if interaction.llm_timestamp else interaction.user_timestamp.isoformat(),
+                        'session_id': session.id
+                    })
         
         return jsonify({
             'success': True,
-            'messages': messages
+            'messages': messages[-50:]  # Limit to last 50 messages
         }), 200
     except Exception as e:
         return jsonify({
             'success': False,
             'error': str(e)
         }), 500
-
+    
 @app.route('/api/user/profile/<int:user_id>', methods=['GET'])
 def api_user_profile(user_id):
     """API endpoint to get user profile"""
@@ -499,54 +690,99 @@ def api_toggle_quest(quest_id):
             'error': str(e)
         }), 500
 
-def chatbot_logic(user_id, user_message):
-    """Extracted chatbot logic for reuse"""
-    # Save user message to database
-    user_chat = ChatSession(
-        user_id=user_id,
-        message=user_message,
-        sender='user'
-    )
-    db.session.add(user_chat)
+def chatbot_logic(user_id, user_message, session_id=None):
+    """Extracted chatbot logic for reuse with new session-based model"""
     
-    # Get recent chat history (last 10 messages)
-    recent_chats = ChatSession.query.filter_by(user_id=user_id)\
-                                   .order_by(ChatSession.timestamp.desc())\
-                                   .limit(10).all()
+    # Get or create chat session
+    if session_id:
+        chat_session = db.session.get(ChatSession, session_id)
+        if not chat_session:
+            chat_session = ChatSession(user_id=user_id)
+            db.session.add(chat_session)
+            db.session.flush()
+    else:
+        # ALWAYS create a new session when session_id is None
+        chat_session = ChatSession(user_id=user_id)
+        db.session.add(chat_session)
+        db.session.flush()
+    
+    # Save user message as interaction (mood will be updated after LLM response)
+    user_interaction = LLMInteractions(
+        session_id=chat_session.id,
+        user_message=user_message,
+        user_timestamp=datetime.utcnow()
+    )
+    db.session.add(user_interaction)
+    db.session.flush()
+    
+    # Get recent interactions for context (last 10)
+    recent_interactions = LLMInteractions.query.filter_by(session_id=chat_session.id)\
+                                              .order_by(LLMInteractions.user_timestamp.desc())\
+                                              .limit(10).all()
     
     # Build conversation context
     messages = [{"role": "system", "content": SYSTEM_PROMPT}]
     
     # Add recent chat history in chronological order
-    for chat in reversed(recent_chats):
-        role = "user" if chat.sender == "user" else "assistant"
-        messages.append({"role": role, "content": chat.message})
+    for interaction in reversed(recent_interactions[1:]):  # Skip current interaction
+        messages.append({"role": "user", "content": interaction.user_message})
+        if interaction.llm_response:
+            # Clean the LLM response to remove mood tags before adding to context
+            clean_response = interaction.llm_response
+            if '[MOOD:' in clean_response:
+                clean_response = clean_response.split('[MOOD:')[0].strip()
+            messages.append({"role": "assistant", "content": clean_response})
     
     # Add current user message
     messages.append({"role": "user", "content": user_message})
-
-    # Get response from OpenAI/Groq
-    response = client.chat.completions.create(
-        model="meta-llama/llama-4-maverick-17b-128e-instruct",
-        messages=messages,
-        max_tokens=200,
-        temperature=0.7
-    )
     
-    bot_reply = response.choices[0].message.content.strip()
+    # Get response from LLM
+    try:
+        response = client.chat.completions.create(
+            model="meta-llama/llama-4-maverick-17b-128e-instruct",
+            messages=messages,
+            max_tokens=250,
+            temperature=0.7
+        )
+        
+        bot_reply = response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"Error getting AI response: {e}")
+        bot_reply = "I apologize, but I'm having trouble connecting to my knowledge base right now. Please try again in a moment. [MOOD: neutral]"
     
-    # Save bot response to database
-    bot_chat = ChatSession(
-        user_id=user_id,
-        message=bot_reply,
-        sender='assistant',
-    )
-    db.session.add(bot_chat)
+    # Extract mood from LLM response
+    detected_mood = 'neutral'
+    clean_bot_reply = bot_reply
+    
+    if '[MOOD:' in bot_reply:
+        try:
+            # Extract mood from the response
+            mood_part = bot_reply.split('[MOOD:')[1].split(']')[0].strip().lower()
+            detected_mood = mood_part
+            # Remove mood tag from the response shown to user
+            clean_bot_reply = bot_reply.split('[MOOD:')[0].strip()
+        except (IndexError, AttributeError):
+            print("Failed to parse mood from LLM response")
+            detected_mood = 'neutral'
+    
+    # Update the interaction with bot response and detected mood
+    user_interaction.llm_response = bot_reply  # Keep full response with mood tag
+    user_interaction.llm_timestamp = datetime.utcnow()
+    user_interaction.mood_tag = detected_mood
+    
+    # Update session mood_tag (overwrite with latest mood)
+    chat_session.mood_tag = detected_mood
+    chat_session.updated_at = datetime.utcnow()
+    
     db.session.commit()
     
+    print(f"Updated session {chat_session.id} mood to: {detected_mood}")
+    
     return {
-        'response': bot_reply,
-        'timestamp': bot_chat.timestamp.isoformat()
+        'response': clean_bot_reply,  # Return clean response without mood tag
+        'timestamp': user_interaction.llm_timestamp.isoformat(),
+        'session_id': chat_session.id,
+        'mood': detected_mood
     }
 
 #Finance tracker APIs
@@ -1029,6 +1265,371 @@ def create_sample_notifications():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+# ---------------------------
+# Doodling/Drawing Routes
+# ---------------------------
+
+@app.route('/api/drawings/save', methods=['POST'])
+def save_drawing():
+    """Save a drawing to both local storage and database"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id', 1)
+        image_data = data.get('image_data')
+        description = data.get('description', 'Untitled Drawing')
+        time_taken = data.get('time_taken', 0)
+        ref_image_path = data.get('ref_image_path')
+        ref_image_title = data.get('ref_image_title')
+        
+        if not image_data:
+            return jsonify({'success': False, 'error': 'No image data provided'}), 400
+        
+        # Create drawings directory if it doesn't exist
+        drawings_dir = os.path.join('static', 'drawings')
+        os.makedirs(drawings_dir, exist_ok=True)
+        
+        # Generate unique filename
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filename = f"drawing_{user_id}_{timestamp}.png"
+        file_path = os.path.join(drawings_dir, filename)
+        
+        # Save image to local file system
+        try:
+            if image_data.startswith('data:image'):
+                image_data = image_data.split(',')[1]
+            
+            image_bytes = base64.b64decode(image_data)
+            with open(file_path, 'wb') as f:
+                f.write(image_bytes)
+            
+        except Exception as e:
+            return jsonify({'success': False, 'error': f'Failed to save image file: {str(e)}'}), 500
+        
+        # Save to database
+        try:
+            user = db.session.get(User, user_id)
+            if not user:
+                user = User(
+                    username=f"user_{user_id}",
+                    email=f"user{user_id}@example.com",
+                    password_hash="default_hash",
+                    role="child"
+                )
+                db.session.add(user)
+                db.session.flush()
+                user_id = user.id
+            
+            doodle_session = DoodleSession(
+                user_id=user_id,
+                description=description,
+                ref_image_path=ref_image_path,
+                ref_image_title=ref_image_title,
+                save_image_path=file_path,
+                is_completed=True,
+                timestamp=datetime.utcnow(),
+                time_taken=time_taken
+            )
+            
+            db.session.add(doodle_session)
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Drawing saved successfully!',
+                'drawing_id': doodle_session.id,
+                'file_path': file_path,
+                'file_size': len(image_bytes),
+                'time_taken': time_taken,
+                'ref_image_title': ref_image_title
+            }), 200
+            
+        except Exception as e:
+            try:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+            except:
+                pass
+            
+            db.session.rollback()
+            return jsonify({'success': False, 'error': f'Failed to save to database: {str(e)}'}), 500
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# Update the existing get_user_drawings function:
+@app.route('/api/drawings/<int:user_id>', methods=['GET'])
+def get_user_drawings(user_id):
+    """Get all drawings for a specific user"""
+    try:
+        drawings = DoodleSession.query.filter_by(user_id=user_id).order_by(DoodleSession.timestamp.desc()).all()
+        
+        drawings_data = []
+        for drawing in drawings:
+            file_exists = os.path.exists(drawing.save_image_path) if drawing.save_image_path else False
+            
+            drawings_data.append({
+                'id': drawing.id,
+                'description': drawing.description,
+                'timestamp': drawing.timestamp.isoformat(),
+                'file_path': drawing.save_image_path,
+                'file_exists': file_exists,
+                'is_completed': drawing.is_completed,
+                'time_taken': drawing.time_taken,
+                'ref_image_path': drawing.ref_image_path,
+                'ref_image_title': drawing.ref_image_title
+            })
+        
+        return jsonify({
+            'success': True,
+            'drawings': drawings_data
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/drawings/start-session', methods=['POST'])
+def start_drawing_session():
+    """Start a new drawing session with timer"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id', 1)
+        ref_image_path = data.get('ref_image_path')
+        ref_image_title = data.get('ref_image_title')
+        
+        # Create a new drawing session
+        doodle_session = DoodleSession(
+            user_id=user_id,
+            ref_image_path=ref_image_path,
+            ref_image_title=ref_image_title,
+            start_time=datetime.utcnow(),
+            is_completed=False
+        )
+        
+        db.session.add(doodle_session)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'session_id': doodle_session.id,
+            'start_time': doodle_session.start_time.isoformat(),
+            'ref_image_title': ref_image_title
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+    
+@app.route('/api/drawings/image/<int:drawing_id>', methods=['GET'])
+def get_drawing_image(drawing_id):
+    """Get a specific drawing image"""
+    try:
+        drawing = db.session.get(DoodleSession, drawing_id)
+        if not drawing:
+            return jsonify({'success': False, 'error': 'Drawing not found'}), 404
+        
+        if not drawing.save_image_path or not os.path.exists(drawing.save_image_path):
+            return jsonify({'success': False, 'error': 'Image file not found'}), 404
+        
+        # Read and encode image as base64
+        with open(drawing.save_image_path, 'rb') as f:
+            image_data = base64.b64encode(f.read()).decode('utf-8')
+        
+        return jsonify({
+            'success': True,
+            'image_data': f"data:image/png;base64,{image_data}",
+            'description': drawing.description,
+            'timestamp': drawing.timestamp.isoformat()
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/drawings/delete/<int:drawing_id>', methods=['DELETE'])
+def delete_drawing(drawing_id):
+    """Delete a drawing from both database and file system"""
+    try:
+        drawing = db.session.get(DoodleSession, drawing_id)
+        if not drawing:
+            return jsonify({'success': False, 'error': 'Drawing not found'}), 404
+        
+        # Delete file if it exists
+        if drawing.save_image_path and os.path.exists(drawing.save_image_path):
+            try:
+                os.remove(drawing.save_image_path)
+                print(f"Deleted file: {drawing.save_image_path}")
+            except Exception as e:
+                print(f"Error deleting file: {str(e)}")
+        
+        # Delete from database
+        db.session.delete(drawing)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Drawing deleted successfully'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+        
+@app.route('/api/drawings/reference-images', methods=['GET'])
+def get_reference_images():
+    """Get available reference images for drawing inspiration"""
+    try:
+        # Create reference images directory if it doesn't exist
+        ref_images_dir = os.path.join('static', 'reference_images')
+        os.makedirs(ref_images_dir, exist_ok=True)
+        
+        # Get all image files from reference directory
+        image_extensions = ['*.png', '*.jpg', '*.jpeg', '*.gif']
+        reference_images = []
+        
+        for extension in image_extensions:
+            files = glob.glob(os.path.join(ref_images_dir, extension))
+            reference_images.extend(files)
+        
+        # If no images found, create some default ones
+        if not reference_images:
+            reference_images = create_default_reference_images(ref_images_dir)
+        
+        # Convert to relative paths and create response
+        images_data = []
+        for img_path in reference_images:
+            filename = os.path.basename(img_path)
+            title = os.path.splitext(filename)[0].replace('_', ' ').title()
+            
+            images_data.append({
+                'path': img_path.replace('\\', '/'),  # Normalize path for web
+                'filename': filename,
+                'title': title,
+                'url': f"/static/reference_images/{filename}"
+            })
+        
+        return jsonify({
+            'success': True,
+            'images': images_data
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/drawings/random-reference', methods=['GET'])
+def get_random_reference_image():
+    """Get a random reference image for inspiration"""
+    try:
+        ref_images_dir = os.path.join('static', 'reference_images')
+        os.makedirs(ref_images_dir, exist_ok=True)
+        
+        # Get all image files
+        image_extensions = ['*.png', '*.jpg', '*.jpeg', '*.gif']
+        reference_images = []
+        
+        for extension in image_extensions:
+            files = glob.glob(os.path.join(ref_images_dir, extension))
+            reference_images.extend(files)
+        
+        if not reference_images:
+            reference_images = create_default_reference_images(ref_images_dir)
+        
+        if reference_images:
+            # Pick a random image
+            selected_image = random.choice(reference_images)
+            filename = os.path.basename(selected_image)
+            title = os.path.splitext(filename)[0].replace('_', ' ').title()
+            
+            return jsonify({
+                'success': True,
+                'reference': {
+                    'path': selected_image.replace('\\', '/'),
+                    'filename': filename,
+                    'title': title,
+                    'url': f"/static/reference_images/{filename}"
+                }
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'No reference images available'
+            }), 404
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+def create_default_reference_images(ref_images_dir):
+    """Create some default reference image placeholders"""
+    try:
+        # Create simple colored placeholder images
+        from PIL import Image, ImageDraw, ImageFont
+        
+        default_images = [
+            {'name': 'house.png', 'color': '#FFB6C1', 'text': '🏠 House'},
+            {'name': 'tree.png', 'color': '#90EE90', 'text': '🌳 Tree'},
+            {'name': 'sun.png', 'color': '#FFD700', 'text': '☀️ Sun'},
+            {'name': 'flower.png', 'color': '#FF69B4', 'text': '🌸 Flower'},
+            {'name': 'cat.png', 'color': '#DDA0DD', 'text': '🐱 Cat'},
+            {'name': 'car.png', 'color': '#87CEEB', 'text': '🚗 Car'},
+            {'name': 'rainbow.png', 'color': '#FF6347', 'text': '🌈 Rainbow'},
+            {'name': 'butterfly.png', 'color': '#FFA07A', 'text': '🦋 Butterfly'}
+        ]
+        
+        created_files = []
+        
+        for img_info in default_images:
+            # Create a simple colored image with text
+            img = Image.new('RGB', (300, 300), color=img_info['color'])
+            draw = ImageDraw.Draw(img)
+            
+            # Add text in center
+            try:
+                # Try to use a default font, fallback to basic if not available
+                font = ImageFont.truetype("arial.ttf", 40)
+            except:
+                font = ImageFont.load_default()
+            
+            text = img_info['text']
+            bbox = draw.textbbox((0, 0), text, font=font)
+            text_width = bbox[2] - bbox[0]
+            text_height = bbox[3] - bbox[1]
+            
+            x = (300 - text_width) // 2
+            y = (300 - text_height) // 2
+            
+            draw.text((x, y), text, fill='white', font=font)
+            
+            # Save the image
+            file_path = os.path.join(ref_images_dir, img_info['name'])
+            img.save(file_path)
+            created_files.append(file_path)
+        
+        return created_files
+        
+    except ImportError:
+        # If PIL is not available, create empty files as placeholders
+        default_files = [
+            'house.png', 'tree.png', 'sun.png', 'flower.png',
+            'cat.png', 'car.png', 'rainbow.png', 'butterfly.png'
+        ]
+        
+        created_files = []
+        for filename in default_files:
+            file_path = os.path.join(ref_images_dir, filename)
+            # Create empty file
+            with open(file_path, 'w') as f:
+                f.write('')
+            created_files.append(file_path)
+        
+        return created_files
+    except Exception:
+        return []
+
+# Add a route to serve static files
+@app.route('/static/<path:filename>')
+def serve_static(filename):
+    """Serve static files"""
+    return app.send_static_file(filename)
 
 # ---------------------------
 # Error Handlers
