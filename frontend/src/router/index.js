@@ -5,7 +5,7 @@ import ChildDashboard from '../views/ChildDashboard.vue'
 import { userUtils } from '@/services/api'
 import ParentDashboard from '../views/ParentDashboard.vue'
 import PyschometricAssessment from '../views/PyschometricAssessment.vue'
-
+import GoodTouchBadTouchModule from '../views/GoodTouchBadTouchModule.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -69,13 +69,24 @@ const router = createRouter({
       name: 'psychometric-assessment',
       component: PyschometricAssessment,
     },
+    {
+      path: '/good-touch-bad-touch',
+      name: 'good-touch-bad-touch',
+      component: GoodTouchBadTouchModule,
+      beforeEnter: (to, from, next) => {
+        const user = userUtils.getCurrentUser()
+        if (user) {
+          next()
+        } else {
+          next('/')
+        }
+      },
+    },
     // Redirect any unknown routes to home
     {
       path: '/:pathMatch(.*)*',
       redirect: '/',
     },
-    
-
   ],
 })
 

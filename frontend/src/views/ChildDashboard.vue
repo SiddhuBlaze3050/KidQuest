@@ -302,6 +302,8 @@
         <!-- Task Tracker Modal -->
         <TaskTracker v-if="showTaskTracker" :user="user" @close="showTaskTracker = false" />
 
+
+
         <!-- Floating Magic Elements -->
         <div class="floating-magic">
             <div class="magic-element" style="--delay: 0s; --x: 10%; --y: 20%;">🌟</div>
@@ -361,6 +363,7 @@ export default {
         const savingsGoals = ref([])
         const Quote = ref("Believe in yourself and magic will happen! ✨")
         const showHealthTracker = ref(false)
+
 
         // Screen Time Tracking
         const sessionStartTime = ref(null)
@@ -489,11 +492,19 @@ export default {
             },
             {
                 id: 6,
-                name: "Safety Measures",
-                description: "Stay safe and protect yourself",
+                name: "Good Touch Bad Touch",
+                description: "Learn about body safety and personal boundaries",
                 icon: "🛡️",
                 progress: 0,
                 gradient: "linear-gradient(135deg, #fd79a8, #fdcb6e)"
+            },
+            {
+                id: 7,
+                name: "Safety Measures",
+                description: "General safety tips and emergency procedures",
+                icon: "🚨",
+                progress: 0,
+                gradient: "linear-gradient(135deg, #ff9a9e, #fecfef)"
             }
         ])
 
@@ -739,8 +750,52 @@ export default {
 
         const openSkillArea = (skill) => {
             console.log('Starting activity:', skill.name)
-            // TODO: Navigate to skill detail page
+
+            if (skill.name === 'Good Touch Bad Touch') {
+                router.push('/good-touch-bad-touch')
+            } else if (skill.name === 'Safety Measures') {
+                openGeneralSafetyModule()
+            } else {
+                // TODO: Navigate to other skill detail pages
+                Swal.fire({
+                    icon: 'info',
+                    title: `${skill.name} 🎓`,
+                    text: 'This skill module is coming soon! Keep learning and growing.',
+                    timer: 3000,
+                    showConfirmButton: false,
+                    background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                    color: 'white'
+                })
+            }
         }
+
+        const openGeneralSafetyModule = () => {
+            Swal.fire({
+                icon: 'info',
+                title: '🚨 Safety Measures',
+                html: `
+                    <div style="text-align: left; line-height: 1.6;">
+                        <p><strong>This module will cover:</strong></p>
+                        <ul style="margin-left: 1rem;">
+                            <li>🏠 Home Safety Tips</li>
+                            <li>🚸 Road Safety Rules</li>
+                            <li>🌐 Internet Safety Guidelines</li>
+                            <li>🔥 Fire Safety Procedures</li>
+                            <li>📱 Emergency Contacts</li>
+                            <li>🆘 What to do in emergencies</li>
+                        </ul>
+                        <p style="margin-top: 1rem;"><em>This comprehensive safety module is coming soon!</em></p>
+                    </div>
+                `,
+                showConfirmButton: true,
+                confirmButtonText: 'Got it! 👍',
+                background: 'linear-gradient(135deg, #ff9a9e, #fecfef)',
+                color: 'white',
+                width: '500px'
+            })
+        }
+
+
 
         const startActivity = (activity) => {
             console.log('Starting activity:', activity.name)
@@ -832,10 +887,33 @@ export default {
             }
             return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })
         }
+        // Load progress from localStorage for Good Touch Bad Touch
+        const loadGoodTouchBadTouchProgress = () => {
+            try {
+                const savedProgress = localStorage.getItem(`safetyProgress_${user.value?.id || 'guest'}`)
+                if (savedProgress) {
+                    const progressData = JSON.parse(savedProgress)
+                    if (progressData.lessons) {
+                        const completedLessons = progressData.lessons.filter(lesson => lesson.completed).length
+                        const totalLessons = 6 // Total number of lessons
+                        const progress = Math.round((completedLessons / totalLessons) * 100)
+
+                        const safetySkill = skillAreas.value.find(skill => skill.name === 'Good Touch Bad Touch')
+                        if (safetySkill) {
+                            safetySkill.progress = progress
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading Good Touch Bad Touch progress:', error)
+            }
+        }
+
         onMounted(() => {
             checkChildAccess()
             startScreenTimeSession()
             fetchQuote()
+            loadGoodTouchBadTouchProgress()
 
             // Add event listener for page unload
             window.addEventListener('beforeunload', logScreenTime)
@@ -882,7 +960,9 @@ export default {
             handleFeatureClick,
             statsCards,
             Quote,
-            showHealthTracker
+            showHealthTracker,
+            openGeneralSafetyModule,
+            loadGoodTouchBadTouchProgress
         }
     }
 }
@@ -2578,5 +2658,32 @@ export default {
         opacity: 1;
         transform: translateY(0);
     }
+}
+
+
+
+.control-btn {
+    background: rgba(255, 255, 255, 0.9);
+    color: #333;
+    border: none;
+    padding: 0.8rem 1.5rem;
+    border-radius: 25px;
+    cursor: pointer;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+.control-btn:hover {
+    background: white;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+}
+
+.control-btn span {
+    font-size: 1.1rem;
 }
 </style>
