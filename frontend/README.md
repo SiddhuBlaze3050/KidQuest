@@ -27,3 +27,18 @@ npm run dev
 ```sh
 npm run build
 ```
+## Demo Credentials
+
+For demo purposes, you can use the following credentials to log in to the application:
+
+- **Admin**:
+  - Username: `admin`
+  - Password: `admin123`
+
+- **Child**:
+  - Username: `child`
+  - Password: `childchild`
+
+- **Parent**:
+  - Username: `parent`
+  - Password: `parentparent`
