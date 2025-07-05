@@ -85,9 +85,14 @@ class PuzzleAlarm(db.Model):
 class DoodleSession(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    mood_tag = db.Column(db.String(50))
-    figjam_url = db.Column(db.String(255))
+    description = db.Column(db.Text, nullable=True)
+    ref_image_path = db.Column(db.String(255), nullable=True)  # Reference image for inspiration
+    ref_image_title = db.Column(db.String(255), nullable=True)  # Title of reference image
+    save_image_path = db.Column(db.String(255), nullable=True)
+    is_completed = db.Column(db.Boolean, default=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    time_taken = db.Column(db.Integer, nullable=True)  # Time in seconds
+    start_time = db.Column(db.DateTime, nullable=True)  # When drawing started 
 
 # ---------------------------
 # Emotional Chatbot
@@ -95,10 +100,22 @@ class DoodleSession(db.Model):
 
 class ChatSession(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    message = db.Column(db.Text)
-    sender = db.Column(db.String(10))
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    mood_tag = db.Column(db.String(50), nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+
+    interactions = db.relationship('LLMInteractions', backref='session', cascade="all, delete-orphan", lazy=True)
+    summary = db.Column(db.Text, nullable=True)
+
+class LLMInteractions(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('chat_session.id'), nullable=False)
+    user_message = db.Column(db.Text, nullable=False)
+    user_timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    llm_response = db.Column(db.Text, nullable=True)
+    llm_timestamp = db.Column(db.DateTime)
+    mood_tag = db.Column(db.String(50), nullable=True)
 
 # ---------------------------
 # Financial Literacy

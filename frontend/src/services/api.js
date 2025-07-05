@@ -138,12 +138,13 @@ export const apiService = {
     }
   },
 
-  // Chat
-  async sendMessage(message, userId = 1) {
+  // Chat - Enhanced with session support
+  async sendMessage(message, userId = 1, sessionId = null) {
     try {
       const response = await api.post('/api/chat', {
         message,
         user_id: userId,
+        session_id: sessionId
       })
 
       if (response.data.success) {
@@ -158,6 +159,44 @@ export const apiService = {
   async getChatHistory(userId) {
     try {
       const response = await api.get(`/api/chat/history/${userId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async getChatSessions(userId) {
+    try {
+      const response = await api.get(`/api/chat/sessions/${userId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async getSession(sessionId) {
+    try {
+      const response = await api.get(`/api/chat/session/${sessionId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async updateSessionSummary(sessionId, summary) {
+    try {
+      const response = await api.put(`/api/chat/session/${sessionId}/summary`, {
+        summary
+      })
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async clearChatHistory(userId) {
+    try {
+      const response = await api.delete(`/clear-chat/${userId}`)
       return response.data
     } catch (error) {
       throw error
