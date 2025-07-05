@@ -178,18 +178,24 @@ class UserAnswer(db.Model):
 # Health and Habits
 # ---------------------------
 
-class HealthActivity(db.Model):
+class HealthTask(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    activity = db.Column(db.String(50)) 
-    duration_minutes = db.Column(db.Integer)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
-
-class WaterIntake(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    cups = db.Column(db.Integer)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    task_name = db.Column(db.String(100), nullable=False)
+    completed = db.Column(db.Boolean, default=False)
     date = db.Column(db.Date, default=date.today)
+
+class WaterLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    count = db.Column(db.Integer, default=0)
+    date = db.Column(db.Date, default=date.today)
+
+class HealthStreak(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
+    current_streak = db.Column(db.Integer, default=0)
+    last_updated = db.Column(db.Date, default=date.today)
 
 class ScreenTime(db.Model):
     id = db.Column(db.Integer, primary_key=True)
