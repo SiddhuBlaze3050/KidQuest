@@ -262,6 +262,10 @@ export const apiService = {
   // Pomodoro
   async startPomodoro(userId, homeworkId) {
     try {
+          console.log('✅ Sending to API from api.js :', {
+      user_id: userId,
+      homework_id: homeworkId,
+    })
       const response = await api.post('/api/pomodoro/start', {
         user_id: userId,
         homework_id: homeworkId,
@@ -272,11 +276,52 @@ export const apiService = {
     }
   },
 
-  async completePomodoro(sessionId, duration) {
+  async pausePomodoro(sessionId) {
+    try {
+      const response = await api.put(`/api/pomodoro/pause/${sessionId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async resumePomodoro(sessionId) {
+    try {
+      const response = await api.put(`/api/pomodoro/resume/${sessionId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async completePomodoro(sessionId, workDuration = 0, breakDuration = 0) {
     try {
       const response = await api.put(`/api/pomodoro/complete/${sessionId}`, {
-        duration,
+        work_duration: workDuration,
+        break_duration: breakDuration
       })
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async abandonPomodoro(sessionId, workDuration = 0, breakDuration = 0) {
+    try {
+      const response = await api.put(`/api/pomodoro/abandon/${sessionId}`, {
+        work_duration: workDuration,
+        break_duration: breakDuration
+      })
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async getTaskTimeAnalytics(userId, homeworkId = null) {
+    try {
+      const params = homeworkId ? { homework_id: homeworkId } : {}
+      const response = await api.get(`/api/task-time/analytics/${userId}`, { params })
       return response.data
     } catch (error) {
       throw error

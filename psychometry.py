@@ -48,10 +48,10 @@ class AssessmentEngine:
         option_text = question["options"].get(selected_option, "").lower()
         
         # Define keywords that indicate different personality types
-        creative_keywords = ["creative", "new ideas", "imagine", "stories", "art", "draw", "paint", "craft"]
-        analytical_keywords = ["analyze", "plan", "organize", "instructions", "carefully", "figure out", "solve", "think"]
-        social_keywords = ["friends", "people", "talk", "party", "group", "together", "help others", "share"]
-        practical_keywords = ["build", "create", "hands-on", "try", "do", "make", "practical", "real"]
+        creative_keywords = ["creative", "new ideas", "imagine", "stories", "art", "draw", "paint", "craft", "unique"]
+        analytical_keywords = ["analyze", "plan", "organize", "instructions", "carefully", "figure out", "solve", "think", "step by step", "logical"]
+        social_keywords = ["friends", "people", "talk", "party", "group", "together", "help others", "share", "included", "everyone"]
+        practical_keywords = ["build", "create", "hands-on", "try", "do", "make", "practical", "real", "fix", "tasks", "efficient"]
         
         # Count based on option text content
         if any(keyword in option_text for keyword in creative_keywords):
@@ -79,10 +79,10 @@ class AssessmentEngine:
         option_text = question["options"].get(selected_option, "").lower()
         
         # Define keywords for different interests
-        sports_keywords = ["sports", "soccer", "basketball", "running", "exercise", "game", "play"]
-        arts_keywords = ["art", "paint", "draw", "music", "dance", "creative", "museum", "craft"]
-        technology_keywords = ["robot", "computer", "coding", "technology", "science", "build", "program"]
-        nature_keywords = ["nature", "forest", "animals", "outdoors", "camping", "plants", "environment"]
+        sports_keywords = ["sports", "soccer", "basketball", "running", "exercise", "game", "play", "team", "drills"]
+        arts_keywords = ["art", "paint", "draw", "music", "dance", "creative", "museum", "craft", "sculptures", "film", "mural"]
+        technology_keywords = ["robot", "computer", "coding", "technology", "science", "build", "program", "app", "smartphone"]
+        nature_keywords = ["nature", "forest", "animals", "outdoors", "camping", "plants", "environment", "birds", "bugs", "garden", "hiking"]
         
         # Count based on option content
         if any(keyword in option_text for keyword in sports_keywords):
@@ -150,13 +150,13 @@ class QuestionGenerator:
     def generate_complete_test(self):
         """Generate all test questions at once using AI"""
         try:
-            prompt = """You are a child psychologist designing a playful, scientifically grounded assessment test for children aged 8–14. Create exactly 15 questions to evaluate the following:
+            prompt = """You are a child psychologist designing a playful, scientifically grounded assessment test for children aged 8–14. Create exactly 20 questions to evaluate the following:
 
-            1. Learning Style (Visual, Auditory, Kinesthetic) – 3 questions  
+            1. Learning Style (Visual, Auditory, Kinesthetic) – 4 questions  
             2. Interests (Sports, Arts, Technology, Nature) – 4 questions  
             3. Personality Type (Creative, Analytical, Social, Practical) – 5 questions  
-            4. Concentration Skills – 2 questions  
-            5. Memory Skills – 1 question  
+            4. Concentration Skills – 4 questions  
+            5. Memory Skills – 3 question  
 
             IMPORTANT FORMATTING RULES:
             - Personality and Interest questions should have Type: preference (no single correct answer)
@@ -171,7 +171,7 @@ class QuestionGenerator:
             `concentration`, `memory`,  
             `interest_sports`, `interest_technology`, `interest_arts`, `interest_nature`] 
             
-            Each question should be formatted EXACTLY like this:
+            Each question should be formatted EXACTLY like this (no asterisks or markdown):
             Question 1: [text]
             Category: [exact_category_from_above]
             Type: [standard/preference]
@@ -179,11 +179,11 @@ class QuestionGenerator:
             B) [option B]
             C) [option C]
             D) [option D]
-            Correct Answer: [A/B/C/D - for standard type] OR [N/A - for preference type]
+            Correct Answer: [A/B/C/D] (for preference, mark the option that reflects the category)
 
             
             For personality questions, make sure each option clearly represents the personality type in the category.
-            For interest questions, make sure each option clearly represents different interests.
+            For interest questions, make sure each option clearly represents different interests.For memory questions,try to give General knowledge questions that kids of this age can relate to.
             
             Avoid abstract questions. Use realistic school, hobby, and family-life scenarios. Vary your settings and verbs. Ensure all questions are unique every time.
 
@@ -192,7 +192,7 @@ class QuestionGenerator:
             prompt += f"\n\n[Random Seed: {random.randint(1, 10000)}]"
 
             payload = {
-                "model": "meta-llama/llama-3.1-8b-instruct:free",
+                "model": "mistralai/mistral-small-3.2-24b-instruct:free",
                 "messages": [
                     {
                         "role": "user",
@@ -238,11 +238,15 @@ class QuestionGenerator:
         print(f"DEBUG: Generated text length: {len(generated_text)}")
 
         try:
+            # Clean up the text first - remove all markdown formatting
+            clean_text = re.sub(r'\*+', '', generated_text)  # Remove asterisks
+            clean_text = re.sub(r'`+', '', clean_text)       # Remove backticks
+            
             # Split by lines and clean up
             lines = []
-            for line in generated_text.strip().split('\n'):
+            for line in clean_text.strip().split('\n'):
                 cleaned_line = line.strip()
-                if cleaned_line:  # Only add non-empty lines
+                if cleaned_line and not cleaned_line.startswith('---'):  # Skip separator lines
                     lines.append(cleaned_line)
             
             print(f"DEBUG: Processing {len(lines)} non-empty lines")
@@ -251,7 +255,7 @@ class QuestionGenerator:
                 print(f"DEBUG: Line {i}: {line}")
                 
                 # Match question patterns more flexibly
-                question_match = re.match(r'^\*?\*?(?:\d+\.?\s*)?Question\s*\d*\s*:', line, re.IGNORECASE)
+                question_match = re.match(r'^Question\s*\d*\s*:', line, re.IGNORECASE)
                 if question_match:
                     # Save previous question if valid
                     if current_question and self.is_valid_question(current_question):
@@ -262,16 +266,14 @@ class QuestionGenerator:
                     current_question = {"options": {}}
                     # Extract question text after the colon
                     question_text = line.split(":", 1)[1].strip() if ":" in line else line
-                    # Remove any markdown formatting
-                    question_text = re.sub(r'\*+', '', question_text).strip()
                     current_question["question"] = question_text
                     print(f"DEBUG: Started new question: {question_text[:50]}...")
 
                 elif line.startswith("Category:"):
                     # Extract category, handle various formats
                     cat_text = line.replace("Category:", "").strip()
-                    # Remove brackets, backticks, and extract the category
-                    cat_text = re.sub(r'[\[\]`\(\)]', '', cat_text).strip()
+                    # Remove any remaining formatting
+                    cat_text = re.sub(r'[\[\]`\(\)\*]', '', cat_text).strip()
                     # If it's a list format, take the first item
                     if ',' in cat_text:
                         cat_text = cat_text.split(',')[0].strip()
@@ -280,6 +282,8 @@ class QuestionGenerator:
 
                 elif line.startswith("Type:"):
                     qtype = line.replace("Type:", "").strip().lower()
+                    # Remove any formatting
+                    qtype = re.sub(r'[\[\]`\(\)\*]', '', qtype).strip()
                     current_question["type"] = qtype
                     print(f"DEBUG: Set type: {qtype}")
 
@@ -291,18 +295,19 @@ class QuestionGenerator:
                         current_question["options"][option_letter] = option_text
                         print(f"DEBUG: Added option {option_letter}: {option_text[:30]}...")
 
-                elif line.startswith("Correct Answer:"):
-                    # Extract correct answer
-                    answer_text = line.replace("Correct Answer:", "").strip()
-                    # For preference questions, correct answer might be N/A
+                elif re.match(r"Correct Answer\s*:?", line, re.IGNORECASE):
+                    # Extract answer
+                    answer_text = re.sub(r"^Correct Answer\s*:?", "", line, flags=re.IGNORECASE).strip()
                     if "N/A" in answer_text.upper() or "NONE" in answer_text.upper():
                         current_question["correct_answer"] = "N/A"
                     else:
-                        # Extract just the letter, handling various formats
                         answer_match = re.search(r'([A-D])', answer_text.upper())
                         if answer_match:
                             correct_answer = answer_match.group(1)
                             current_question["correct_answer"] = correct_answer
+                        else:
+                            # If no valid answer found, set to N/A for preference questions
+                            current_question["correct_answer"] = "N/A"
                     print(f"DEBUG: Set correct answer: {current_question.get('correct_answer', 'None')}")
 
             # Don't forget the last question
@@ -376,195 +381,254 @@ class QuestionGenerator:
     def get_fallback_questions(self):
         """FIXED: Fallback questions with proper personality mapping"""
         return [
-            # Learning Style (Visual, Auditory, Kinesthetic) – 3 questions
-            {
-                "question": "You need to remember a list of groceries. What do you do?",
-                "options": {
-                    "A": "Draw a picture of each item",
-                    "B": "Say the list out loud repeatedly", 
-                    "C": "Act out picking up each item",
-                    "D": "Write the list in your notebook"
-                },
-                "correct_answer": "A",
-                "category": "visual_learning",
-                "type": "preference"
+            # Learning Style (Visual, Auditory, Kinesthetic) – 4 questions
+           {
+            "question": "You need to remember a list of groceries. What do you do?",
+            "options": {
+                "A": "Draw a picture of each item",
+                "B": "Say the list out loud repeatedly",
+                "C": "Act out picking up each item",
+                "D": "Write the list in your notebook"
+            },
+            "correct_answer": "A",
+            "category": "visual_learning",
+            "type": "preference"
             },
             {
-                "question": "How do you prefer to learn a new dance?",
-                "options": {
-                    "A": "Watch a video of the dance",
-                    "B": "Listen to instructions",
-                    "C": "Try the moves yourself",
-                    "D": "Read about the steps"
-                },
-                "correct_answer": "C",
-                "category": "kinesthetic_learning", 
-                "type": "preference"
+            "question": "How do you prefer to learn a new dance?",
+            "options": {
+                "A": "Watch a video of the dance",
+                "B": "Listen to instructions",
+                "C": "Try the moves yourself",
+                "D": "Read about the steps"
+            },
+            "correct_answer": "C",
+            "category": "kinesthetic_learning",
+            "type": "preference"
             },
             {
-                "question": "When someone explains something to you, you understand best when:",
-                "options": {
-                    "A": "They show you pictures",
-                    "B": "They talk you through it",
-                    "C": "You can touch or handle it", 
-                    "D": "They write it down"
-                },
-                "correct_answer": "B",
-                "category": "auditory_learning",
-                "type": "preference"
+            "question": "What helps you best when studying for a test?",
+            "options": {
+                "A": "Color-coded notes and charts",
+                "B": "Explaining the topic aloud",
+                "C": "Walking while memorizing",
+                "D": "Taking practice quizzes"
             },
-
-            # Interests (Sports, Arts, Technology, Nature) – 4 questions
-            {
-                "question": "Which activity sounds most fun to you?",
-                "options": {
-                    "A": "Playing soccer with friends",
-                    "B": "Painting a colorful picture", 
-                    "C": "Building a robot",
-                    "D": "Exploring a forest"
-                },
-                "correct_answer": "N/A",
-                "category": "multiple_interests",  # Will be handled by keyword detection
-                "type": "preference"
+            "correct_answer": "A",
+            "category": "visual_learning",
+            "type": "preference"
             },
             {
-                "question": "If you could spend a whole day doing anything, what would you choose?",
-                "options": {
-                    "A": "Visiting an art museum",
-                    "B": "Coding a new game",
-                    "C": "Having a picnic in the park",
-                    "D": "Hosting a party with friends"
-                },
-                "correct_answer": "N/A",
-                "category": "multiple_interests",  # Will be handled by keyword detection
-                "type": "preference"
+            "question": "Your teacher tells a story in class. What do you enjoy most?",
+            "options": {
+                "A": "Watching the teacher act it out",
+                "B": "Listening to the story being told",
+                "C": "Acting it out with classmates",
+                "D": "Drawing what happens in the story"
             },
-            {
-                "question": "Which club would you join at school?",
-                "options": {
-                    "A": "Drama or art club",
-                    "B": "Science or robotics club",
-                    "C": "Nature explorers club",
-                    "D": "Student council"
-                },
-                "correct_answer": "N/A",
-                "category": "multiple_interests",  # Will be handled by keyword detection
-                "type": "preference"
+            "correct_answer": "B",
+            "category": "auditory_learning",
+            "type": "preference"
             },
-            {
-                "question": "Your perfect weekend would include:",
-                "options": {
-                    "A": "Camping in the mountains",
-                    "B": "Playing video games",
-                    "C": "Drawing or crafting",
-                    "D": "Playing sports"
-                },
-                "correct_answer": "N/A",
-                "category": "multiple_interests",  # Will be handled by keyword detection
-                "type": "preference"
-            },
-
             # Personality Type (Creative, Analytical, Social, Practical) – 5 questions
             {
                 "question": "When working on a group project, you like to:",
                 "options": {
-                    "A": "Come up with new creative ideas",
-                    "B": "Organize and plan everything carefully",
-                    "C": "Make sure everyone gets along and feels included",
-                    "D": "Build or create the final product hands-on"
+                    "A": "Come up with new ideas",
+                    "B": "Organize and plan everything",
+                    "C": "Make sure everyone gets along",
+                    "D": "Build or create the final product"
                 },
-                "correct_answer": "N/A",
-                "category": "multiple_personality",  # Will be handled by keyword detection
+                "correct_answer": "A",
+                "category": "personality_creative",
                 "type": "preference"
             },
             {
                 "question": "You are given a puzzle to solve. What is your first step?",
                 "options": {
-                    "A": "Think of creative and unusual solutions",
-                    "B": "Analyze the pieces carefully and make a plan",
-                    "C": "Ask friends for help and work together",
+                    "A": "Think of creative solutions",
+                    "B": "Analyze the pieces carefully",
+                    "C": "Ask friends for help",
                     "D": "Start putting pieces together right away"
                 },
-                "correct_answer": "N/A",
-                "category": "multiple_personality",  # Will be handled by keyword detection
+                "correct_answer": "B",
+                "category": "personality_analytical",
                 "type": "preference"
             },
             {
                 "question": "At a party, you are most likely to:",
                 "options": {
-                    "A": "Tell creative stories or jokes",
-                    "B": "Help organize games and activities",
+                    "A": "Tell stories or jokes",
+                    "B": "Help organize games",
                     "C": "Talk to as many people as possible",
-                    "D": "Set up decorations or help with practical tasks"
+                    "D": "Set up decorations"
                 },
-                "correct_answer": "N/A",
-                "category": "multiple_personality",  # Will be handled by keyword detection
+                "correct_answer": "C",
+                "category": "personality_social",
                 "type": "preference"
             },
             {
                 "question": "When you get a new toy or gadget, you:",
                 "options": {
-                    "A": "Imagine new creative ways to use it",
-                    "B": "Read the instructions carefully first",
-                    "C": "Show it to your friends right away",
-                    "D": "Figure out how it works by trying it hands-on"
+                    "A": "Imagine new ways to use it",
+                    "B": "Read the instructions carefully",
+                    "C": "Show it to your friends",
+                    "D": "Figure out how it works by trying it"
                 },
-                "correct_answer": "N/A",
-                "category": "multiple_personality",  # Will be handled by keyword detection
+                "correct_answer": "D",
+                "category": "personality_practical",
                 "type": "preference"
             },
             {
-                "question": "Your ideal room would have:",
+                "question": "Your teacher asks you to decorate the classroom. You:",
                 "options": {
-                    "A": "Art supplies and creative materials everywhere",
-                    "B": "A organized desk with books and study materials",
-                    "C": "Space for friends to hang out and play games",
-                    "D": "Tools and materials to build and make things"
+                    "A": "Draw colorful posters",
+                    "B": "Plan where everything should go",
+                    "C": "Invite classmates to help",
+                    "D": "Hang up decorations and arrange desks"
                 },
-                "correct_answer": "N/A",
-                "category": "multiple_personality",  # Will be handled by keyword detection
+                "correct_answer": "A",
+                "category": "personality_creative",
                 "type": "preference"
             },
 
-            # Concentration Skills – 2 questions
+            # Interests (Sports, Arts, Technology, Nature) – 4 questions
             {
-                "question": "Which number is missing? 3, 6, 9, __, 15",
-                "options": {
-                    "A": "10",
-                    "B": "11", 
-                    "C": "12",
-                    "D": "13"
-                },
-                "correct_answer": "C",
-                "category": "concentration",
-                "type": "standard"
+            "question": "Which activity sounds most fun to you?",
+            "options": {
+                "A": "Playing soccer with friends",
+                "B": "Painting a colorful picture",
+                "C": "Building a robot",
+                "D": "Exploring a forest"
+            },
+            "correct_answer": "A",
+            "category": "interest_sports",
+            "type": "preference"
             },
             {
-                "question": "Find the odd one out: apple, banana, carrot, grape",
-                "options": {
-                    "A": "apple",
-                    "B": "banana",
-                    "C": "carrot", 
-                    "D": "grape"
-                },
-                "correct_answer": "C",
-                "category": "concentration",
-                "type": "standard"
+            "question": "If you could spend a whole day doing anything, what would you choose?",
+            "options": {
+                "A": "Visiting an art museum",
+                "B": "Coding a new game",
+                "C": "Having a picnic in the park",
+                "D": "Hosting a party with friends"
+            },
+            "correct_answer": "B",
+            "category": "interest_technology",
+            "type": "preference"
+            },
+            {
+            "question": "Which club would you join at school?",
+            "options": {
+                "A": "Drama or art club",
+                "B": "Science or robotics club",
+                "C": "Nature explorers club",
+                "D": "Student council"
+            },
+            "correct_answer": "A",
+            "category": "interest_arts",
+            "type": "preference"
+            },
+            {
+            "question": "What would you do on a school field trip?",
+            "options": {
+                "A": "Play sports in the open",
+                "B": "Draw pictures of nature",
+                "C": "Look at plants and insects",
+                "D": "Take notes on the environment"
+            },
+            "correct_answer": "C",
+            "category": "interest_nature",
+            "type": "preference"
             },
 
-            # Memory Skills – 1 question
+            # Concentration Skills – 4 questions
             {
-                "question": "Remember this sequence: red, blue, green, yellow. What was the third color?",
-                "options": {
-                    "A": "red",
-                    "B": "blue",
-                    "C": "green",
-                    "D": "yellow"
-                },
-                "correct_answer": "C",
-                "category": "memory",
-                "type": "standard"
-            }
+            "question": "Which number is missing? 3, 6, 9, __, 15",
+            "options": {
+                "A": "10",
+                "B": "11",
+                "C": "12",
+                "D": "13"
+            },
+            "correct_answer": "C",
+            "category": "concentration",
+            "type": "standard"
+            },
+            {
+            "question": "Find the odd one out: apple, banana, carrot, grape",
+            "options": {
+                "A": "apple",
+                "B": "banana",
+                "C": "carrot",
+                "D": "grape"
+            },
+            "correct_answer": "C",
+            "category": "concentration",
+            "type": "standard"
+            },
+            {
+            "question": "Which shape is different: circle, square, triangle, apple",
+            "options": {
+                "A": "circle",
+                "B": "square",
+                "C": "triangle",
+                "D": "apple"
+            },
+            "correct_answer": "D",
+            "category": "concentration",
+            "type": "standard"
+            },
+            {
+            "question": "Which direction is opposite of East?",
+            "options": {
+                "A": "North",
+                "B": "West",
+                "C": "South",
+                "D": "East"
+            },
+            "correct_answer": "B",
+            "category": "concentration",
+            "type": "standard"
+            },
+
+            # Memory Skills – 3 questions
+        {
+        "question": "You just saw a picture with the Eiffel Tower, Taj Mahal, and Great Wall of China. Which monument is in India?",
+        "options": {
+            "A": "Eiffel Tower",
+            "B": "Taj Mahal",
+            "C": "Great Wall of China",
+            "D": "Leaning Tower of Pisa"
+        },
+        "correct_answer": "B",
+        "category": "memory",
+        "type": "standard"
+        },
+        {
+        "question": "Your teacher said: The Earth orbits the Sun, plants make food through photosynthesis, and water boils at 100°C. What is the boiling point of water?",
+        "options": {
+            "A": "50°C",
+            "B": "90°C",
+            "C": "100°C",
+            "D": "120°C"
+        },
+        "correct_answer": "C",
+        "category": "memory",
+        "type": "standard"
+        },
+        {
+            "question": "You read this in a book: Mahatma Gandhi led India's freedom movement, the telephone was invented by Alexander Graham Bell, and Neil Armstrong was the first person on the moon. Who invented the telephone?",
+            "options": {
+                "A": "Thomas Edison",
+                "B": "Alexander Graham Bell",
+                "C": "Isaac Newton",
+                "D": "Albert Einstein"
+            },
+            "correct_answer": "B",
+            "category": "memory",
+            "type": "standard"
+        }   
         ]
     
     def generate_feedback(self, assessment_results):
@@ -592,12 +656,12 @@ class QuestionGenerator:
     6. Provide suggestions for improvement areas (concentration, memory)
     7. Be written in a friendly, age-appropriate tone
     8. Be around 100-150 words,no need of high spacing or line breaks,no more than 15 lines in total
-    9. Return the entire response in HTML format (with <h3>, <ul>, <li>, <p>, or <b> tags as appropriate)
+    9. Return the entire response in HTML format (with <h3>, <ul>, <li>, <p>, or <b> tags as appropriate,do not use the tag <html>)
 
     Make it personal and actionable for the child and their parents.Try not to use the name of the child in the response.Only wishes is necessary"""
 
             payload = {
-                "model": "meta-llama/llama-3.1-8b-instruct:free",
+                "model": "mistralai/mistral-small-3.2-24b-instruct:free",
                 "messages": [
                     {
                         "role": "user",
@@ -624,6 +688,7 @@ class QuestionGenerator:
         # Fallback feedback
         return self.get_fallback_feedback(assessment_results)
 
+    
     def get_fallback_feedback(self, results):
         """Generate fallback feedback if AI fails"""
         learning_style = results['learning_style']

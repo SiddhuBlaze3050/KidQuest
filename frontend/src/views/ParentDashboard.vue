@@ -1,1613 +1,1543 @@
 <template>
-    <div class="parent-dashboard">
-        <!-- Header -->
-        <header class="dashboard-header">
-            <div class="container">
-                <div class="header-content">
-                    <div class="parent-logo">
-                        <span class="logo-icon">👨‍👩‍👧‍👦</span>
-                        <div class="logo-text">
-                            <h1>Parent Dashboard</h1>
-                            <span class="subtitle">{{ childName }}'s Progress Monitor</span>
-                        </div>
-                    </div>
-                    <div class="header-actions">
-                        <div class="date-selector">
-                            <select v-model="selectedPeriod" @change="updateData">
-                                <option value="today">Today</option>
-                                <option value="week">This Week</option>
-                                <option value="month">This Month</option>
-                                <option value="all">All Time</option>
-                            </select>
-                        </div>
-                        <button @click="exportReport" class="export-btn">
-                            <i class="fas fa-download"></i>
-                            Export Report
-                        </button>
-                        <button @click="logout" class="logout-btn">
-                            <i class="fas fa-sign-out-alt"></i>
-                            Logout
-                        </button>
-                    </div>
-                </div>
+  <div class="parent-dashboard">
+    <!-- Header -->
+    <header class="dashboard-header">
+      <div class="container">
+        <div class="header-content">
+          <div class="parent-logo">
+            <span class="logo-icon">👨‍👩‍👧‍👦</span>
+            <div class="logo-text">
+              <h1>Parent Dashboard</h1>
+              <span class="subtitle">{{ childName }}'s Progress Monitor</span>
             </div>
-        </header>
-
-        <!-- Main Content -->
-        <main class="dashboard-main">
-            <div class="container">
-                <!-- Overview Cards -->
-                <div class="overview-section">
-                    <div class="overview-card highlight-card">
-                        <div class="card-icon">📊</div>
-                        <div class="card-content">
-                            <h3>Overall Progress</h3>
-                            <div class="progress-ring">
-                                <div class="progress-circle" :style="{ '--progress': overallProgress }">
-                                    <span class="progress-text">{{ overallProgress }}%</span>
-                                </div>
-                            </div>
-                            <p>Excellent development this {{ selectedPeriod }}!</p>
-                        </div>
-                    </div>
-
-                    <div class="overview-card">
-                        <div class="card-icon">⏱️</div>
-                        <div class="card-content">
-                            <h3>Screen Time</h3>
-                            <div class="metric-value">{{ screenTime.total }}h {{ screenTime.minutes }}m</div>
-                            <div class="metric-change" :class="screenTime.trend">
-                                {{ screenTime.change }}% vs last {{ selectedPeriod }}
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="overview-card">
-                        <div class="card-icon">✅</div>
-                        <div class="card-content">
-                            <h3>Tasks Completed</h3>
-                            <div class="metric-value">{{ tasksCompleted.count }}/{{ tasksCompleted.total }}</div>
-                            <div class="completion-bar">
-                                <div class="completion-fill" :style="{ width: (tasksCompleted.count / tasksCompleted.total * 100) + '%' }"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="overview-card">
-                        <div class="card-icon">💰</div>
-                        <div class="card-content">
-                            <h3>Money Saved</h3>
-                            <div class="metric-value">${{ moneySaved.amount }}</div>
-                            <div class="savings-goal">
-                                Goal: ${{ moneySaved.goal }}
-                                <div class="goal-progress">{{ (moneySaved.amount / moneySaved.goal * 100).toFixed(0) }}%</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Detailed Analytics -->
-                <div class="analytics-grid">
-                    <!-- Psychometric Test Results -->
-                    <div class="analytics-card">
-                        <div class="card-header">
-                            <h3>🧠 Psychometric Assessment</h3>
-                            <span class="last-updated">Last updated: {{ formatDate(psychometricData.lastTest) }}</span>
-                        </div>
-                        <div class="psychometric-results">
-                            <div class="personality-traits">
-                                <h4>Personality Traits</h4>
-                                <div class="trait-list">
-                                    <div v-for="trait in psychometricData.traits" :key="trait.name" class="trait-item">
-                                        <span class="trait-name">{{ trait.name }}</span>
-                                        <div class="trait-bar">
-                                            <div class="trait-fill" :style="{ width: trait.score + '%', backgroundColor: trait.color }"></div>
-                                        </div>
-                                        <span class="trait-score">{{ trait.score }}%</span>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="learning-style">
-                                <h4>Learning Style</h4>
-                                <div class="learning-chart">
-                                    <div v-for="style in psychometricData.learningStyles" :key="style.type" class="learning-item">
-                                        <div class="learning-icon">{{ style.icon }}</div>
-                                        <div class="learning-info">
-                                            <span class="learning-type">{{ style.type }}</span>
-                                            <span class="learning-percentage">{{ style.percentage }}%</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Screen Time Analytics -->
-                    <div class="analytics-card">
-                        <div class="card-header">
-                            <h3>📱 Screen Time Analysis</h3>
-                            <div class="time-controls">
-                                <button v-for="period in timePeriods" :key="period" 
-                                        @click="selectedTimePeriod = period"
-                                        :class="{ active: selectedTimePeriod === period }"
-                                        class="time-btn">
-                                    {{ period }}
-                                </button>
-                            </div>
-                        </div>
-                        <div class="screen-time-chart">
-                            <div class="chart-container">
-                                <canvas ref="screenTimeChart" width="400" height="200"></canvas>
-                            </div>
-                            <div class="app-breakdown">
-                                <h4>App Usage Breakdown</h4>
-                                <div class="app-list">
-                                    <div v-for="app in appUsage" :key="app.name" class="app-item">
-                                        <div class="app-info">
-                                            <span class="app-icon">{{ app.icon }}</span>
-                                            <span class="app-name">{{ app.name }}</span>
-                                        </div>
-                                        <div class="app-time">{{ app.time }}</div>
-                                        <div class="app-bar">
-                                            <div class="app-fill" :style="{ width: app.percentage + '%' }"></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Homework & Tasks -->
-                    <div class="analytics-card">
-                        <div class="card-header">
-                            <h3>📚 Homework & Tasks</h3>
-                            <span class="completion-rate">{{ homeworkStats.completionRate }}% completion rate</span>
-                        </div>
-                        <div class="homework-content">
-                            <div class="homework-calendar">
-                                <h4>This Week's Schedule</h4>
-                                <div class="calendar-grid">
-                                    <div v-for="day in weeklySchedule" :key="day.date" class="calendar-day" :class="day.status">
-                                        <div class="day-name">{{ day.name }}</div>
-                                        <div class="day-date">{{ day.date }}</div>
-                                        <div class="day-tasks">
-                                            <span class="task-count">{{ day.completed }}/{{ day.total }}</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="homework-details">
-                                <h4>Recent Activities</h4>
-                                <div class="activity-list">
-                                    <div v-for="activity in recentHomework" :key="activity.id" class="activity-item">
-                                        <div class="activity-icon" :class="activity.status">{{ activity.icon }}</div>
-                                        <div class="activity-info">
-                                            <span class="activity-title">{{ activity.title }}</span>
-                                            <span class="activity-subject">{{ activity.subject }}</span>
-                                        </div>
-                                        <div class="activity-meta">
-                                            <span class="activity-time">{{ activity.timeSpent }}</span>
-                                            <span class="activity-score" v-if="activity.score">{{ activity.score }}%</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Child's Emotional Insights -->
-                    <div class="analytics-card">
-                        <div class="card-header">
-                            <h3>💭 Emotional Insights</h3>
-                            <span class="insight-period">Based on {{ emotionalInsights.conversationCount }} conversations</span>
-                        </div>
-                        <div class="emotional-content">
-                            <div class="mood-tracker">
-                                <h4>Mood Trends</h4>
-                                <div class="mood-chart">
-                                    <div v-for="mood in emotionalInsights.moodTrends" :key="mood.date" class="mood-day">
-                                        <div class="mood-emoji" :title="mood.feeling">{{ mood.emoji }}</div>
-                                        <div class="mood-date">{{ mood.date }}</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="conversation-summary">
-                                <h4>Recent Conversations Summary</h4>
-                                <div class="summary-cards">
-                                    <div v-for="summary in emotionalInsights.summaries" :key="summary.id" class="summary-card">
-                                        <div class="summary-topic">{{ summary.topic }}</div>
-                                        <div class="summary-text">{{ summary.text }}</div>
-                                        <div class="summary-sentiment" :class="summary.sentiment">
-                                            {{ summary.sentiment }} sentiment
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Creative Activities -->
-                    <div class="analytics-card">
-                        <div class="card-header">
-                            <h3>🎨 Creative Activities</h3>
-                            <span class="activity-count">{{ creativeActivities.totalSessions }} sessions</span>
-                        </div>
-                        <div class="creative-content">
-                            <div class="doodle-gallery">
-                                <h4>Recent Doodles</h4>
-                                <div class="doodle-grid">
-                                    <div v-for="doodle in creativeActivities.doodles" :key="doodle.id" class="doodle-item">
-                                        <div class="doodle-preview" :style="{ backgroundColor: doodle.primaryColor }">
-                                            <span class="doodle-title">{{ doodle.title }}</span>
-                                        </div>
-                                        <div class="doodle-meta">
-                                            <span class="doodle-date">{{ formatDate(doodle.date) }}</span>
-                                            <span class="doodle-time">{{ doodle.timeSpent }}m</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="creativity-stats">
-                                <h4>Creativity Metrics</h4>
-                                <div class="creativity-metrics">
-                                    <div class="metric-item">
-                                        <span class="metric-label">Avg. Session Time</span>
-                                        <span class="metric-value">{{ creativeActivities.avgSessionTime }}m</span>
-                                    </div>
-                                    <div class="metric-item">
-                                        <span class="metric-label">Favorite Colors</span>
-                                        <div class="color-palette">
-                                            <div v-for="color in creativeActivities.favoriteColors" :key="color" 
-                                                 class="color-dot" :style="{ backgroundColor: color }"></div>
-                                        </div>
-                                    </div>
-                                    <div class="metric-item">
-                                        <span class="metric-label">Creativity Score</span>
-                                        <div class="creativity-score">{{ creativeActivities.creativityScore }}/100</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Pomodoro Session Results -->
-                    <div class="analytics-card">
-                        <div class="card-header">
-                            <h3>🍅 Focus & Productivity</h3>
-                            <span class="session-count">{{ pomodoroData.totalSessions }} sessions completed</span>
-                        </div>
-                        <div class="pomodoro-content">
-                            <div class="focus-metrics">
-                                <div class="focus-stat">
-                                    <div class="stat-value">{{ pomodoroData.totalFocusTime }}</div>
-                                    <div class="stat-label">Total Focus Time</div>
-                                </div>
-                                <div class="focus-stat">
-                                    <div class="stat-value">{{ pomodoroData.avgSessionLength }}m</div>
-                                    <div class="stat-label">Avg Session</div>
-                                </div>
-                                <div class="focus-stat">
-                                    <div class="stat-value">{{ pomodoroData.focusScore }}/100</div>
-                                    <div class="stat-label">Focus Score</div>
-                                </div>
-                            </div>
-                            <div class="session-history">
-                                <h4>Recent Sessions</h4>
-                                <div class="session-list">
-                                    <div v-for="session in pomodoroData.recentSessions" :key="session.id" class="session-item">
-                                        <div class="session-time">{{ session.date }}</div>
-                                        <div class="session-activity">{{ session.activity }}</div>
-                                        <div class="session-duration">{{ session.duration }}m</div>
-                                        <div class="session-rating">
-                                            <div class="rating-stars">
-                                                <span v-for="n in 5" :key="n" 
-                                                      :class="{ filled: n <= session.rating }" 
-                                                      class="star">⭐</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Recommendations Section -->
-                <div class="recommendations-section">
-                    <h2>📋 Personalized Recommendations</h2>
-                    <div class="recommendations-grid">
-                        <div v-for="recommendation in recommendations" :key="recommendation.id" class="recommendation-card">
-                            <div class="rec-icon">{{ recommendation.icon }}</div>
-                            <div class="rec-content">
-                                <h4>{{ recommendation.title }}</h4>
-                                <p>{{ recommendation.description }}</p>
-                                <div class="rec-priority" :class="recommendation.priority">
-                                    {{ recommendation.priority }} priority
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+          </div>
+          <div class="header-actions">
+            <div class="date-selector">
+              <select v-model="selectedPeriod" @change="updatePeriod">
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly</option>
+              </select>
             </div>
-        </main>
+            <button @click="exportData" class="export-btn">
+              <i class="fas fa-download"></i>
+              Export
+            </button>
+            <button @click="logout" class="logout-btn">
+              <i class="fas fa-sign-out-alt"></i>
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="dashboard-main">
+      <div class="container">
+        <!-- Overview Cards Row -->
+        <div class="overview-grid">
+          <div class="overview-card progress-card" @click="showProgressModal">
+            <div class="card-icon">📊</div>
+            <div class="card-content">
+              <h3>Overall Progress</h3>
+              <div class="progress-circle" :style="{ '--progress': overallProgress }">
+                <span class="progress-text">{{ overallProgress }}%</span>
+              </div>
+              <p>{{ overallProgress }}% tasks completed</p>
+            </div>
+          </div>
+
+          <div class="overview-card screentime-card" @click="showScreenTimeModal">
+            <div class="card-icon">📱</div>
+            <div class="card-content">
+              <h3>Screen Time</h3>
+              <div class="screentime-value">{{ screenTimeData.total }}</div>
+              <p>{{ screenTimeData.status }}</p>
+            </div>
+          </div>
+
+          <div class="overview-card achievement-card" @click="showAchievementModal">
+            <div class="card-icon">🏆</div>
+            <div class="card-content">
+              <h3>Today's Achievement</h3>
+              <div class="achievement-text">{{ todayAchievement.text }}</div>
+              <div class="achievement-amount">{{ todayAchievement.amount }}</div>
+            </div>
+          </div>
+
+          <div class="overview-card money-card" @click="showFinanceModal">
+            <div class="card-icon">💰</div>
+            <div class="card-content">
+              <h3>Money Saved</h3>
+              <div class="money-value">₹{{ financeStats.savings }}</div>
+              <p>{{ financeStats.recent.length }} recent transactions</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Features Grid -->
+        <div class="main-features-grid">
+          <!-- Health Tracker -->
+          <div class="feature-card health-card" @click="showHealthModal">
+            <div class="card-header">
+              <div class="card-icon">❤️</div>
+              <h3>Health Tracker</h3>
+            </div>
+            <div class="card-content">
+              <div class="health-grid">
+                <div class="health-item">
+                  <div class="health-emoji">🏃‍♂️</div>
+                  <div class="health-label">Running</div>
+                  <div class="health-value">{{ healthStats.running }}/5</div>
+                </div>
+                <div class="health-item">
+                  <div class="health-emoji">🧘‍♀️</div>
+                  <div class="health-label">Yoga</div>
+                  <div class="health-value">{{ healthStats.yoga }}/3</div>
+                </div>
+                <div class="health-item">
+                  <div class="health-emoji">💧</div>
+                  <div class="health-label">Water</div>
+                  <div class="health-value">{{ healthStats.water_today }}/8</div>
+                </div>
+                <div class="health-item streak-item">
+                  <div class="health-emoji">🔥</div>
+                  <div class="health-label">Streak</div>
+                  <div class="health-value streak-number">{{ healthStats.streak }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Psychometric Test -->
+          <div class="feature-card psychometric-card" @click="showPsychometricModal">
+            <div class="card-header">
+              <div class="card-icon">🧠</div>
+              <h3>Psychometric Test</h3>
+            </div>
+            <div class="card-content">
+              <div class="psychometric-grid">
+                <div class="psycho-item">
+                  <div class="psycho-emoji">👤</div>
+                  <div class="psycho-label">Personality</div>
+                  <div class="psycho-value">{{ psychometricData.personality }}</div>
+                </div>
+                <div class="psycho-item">
+                  <div class="psycho-emoji">🎯</div>
+                  <div class="psycho-label">Interests</div>
+                  <div class="psycho-value">{{ psychometricData.interests }}</div>
+                </div>
+                <div class="psycho-item">
+                  <div class="psycho-emoji">🎯</div>
+                  <div class="psycho-label">Concentration</div>
+                  <div class="psycho-value">{{ psychometricData.concentration }}/10</div>
+                </div>
+                <div class="psycho-item">
+                  <div class="psycho-emoji">🧠</div>
+                  <div class="psycho-label">Memory</div>
+                  <div class="psycho-value">{{ psychometricData.memory }}/10</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Doodling Sessions -->
+          <div class="feature-card doodling-card" @click="showDoodlingModal">
+            <div class="card-header">
+              <div class="card-icon">🎨</div>
+              <h3>Doodling Sessions</h3>
+            </div>
+            <div class="card-content">
+              <div class="doodle-grid">
+                <div 
+                  v-for="(doodle, idx) in doodleStats.doodles.slice(0, 4)" 
+                  :key="idx" 
+                  class="doodle-box"
+                  @click.stop="viewDoodle(doodle)"
+                >
+                  <div class="doodle-canvas" :style="{ backgroundColor: doodle.color }">
+                    <div class="doodle-preview-content">
+                      {{ doodle.emoji || '🎨' }}
+                    </div>
+                  </div>
+                  <div class="doodle-footer">
+                    <div class="doodle-name">{{ doodle.title }}</div>
+                    <div class="doodle-date">{{ doodle.date }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Task Tracker -->
+          <div class="feature-card task-card" @click="showTaskModal">
+            <div class="card-header">
+              <div class="card-icon">🎯</div>
+              <h3>Task Tracker</h3>
+            </div>
+            <div class="card-content">
+              <div class="task-calendar">
+                <div class="calendar-header">
+                  <span class="calendar-month">{{ getCurrentMonth() }}</span>
+                </div>
+                <div class="calendar-grid">
+                  <div 
+                    v-for="day in getCalendarDays()" 
+                    :key="day.date" 
+                    class="calendar-day"
+                    :class="{ 'today': day.isToday, 'has-tasks': day.taskCount > 0 }"
+                  >
+                    <div class="day-number">{{ day.day }}</div>
+                    <div class="day-tasks" v-if="day.taskCount > 0">
+                      {{ day.completedTasks }}/{{ day.taskCount }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="recent-tasks">
+                <div class="recent-task-item">
+                  <div class="task-name">{{ taskStats.recent[0].title }}</div>
+                  <div class="task-session">{{ taskStats.recent[0].sessionTime }}min</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Emotional Insights -->
+          <div class="feature-card emotional-card" @click="showEmotionalModal">
+            <div class="card-header">
+              <div class="card-icon">💭</div>
+              <h3>Emotional Insights</h3>
+            </div>
+            <div class="card-content">
+              <div class="mood-tracker">
+                <div class="mood-chart">
+                  <div v-for="mood in emotionalInsights.moodTrends" :key="mood.date" class="mood-day">
+                    <div class="mood-emoji" :title="mood.feeling">{{ mood.emoji }}</div>
+                    <div class="mood-date">{{ mood.date }}</div>
+                  </div>
+                </div>
+              </div>
+              <div class="conversation-summary">
+                <div class="summary-cards">
+                  <div v-for="summary in emotionalInsights.summaries" :key="summary.id" class="summary-card">
+                    <div class="summary-topic">{{ summary.topic }}</div>
+                    <div class="summary-text">{{ summary.text }}</div>
+                    <div class="summary-sentiment" :class="[summary.sentiment, { 'highlighted': summary.sentiment === 'positive' || summary.sentiment === 'neutral' }]">
+                      {{ summary.sentiment }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Skill Adventures -->
+          <div class="feature-card skills-card" @click="showSkillsModal">
+            <div class="card-header">
+              <div class="card-icon">🚀</div>
+              <h3>Skill Adventures</h3>
+            </div>
+            <div class="card-content">
+              <div class="skills-grid">
+                <div v-for="(skill, idx) in skillProgress" :key="idx" class="skill-box">
+                  <div class="skill-icon">{{ skill.icon }}</div>
+                  <div class="skill-info">
+                    <div class="skill-name">{{ skill.name }}</div>
+                    <div class="skill-progress-bar">
+                      <div class="skill-progress-fill" :style="{ width: skill.progress + '%' }"></div>
+                    </div>
+                    <div class="skill-progress-text">{{ skill.progress }}%</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Floating Magic -->
+        <div class="floating-magic">
+          <div class="magic-element" style="--delay: 0s; --x: 10%; --y: 20%;">🌟</div>
+          <div class="magic-element" style="--delay: 2s; --x: 90%; --y: 30%;">⭐</div>
+          <div class="magic-element" style="--delay: 4s; --x: 15%; --y: 70%;">💫</div>
+          <div class="magic-element" style="--delay: 6s; --x: 85%; --y: 80%;">✨</div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Modals -->
+ 
+    <div v-if="showModal" class="modal-overlay" @click="closeModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>{{ modalTitle }}</h3>
+          <button @click="closeModal" class="close-btn">×</button>
+        </div>
+        <div class="modal-body">
+          <component :is="modalComponent" :data="modalData" />
+        </div>
+      </div>
+    </div>  
+
+    <!-- Health Modal Component -->
+    <div v-if="modalComponent === 'health-modal'" class="health-modal">
+      <div class="health-detailed">
+        <div class="health-stats-grid">
+          <div class="health-stat-card">
+            <div class="stat-icon">🏃‍♂️</div>
+            <div class="stat-info">
+              <h4>Running Sessions</h4>
+              <div class="stat-value">{{ modalData.running }}/5 completed</div>
+              <div class="stat-progress">
+                <div class="progress-bar">
+                  <div class="progress-fill" :style="{ width: (modalData.running/5)*100 + '%' }"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="health-stat-card">
+            <div class="stat-icon">🧘‍♀️</div>
+            <div class="stat-info">
+              <h4>Yoga Sessions</h4>
+              <div class="stat-value">{{ modalData.yoga }}/3 completed</div>
+              <div class="stat-progress">
+                <div class="progress-bar">
+                  <div class="progress-fill" :style="{ width: (modalData.yoga/3)*100 + '%' }"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="health-stat-card">
+            <div class="stat-icon">💧</div>
+            <div class="stat-info">
+              <h4>Water Intake</h4>
+              <div class="stat-value">{{ modalData.water_today }}/8 glasses</div>
+              <div class="water-glasses">
+                <div v-for="n in 8" :key="n" class="water-glass" :class="{ 'filled': n <= modalData.water_today }">
+                  💧
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="health-stat-card">
+            <div class="stat-icon">🔥</div>
+            <div class="stat-info">
+              <h4>Current Streak</h4>
+              <div class="stat-value streak-big">{{ modalData.streak }} days</div>
+              <div class="streak-calendar">
+                <div v-for="day in getStreakDays()" :key="day" class="streak-day" :class="{ 'active': day <= modalData.streak }">
+                  {{ day }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
+
+    <!-- Psychometric Modal Component -->
+    <div v-if="modalComponent === 'psychometric-modal'" class="psychometric-modal">
+      <div class="psychometric-detailed">
+        <div class="psycho-stats-grid">
+          <div class="psycho-stat-card">
+            <div class="stat-icon">👤</div>
+            <div class="stat-info">
+              <h4>Personality Type</h4>
+              <div class="stat-value">{{ modalData.personality }}</div>
+              <div class="personality-traits">
+                <div v-for="trait in modalData.traits" :key="trait" class="trait-tag">
+                  {{ trait }}
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="psycho-stat-card">
+            <div class="stat-icon">🎯</div>
+            <div class="stat-info">
+              <h4>Primary Interests</h4>
+              <div class="interests-list">
+                <div v-for="interest in modalData.interestsList" :key="interest.name" class="interest-item">
+                  <span class="interest-emoji">{{ interest.emoji }}</span>
+                  <span class="interest-name">{{ interest.name }}</span>
+                  <span class="interest-level">{{ interest.level }}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="psycho-stat-card">
+            <div class="stat-icon">🎯</div>
+            <div class="stat-info">
+              <h4>Concentration Level</h4>
+              <div class="stat-value">{{ modalData.concentration }}/10</div>
+              <div class="concentration-meter">
+                <div class="meter-bar">
+                  <div class="meter-fill" :style="{ width: (modalData.concentration/10)*100 + '%' }"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="psycho-stat-card">
+            <div class="stat-icon">🧠</div>
+            <div class="stat-info">
+              <h4>Memory Strength</h4>
+              <div class="stat-value">{{ modalData.memory }}/10</div>
+              <div class="memory-types">
+                <div v-for="type in modalData.memoryTypes" :key="type.name" class="memory-type">
+                  <span class="memory-emoji">{{ type.emoji }}</span>
+                  <span class="memory-name">{{ type.name }}</span>
+                  <span class="memory-score">{{ type.score }}/10</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Doodling Modal Component -->
+    <div v-if="modalComponent === 'doodling-modal'" class="doodling-modal">
+      <div class="doodling-detailed">
+        <div class="doodle-gallery">
+          <div v-for="(doodle, idx) in modalData.allDoodles" :key="idx" class="doodle-gallery-item">
+            <div class="doodle-canvas-large" :style="{ backgroundColor: doodle.color }">
+              <div class="doodle-artwork">
+                {{ doodle.emoji || '🎨' }}
+              </div>
+            </div>
+            <div class="doodle-details">
+              <h4>{{ doodle.title }}</h4>
+              <p class="doodle-date">{{ doodle.date }}</p>
+              <p class="doodle-duration">{{ doodle.duration }} minutes</p>
+              <div class="doodle-tags">
+                <span v-for="tag in doodle.tags" :key="tag" class="doodle-tag">{{ tag }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Task Modal Component -->
+    <div v-if="modalComponent === 'task-modal'" class="task-modal">
+      <div class="task-detailed">
+        <div class="task-calendar-detailed">
+          <div class="calendar-navigation">
+            <button @click="previousMonth" class="nav-btn">←</button>
+            <h3>{{ getCurrentMonthYear() }}</h3>
+            <button @click="nextMonth" class="nav-btn">→</button>
+          </div>
+          <div class="calendar-grid-detailed">
+            <div class="calendar-weekdays">
+              <div v-for="day in ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']" :key="day" class="weekday">
+                {{ day }}
+              </div>
+            </div>
+            <div class="calendar-dates">
+              <div v-for="date in getDetailedCalendarDays()" :key="date.date" class="calendar-date" :class="{ 'today': date.isToday, 'has-tasks': date.taskCount > 0 }">
+                <div class="date-number">{{ date.day }}</div>
+                <div class="date-tasks" v-if="date.taskCount > 0">
+                  <div class="task-indicator" :class="{ 'completed': date.completedTasks === date.taskCount }">
+                    {{ date.completedTasks }}/{{ date.taskCount }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="task-list-detailed">
+          <h4>Recent Tasks</h4>
+          <div class="task-items">
+            <div v-for="task in modalData.allTasks" :key="task.id" class="task-item-detailed">
+              <div class="task-status-icon" :class="task.status">
+                {{ task.status === 'completed' ? '✅' : task.status === 'in-progress' ? '🔄' : '⏳' }}
+              </div>
+              <div class="task-info">
+                <h5>{{ task.title }}</h5>
+                <p class="task-description">{{ task.description }}</p>
+                <div class="task-meta">
+                  <span class="task-date">{{ task.date }}</span>
+                  <span class="task-duration">{{ task.sessionTime }} min</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Emotional Modal Component -->
+    <div v-if="modalComponent === 'emotional-modal'" class="emotional-modal">
+      <div class="emotional-detailed">
+        <div class="mood-analysis">
+          <h4>Weekly Mood Analysis</h4>
+          <div class="mood-chart-detailed">
+            <div v-for="mood in modalData.weeklyMoods" :key="mood.date" class="mood-day-detailed">
+              <div class="mood-emoji-large">{{ mood.emoji }}</div>
+              <div class="mood-label">{{ mood.feeling }}</div>
+              <div class="mood-date">{{ mood.date }}</div>
+              <div class="mood-notes">{{ mood.notes }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="conversation-analysis">
+          <h4>Conversation Insights</h4>
+          <div class="conversation-topics">
+            <div v-for="topic in modalData.conversationTopics" :key="topic.id" class="topic-card">
+              <div class="topic-header">
+                <h5>{{ topic.title }}</h5>
+                <span class="topic-sentiment" :class="[topic.sentiment, { 'highlighted': topic.sentiment === 'positive' || topic.sentiment === 'neutral' }]">
+                  {{ topic.sentiment }}
+                </span>
+              </div>
+              <div class="topic-summary">{{ topic.summary }}</div>
+              <div class="topic-keywords">
+                <span v-for="keyword in topic.keywords" :key="keyword" class="keyword-tag">{{ keyword }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Skills Modal Component -->
+    <div v-if="modalComponent === 'skills-modal'" class="skills-modal">
+      <div class="skills-detailed">
+        <div class="skills-overview">
+          <h4>Skill Development Overview</h4>
+          <div class="skills-grid-detailed">
+            <div v-for="skill in modalData.allSkills" :key="skill.id" class="skill-card-detailed">
+              <div class="skill-icon-large">{{ skill.icon }}</div>
+              <div class="skill-info-detailed">
+                <h5>{{ skill.name }}</h5>
+                <div class="skill-level">Level {{ skill.level }}</div>
+                <div class="skill-progress-detailed">
+                  <div class="progress-bar-detailed">
+                    <div class="progress-fill-detailed" :style="{ width: skill.progress + '%' }"></div>
+                  </div>
+                  <span class="progress-percentage">{{ skill.progress }}%</span>
+                </div>
+                <div class="skill-milestones">
+                  <div v-for="milestone in skill.milestones" :key="milestone.id" class="milestone" :class="{ 'completed': milestone.completed }">
+                    <span class="milestone-icon">{{ milestone.completed ? '✅' : '⏳' }}</span>
+                    <span class="milestone-text">{{ milestone.text }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
-<script>
-import { ref, onMounted, nextTick } from 'vue'
-
+<script setup>
+import { ref } from 'vue'
 import { userUtils } from '@/services/api'
 
+// Reactive State
+const childName = ref('Aleena')
+const selectedPeriod = ref('daily')
+const showModal = ref(false)
+const modalTitle = ref('')
+const modalComponent = ref('')
+const modalData = ref({})
 
-export default {
-    name: 'ParentDashboard',
-    setup() {
-        const childName = ref("Aleena")
-        const selectedPeriod = ref("week")
-        const selectedTimePeriod = ref("7D")
-        const timePeriods = ["1D", "7D", "30D"]
-        const overallProgress = ref(78)
+const overallProgress = ref(78)
+const screenTimeData = ref({
+  total: '3h 45m',
+  status: 'Within limits'
+})
+const todayAchievement = ref({
+  text: 'Earned pocket money',
+  amount: '₹20'
+})
+const getCurrentMonth = () => 'July 2025'
 
-        // Screen time data
-        const screenTime = ref({
-            total: 3,
-            minutes: 45,
-            change: -12,
-            trend: 'positive'
-        })
+const getCurrentMonthYear = () => 'July 2025'
 
-        // Tasks completed
-        const tasksCompleted = ref({
-            count: 8,
-            total: 12
-        })
+const getCalendarDays = () => [
+  { date: '2025-07-01', day: 1, isToday: false, taskCount: 2, completedTasks: 1 },
+  { date: '2025-07-02', day: 2, isToday: true, taskCount: 1, completedTasks: 1 },
+  // Add more dummy days as needed
+]
 
-        // Money saved
-        const moneySaved = ref({
-            amount: 45.50,
-            goal: 100
-        })
+const getDetailedCalendarDays = () => [
+  { date: '2025-07-01', day: 1, isToday: false, taskCount: 2, completedTasks: 1 },
+  { date: '2025-07-02', day: 2, isToday: true, taskCount: 1, completedTasks: 1 },
+  // Add more dummy days as needed
+]
 
-        // Psychometric data
-        const psychometricData = ref({
-            lastTest: new Date('2025-01-20'),
-            traits: [
-                { name: 'Creativity', score: 85, color: '#ff6b6b' },
-                { name: 'Focus', score: 72, color: '#4ecdc4' },
-                { name: 'Social Skills', score: 90, color: '#45b7d1' },
-                { name: 'Problem Solving', score: 78, color: '#96ceb4' },
-                { name: 'Emotional Intelligence', score: 83, color: '#feca57' }
-            ],
-            learningStyles: [
-                { type: 'Visual', percentage: 45, icon: '👁️' },
-                { type: 'Auditory', percentage: 30, icon: '👂' },
-                { type: 'Kinesthetic', percentage: 25, icon: '🤚' }
-            ]
-        })
+const previousMonth = () => console.log('Previous Month')
+const nextMonth = () => console.log('Next Month')
+const getStreakDays = () => Array.from({ length: 10 }, (_, i) => i + 1)
 
-        // App usage data
-        const appUsage = ref([
-            { name: 'Learning Games', time: '1h 30m', percentage: 40, icon: '🎮' },
-            { name: 'Educational Videos', time: '45m', percentage: 20, icon: '📺' },
-            { name: 'Reading App', time: '1h 15m', percentage: 33, icon: '📚' },
-            { name: 'Creative Drawing', time: '15m', percentage: 7, icon: '🎨' }
-        ])
 
-        // Homework stats
-        const homeworkStats = ref({
-            completionRate: 85
-        })
+const psychometricData = ref({
+  personality: 'Explorer',
+  interests: 'Science',
+  concentration: 8,
+  memory: 9,
+  traits: ['Curious', 'Creative'],
+  interestsList: [
+    { name: 'Math', emoji: '🔢', level: 90 },
+    { name: 'Science', emoji: '🔬', level: 95 }
+  ],
+  memoryTypes: [
+    { name: 'Visual', emoji: '👁️', score: 9 },
+    { name: 'Auditory', emoji: '👂', score: 8 }
+  ]
+})
 
-        // Weekly schedule
-        const weeklySchedule = ref([
-            { name: 'Mon', date: '20', completed: 3, total: 4, status: 'partial' },
-            { name: 'Tue', date: '21', completed: 4, total: 4, status: 'complete' },
-            { name: 'Wed', date: '22', completed: 2, total: 3, status: 'partial' },
-            { name: 'Thu', date: '23', completed: 3, total: 3, status: 'complete' },
-            { name: 'Fri', date: '24', completed: 1, total: 2, status: 'current' },
-            { name: 'Sat', date: '25', completed: 0, total: 1, status: 'upcoming' },
-            { name: 'Sun', date: '26', completed: 0, total: 1, status: 'upcoming' }
-        ])
+const skillProgress = ref([
+  { id: 1, name: 'Math Magic', icon: '🔢', progress: 80, level: 2, milestones: [] },
+  { id: 2, name: 'Science Lab', icon: '🔬', progress: 60, level: 1, milestones: [] }
+])
 
-        // Recent homework
-        const recentHomework = ref([
-            { id: 1, title: 'Math Practice', subject: 'Mathematics', timeSpent: '25m', score: 92, icon: '🔢', status: 'completed' },
-            { id: 2, title: 'Reading Comprehension', subject: 'English', timeSpent: '20m', score: 88, icon: '📖', status: 'completed' },
-            { id: 3, title: 'Science Quiz', subject: 'Science', timeSpent: '15m', score: null, icon: '🔬', status: 'in-progress' },
-            { id: 4, title: 'History Essay', subject: 'History', timeSpent: '35m', score: 95, icon: '📜', status: 'completed' }
-        ])
+const financeStats = ref({
+  savings: 45,
+  recent: [
+    { type: 'income', amount: 20, desc: 'Pocket Money', date: '2025-07-01' }
+  ]
+})
 
-        // Emotional insights
-        const emotionalInsights = ref({
-            conversationCount: 15,
-            moodTrends: [
-                { date: 'Mon', emoji: '😊', feeling: 'Happy' },
-                { date: 'Tue', emoji: '🤔', feeling: 'Thoughtful' },
-                { date: 'Wed', emoji: '😄', feeling: 'Excited' },
-                { date: 'Thu', emoji: '😌', feeling: 'Calm' },
-                { date: 'Fri', emoji: '🤗', feeling: 'Affectionate' },
-                { date: 'Sat', emoji: '😴', feeling: 'Tired' },
-                { date: 'Sun', emoji: '😊', feeling: 'Content' }
-            ],
-            summaries: [
-                {
-                    id: 1,
-                    topic: 'School Friends',
-                    text:  childName.value +' shared excitement about making a new friend in art class and working on a group project together.',
-                    sentiment: 'positive'
-                },
-                {
-                    id: 2,
-                    topic: 'Learning Challenges',
-                    text: 'Expressed some frustration with math homework but showed determination to practice more.',
-                    sentiment: 'neutral'
-                },
-                {
-                    id: 3,
-                    topic: 'Future Goals',
-                    text: 'Talked about wanting to learn guitar and showed interest in joining the school music program.',
-                    sentiment: 'positive'
-                }
-            ]
-        })
+const healthStats = ref({
+  streak: 5,
+  water_today: 6,
+  running: 3,
+  yoga: 1
+})
 
-        // Creative activities
-        const creativeActivities = ref({
-            totalSessions: 12,
-            avgSessionTime: 18,
-            creativityScore: 87,
-            favoriteColors: ['#ff6b6b', '#4ecdc4', '#45b7d1', '#feca57', '#96ceb4'],
-            doodles: [
-                { id: 1, title: 'Space Adventure', date: new Date('2025-01-23'), timeSpent: 22, primaryColor: '#4ecdc4' },
-                { id: 2, title: 'Family Portrait', date: new Date('2025-01-22'), timeSpent: 35, primaryColor: '#ff6b6b' },
-                { id: 3, title: 'Dream House', date: new Date('2025-01-21'), timeSpent: 28, primaryColor: '#feca57' },
-                { id: 4, title: 'Pet Dragon', date: new Date('2025-01-20'), timeSpent: 15, primaryColor: '#96ceb4' }
-            ]
-        })
+const doodleStats = ref({
+  doodles: [
+    { title: 'My Cat', date: '2025-07-03', duration: 10, tags: ['fun'], color: '#aaf', emoji: '🐱' }
+  ],
+  allDoodles: []
+})
 
-        // Pomodoro data
-        const pomodoroData = ref({
-            totalSessions: 24,
-            totalFocusTime: '8h 30m',
-            avgSessionLength: 22,
-            focusScore: 82,
-            recentSessions: [
-                { id: 1, date: 'Today 3:30 PM', activity: 'Math Homework', duration: 25, rating: 4 },
-                { id: 2, date: 'Today 2:00 PM', activity: 'Reading', duration: 20, rating: 5 },
-                { id: 3, date: 'Yesterday 4:15 PM', activity: 'Science Project', duration: 30, rating: 3 },
-                { id: 4, date: 'Yesterday 2:45 PM', activity: 'Art Practice', duration: 15, rating: 5 }
-            ]
-        })
+const taskStats = ref({
+  recent: [{ id: 1, title: 'Math Practice', sessionTime: 20 }],
+  allTasks: [],
+  schedule: [],
+  getCalendarDays: () => [],
+  getDetailedCalendarDays: () => [],
+})
 
-        // Recommendations
-        const recommendations = ref([
-            {
-                id: 1,
-                icon: '📚',
-                title: 'Increase Reading Time',
-                description: childName.value+'shows strong comprehension skills. Consider adding 15 more minutes of daily reading to boost vocabulary.',
-                priority: 'medium'
-            },
-            {
-                id: 2,
-                icon: '🎵',
-                title: 'Explore Music Learning',
-                description: 'Based on conversations, '+childName.value+' is interested in learning guitar. This could enhance cognitive development.',
-                priority: 'high'
-            },
-            {
-                id: 3,
-                icon: '⏰',
-                title: 'Optimize Screen Time',
-                description: 'Screen time is within healthy limits, but consider more educational content during peak learning hours.',
-                priority: 'low'
-            },
-            {
-                id: 4,
-                icon: '🤝',
-                title: 'Social Activities',
-                description: childName.value+' enjoys group activities. Consider enrolling in team sports or group learning programs.',
-                priority: 'medium'
-            }
-        ])
+const emotionalInsights = ref({
+  moodTrends: [
+    { date: '2025-07-01', emoji: '😊', feeling: 'Happy' }
+  ],
+  summaries: [
+    { id: 1, topic: 'School', text: 'Was happy at school.', sentiment: 'positive' }
+  ],
+  weeklyMoods: [
+    { date: '2025-07-01', emoji: '😊', feeling: 'Happy', notes: 'Good day' }
+  ],
+  conversationTopics: [
+    { id: 1, title: 'Friends', sentiment: 'positive', summary: 'Made new friends', keywords: ['play', 'share'] }
+  ]
+})
 
-        const formatDate = (date) => {
-            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-        }
+// Methods
+const openModal = (title, component, data) => {
+  modalTitle.value = title
+  modalComponent.value = component
+  modalData.value = data
+  showModal.value = true
+}
+const closeModal = () => { showModal.value = false }
 
-        const updateData = () => {
-            console.log('Updating data for period:', selectedPeriod.value)
-            // Here you would typically fetch new data based on the selected period
-        }
+const showProgressModal = () => openModal('Overall Progress', 'progress-modal', { progress: overallProgress.value })
+const showScreenTimeModal = () => openModal('Screen Time', 'screentime-modal', screenTimeData.value)
+const showAchievementModal = () => openModal('Achievement', 'achievement-modal', todayAchievement.value)
+const showFinanceModal = () => openModal('Finance', 'money-card', financeStats.value)
+const showHealthModal = () => openModal('Health', 'health-modal', healthStats.value)
+const showPsychometricModal = () => openModal('Psychometric', 'psychometric-modal', psychometricData.value)
+const showDoodlingModal = () => openModal('Doodling', 'doodling-modal', doodleStats.value)
+const showTaskModal = () => openModal('Tasks', 'task-modal', taskStats.value)
+const showEmotionalModal = () => openModal('Emotions', 'emotional-modal', emotionalInsights.value)
+const showSkillsModal = () => openModal('Skills', 'skills-modal', skillProgress.value)
+const viewDoodle = (doodle) => openModal('Doodle View', 'doodling-modal', doodle)
 
-        const exportReport = () => {
-            alert('Exporting comprehensive report for ' + childName.value + '...')
-            // Here you would implement actual report export functionality
-        }
+const logout = () => {
+  userUtils.logout()
+  console.log('Logged out')
+}
 
-        const logout = () => {
-            userUtils.logout()
-        }
-
-        const drawScreenTimeChart = () => {
-            nextTick(() => {
-                const canvas = document.querySelector('canvas')
-                if (!canvas) return
-                
-                const ctx = canvas.getContext('2d')
-                const width = canvas.width
-                const height = canvas.height
-                
-                // Clear canvas
-                ctx.clearRect(0, 0, width, height)
-                
-                // Sample data for screen time over the week
-                const data = [2.5, 3.2, 2.8, 4.1, 3.5, 2.9, 3.7]
-                const labels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-                
-                // Draw chart
-                const maxValue = Math.max(...data)
-                const barWidth = width / data.length
-                const barMaxHeight = height - 40
-                
-                ctx.fillStyle = '#4ecdc4'
-                
-                data.forEach((value, index) => {
-                    const barHeight = (value / maxValue) * barMaxHeight
-                    const x = index * barWidth + 10
-                    const y = height - barHeight - 20
-                    
-                    ctx.fillRect(x, y, barWidth - 20, barHeight)
-                    
-                    // Draw labels
-                    ctx.fillStyle = '#666'
-                    ctx.font = '12px Arial'
-                    ctx.textAlign = 'center'
-                    ctx.fillText(labels[index], x + (barWidth - 20) / 2, height - 5)
-                    ctx.fillText(value + 'h', x + (barWidth - 20) / 2, y - 5)
-                    
-                    ctx.fillStyle = '#4ecdc4'
-                })
-            })
-        }
-
-        onMounted(() => {
-            drawScreenTimeChart()
-        })
-
-        return {
-            childName,
-            selectedPeriod,
-            selectedTimePeriod,
-            timePeriods,
-            overallProgress,
-            screenTime,
-            tasksCompleted,
-            moneySaved,
-            psychometricData,
-            appUsage,
-            homeworkStats,
-            weeklySchedule,
-            recentHomework,
-            emotionalInsights,
-            creativeActivities,
-            pomodoroData,
-            recommendations,
-            formatDate,
-            updateData,
-            exportReport,
-            logout
-        }
-    }
+const updatePeriod = () => {
+  console.log('Period changed:', selectedPeriod.value)
+}
+const exportData = () => {
+  console.log('Exporting data...')
 }
 </script>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
 .parent-dashboard {
     min-height: 100vh;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: linear-gradient(135deg, #31417A 0%, #667eea 100%);
+    position: relative;
+    font-family: 'Merriweather', serif;
 }
 
 /* Header */
 .dashboard-header {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(20px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    padding: 1rem 0;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-}
-
-.header-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.parent-logo {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.logo-icon {
-    font-size: 2.5rem;
-}
-
-.logo-text h1 {
-    margin: 0;
-    font-size: 1.5rem;
-    color: #333;
-    font-weight: 700;
-}
-
-.subtitle {
-    font-size: 0.9rem;
-    color: #666;
-    font-weight: 400;
-}
-
-.header-actions {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.date-selector select {
-    padding: 0.5rem 1rem;
-    border: 2px solid #e0e0e0;
-    border-radius: 8px;
-    background: white;
-    font-size: 0.9rem;
-    cursor: pointer;
-}
-
-.export-btn, .logout-btn {
-    padding: 0.6rem 1.2rem;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-size: 0.9rem;
-    font-weight: 500;
-    transition: all 0.3s;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
-.export-btn {
-    background: #4ecdc4;
-    color: white;
-}
-
-.logout-btn {
-    background: #ff6b6b;
-    color: white;
-}
-
-.export-btn:hover, .logout-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-}
-
-/* Main Content */
-.dashboard-main {
-    padding: 2rem 0;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: 1rem 0;
 }
 
 .container {
-    max-width: 1400px;
-    margin: 0 auto;
-    padding: 0 1rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 1rem;
 }
 
-/* Overview Section */
-.overview-section {
-    display: grid;
-    grid-template-columns: 2fr repeat(3, 1fr);
-    gap: 1.5rem;
-    margin-bottom: 3rem;
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.parent-logo {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.logo-icon {
+  font-size: 2.5rem;
+  animation: sparkle 3s infinite ease-in-out;
+}
+
+@keyframes sparkle {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+.logo-text h1 {
+  font-size: 1.8rem;
+  color: #333;
+  font-weight: 700;
+  margin: 0;
+}
+
+.subtitle {
+  font-size: 0.9rem;
+  color: #666;
+  font-weight: 400;
+}
+
+/* =========================
+   HEADER SECTION
+   ========================= */
+.dashboard-header {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 20px 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.parent-logo {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.logo-icon {
+  font-size: 2.5rem;
+  background: linear-gradient(135deg, #ff6b6b, #ffd93d);
+  border-radius: 50%;
+  padding: 10px;
+  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+}
+
+.logo-text h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 5px;
+}
+
+.subtitle {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.date-selector select {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 10px 15px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  backdrop-filter: blur(5px);
+}
+
+.date-selector select:focus {
+  outline: none;
+  border-color: #ffd93d;
+}
+
+.export-btn, .logout-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 10px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(5px);
+}
+
+.export-btn:hover, .logout-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-2px);
+}
+
+.logout-btn {
+  background: rgba(255, 107, 107, 0.2);
+  border-color: rgba(255, 107, 107, 0.3);
+}
+
+.logout-btn:hover {
+  background: rgba(255, 107, 107, 0.3);
+}
+
+/* =========================
+   MAIN DASHBOARD
+   ========================= */
+.dashboard-main {
+  padding: 30px 0;
+}
+
+/* =========================
+   OVERVIEW GRID - WARM COMPLEMENTARY COLORS
+   ========================= */
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 25px;
+  margin-bottom: 40px;
 }
 
 .overview-card {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    border-radius: 16px;
-    padding: 1.5rem;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  padding: 25px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
 .overview-card:hover {
-    transform: translateY(-5px);
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+  transform: translateY(-5px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
 }
 
-.highlight-card {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
+.overview-card:nth-child(1) {
+  background: linear-gradient(135deg, #FF6B6B 0%, #FF8E8E 100%);
 }
 
-.card-icon {
-    font-size: 2rem;
-    margin-bottom: 0.5rem;
+.overview-card:nth-child(2) {
+  background: linear-gradient(135deg, #4ECDC4 0%, #44A08D 100%);
 }
 
-.card-content h3 {
-    margin: 0 0 1rem 0;
-    font-size: 1.1rem;
-    font-weight: 600;
+.overview-card:nth-child(3) {
+  background: linear-gradient(135deg, #FFD93D 0%, #FFA726 100%);
 }
 
-.progress-ring {
-    display: flex;
-    justify-content: center;
-    margin: 1rem 0;
+.overview-card:nth-child(4) {
+  background: linear-gradient(135deg, #A8E6CF 0%, #7FCDCD 100%);
 }
 
-.progress-circle {
-    position: relative;
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background: conic-gradient(#4ecdc4 calc(var(--progress) * 1%), rgba(255, 255, 255, 0.3) 0);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.overview-card .card-icon {
+  font-size: 2.5rem;
+  margin-bottom: 15px;
+  display: block;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
-.progress-circle::before {
-    content: '';
-    position: absolute;
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    background: inherit;
+.overview-card h3 {
+  color: white;
+  font-size: 1.2rem;
+  margin-bottom: 15px;
+  font-weight: 600;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.overview-card p {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9rem;
+  margin-top: 10px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+/* Progress Card Specific */
+.progress-card .progress-circle {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: conic-gradient(white 0deg, white calc(var(--progress) * 3.6deg), rgba(255, 255, 255, 0.3) calc(var(--progress) * 3.6deg));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 15px 0;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .progress-text {
-    position: relative;
-    z-index: 1;
-    font-size: 1.2rem;
-    font-weight: 700;
+  color: #333;
+  font-weight: 700;
+  font-size: 1.1rem;
 }
 
-.metric-value {
-    font-size: 1.8rem;
-    font-weight: 700;
-    color: #333;
-    margin-bottom: 0.5rem;
+/* Screen Time Card */
+.screentime-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: white;
+  margin: 10px 0;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
-.metric-change {
-    font-size: 0.9rem;
-    font-weight: 500;
+/* Achievement Card */
+.achievement-text {
+  font-size: 1.1rem;
+  color: white;
+  margin: 10px 0;
+  font-weight: 600;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-.metric-change.positive {
-    color: #4caf50;
+.achievement-amount {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
-.metric-change.negative {
-    color: #ff5722;
+/* Money Card */
+.money-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: white;
+  margin: 10px 0;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
-.completion-bar {
-    width: 100%;
-    height: 8px;
-    background: #e0e0e0;
-    border-radius: 4px;
-    overflow: hidden;
-    margin-top: 0.5rem;
+/* =========================
+   MAIN FEATURES GRID - VIBRANT COMPLEMENTARY COLORS
+   ========================= */
+.main-features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 30px;
+  margin-bottom: 40px;
 }
 
-.completion-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #4ecdc4, #45b7d1);
-    border-radius: 4px;
-    transition: width 0.3s ease;
+.feature-card {
+  backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  padding: 25px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  min-height: 300px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
 }
 
-.savings-goal {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 0.9rem;
-    color: #666;
-    margin-top: 0.5rem;
+.feature-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
 }
 
-.goal-progress {
-    font-weight: 600;
-    color: #4ecdc4;
+.feature-card:nth-child(1) {
+  background: linear-gradient(135deg, #FF9A9E 0%, #FECFEF 100%);
 }
 
-/* Analytics Grid */
-.analytics-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
-    gap: 2rem;
-    margin-bottom: 3rem;
+.feature-card:nth-child(2) {
+  background: linear-gradient(135deg, #A8EDEA 0%, #FED6E3 100%);
 }
 
-.analytics-card {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    border-radius: 16px;
-    padding: 1.5rem;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+.feature-card:nth-child(3) {
+  background: linear-gradient(135deg, #FFECD2 0%, #FCB69F 100%);
+}
+
+.feature-card:nth-child(4) {
+  background: linear-gradient(135deg, #C3ECE0 0%, #E6F3FF 100%);
+}
+
+.feature-card:nth-child(5) {
+  background: linear-gradient(135deg, #FFB7B7 0%, #FFDFDF 100%);
+}
+
+.feature-card:nth-child(6) {
+  background: linear-gradient(135deg, #B8E6B8 0%, #DCEDC8 100%);
 }
 
 .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid #e0e0e0;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.card-header .card-icon {
+  font-size: 2rem;
+  background: linear-gradient(135deg, #333 0%, #555 100%);
+  border-radius: 50%;
+  padding: 10px;
+  min-width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .card-header h3 {
-    margin: 0;
-    font-size: 1.2rem;
-    font-weight: 600;
-    color: #333;
+  color: #333;
+  font-size: 1.3rem;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
 }
 
-.last-updated, .insight-period, .activity-count, .session-count, .completion-rate {
-    font-size: 0.8rem;
-    color: #666;
-    background: #f5f5f5;
-    padding: 0.3rem 0.8rem;
-    border-radius: 12px;
+.card-content {
+  flex: 1;
 }
 
-/* Psychometric Results */
-.psychometric-results {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 2rem;
+/* Health Card Specific */
+.health-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
 }
 
-.personality-traits h4, .learning-style h4 {
-    margin: 0 0 1rem 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #333;
+.health-item {
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 15px;
+  padding: 20px;
+  text-align: center;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
-.trait-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
+.health-item:hover {
+  background: rgba(255, 255, 255, 0.6);
+  transform: scale(1.05);
 }
 
-.trait-item {
-    display: grid;
-    grid-template-columns: 1fr 2fr auto;
-    align-items: center;
-    gap: 1rem;
+.health-emoji {
+  font-size: 2rem;
+  margin-bottom: 10px;
+  display: block;
 }
 
-.trait-name {
-    font-size: 0.9rem;
-    font-weight: 500;
-    color: #555;
+.health-label {
+  color: #555;
+  font-size: 0.9rem;
+  margin-bottom: 5px;
+  display: block;
+  font-weight: 500;
 }
 
-.trait-bar {
-    height: 8px;
-    background: #e0e0e0;
-    border-radius: 4px;
-    overflow: hidden;
+.health-value {
+  color: #333;
+  font-weight: 700;
+  font-size: 1.1rem;
 }
 
-.trait-fill {
-    height: 100%;
-    border-radius: 4px;
-    transition: width 0.3s ease;
+.streak-item {
+  background: linear-gradient(135deg, #FF6B6B 0%, #FF8E8E 100%);
+  box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
 }
 
-.trait-score {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #333;
-    min-width: 40px;
-    text-align: right;
+.streak-item .health-label {
+  color: rgba(255, 255, 255, 0.9);
 }
 
-.learning-chart {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
+.streak-item .health-value {
+  color: white;
 }
 
-.learning-item {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.8rem;
-    background: #f8f9fa;
-    border-radius: 8px;
+.streak-number {
+  font-size: 1.8rem;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
-.learning-icon {
-    font-size: 1.5rem;
+/* Psychometric Card */
+.psychometric-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
 }
 
-.learning-info {
-    display: flex;
-    flex-direction: column;
+.psycho-item {
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 15px;
+  padding: 20px;
+  text-align: center;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
-.learning-type {
-    font-weight: 500;
-    color: #333;
+.psycho-item:hover {
+  background: rgba(255, 255, 255, 0.6);
+  transform: scale(1.05);
 }
 
-.learning-percentage {
-    font-size: 0.9rem;
-    color: #666;
+.psycho-emoji {
+  font-size: 2rem;
+  margin-bottom: 10px;
+  display: block;
 }
 
-/* Screen Time Analytics */
-.time-controls {
-    display: flex;
-    gap: 0.5rem;
+.psycho-label {
+  color: #555;
+  font-size: 0.9rem;
+  margin-bottom: 5px;
+  display: block;
+  font-weight: 500;
 }
 
-.time-btn {
-    padding: 0.4rem 0.8rem;
-    border: 1px solid #e0e0e0;
-    background: white;
-    border-radius: 6px;
-    cursor: pointer;
-    font-size: 0.8rem;
-    transition: all 0.3s;
+.psycho-value {
+  color: #333;
+  font-weight: 700;
+  font-size: 1rem;
 }
 
-.time-btn.active {
-    background: #4ecdc4;
-    color: white;
-    border-color: #4ecdc4;
+/* Doodling Card */
+.doodle-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
 }
 
-.screen-time-chart {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem;
+.doodle-box {
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 15px;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
-.chart-container {
-    display: flex;
-    justify-content: center;
-    align-items: center;
+.doodle-box:hover {
+  transform: scale(1.05);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
 }
 
-.app-breakdown h4 {
-    margin: 0 0 1rem 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #333;
+.doodle-canvas {
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 15px 15px 0 0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
-.app-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
+.doodle-preview-content {
+  font-size: 2rem;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
-.app-item {
-    display: grid;
-    grid-template-columns: 1fr auto 2fr;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.8rem;
-    background: #f8f9fa;
-    border-radius: 8px;
+.doodle-footer {
+  padding: 10px 15px;
+  background: rgba(255, 255, 255, 0.6);
 }
 
-.app-info {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+.doodle-name {
+  color: #333;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 5px;
 }
 
-.app-icon {
-    font-size: 1.2rem;
+.doodle-date {
+  color: #666;
+  font-size: 0.8rem;
 }
 
-.app-name {
-    font-weight: 500;
-    color: #333;
+/* Task Card */
+.task-calendar {
+  margin-bottom: 20px;
 }
 
-.app-time {
-    font-size: 0.9rem;
-    color: #666;
-    font-weight: 500;
+.calendar-header {
+  text-align: center;
+  margin-bottom: 15px;
 }
 
-.app-bar {
-    height: 6px;
-    background: #e0e0e0;
-    border-radius: 3px;
-    overflow: hidden;
-}
-
-.app-fill {
-    height: 100%;
-    background: linear-gradient(90deg, #4ecdc4, #45b7d1);
-    border-radius: 3px;
-    transition: width 0.3s ease;
-}
-
-/* Homework & Tasks */
-.homework-content {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem;
-}
-
-.homework-calendar h4, .homework-details h4 {
-    margin: 0 0 1rem 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #333;
+.calendar-month {
+  color: #333;
+  font-size: 1.2rem;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
 }
 
 .calendar-grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 0.5rem;
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
 }
 
 .calendar-day {
-    padding: 0.8rem 0.5rem;
-    border-radius: 8px;
-    text-align: center;
-    border: 2px solid transparent;
-    transition: all 0.3s;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 10px;
+  padding: 10px;
+  text-align: center;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
-.calendar-day.complete {
-    background: #e8f5e8;
-    border-color: #4caf50;
+.calendar-day:hover {
+  background: rgba(255, 255, 255, 0.6);
 }
 
-.calendar-day.partial {
-    background: #fff3e0;
-    border-color: #ff9800;
+.calendar-day.today {
+  background: linear-gradient(135deg, #4ecdc4, #45b7d1);
 }
 
-.calendar-day.current {
-    background: #e3f2fd;
-    border-color: #2196f3;
+.calendar-day.has-tasks {
+  border: 2px solid #FF6B6B;
 }
 
-.calendar-day.upcoming {
-    background: #f5f5f5;
-    border-color: #e0e0e0;
+.day-number {
+  color: #333;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 5px;
 }
 
-.day-name {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: #666;
+.calendar-day.today .day-number {
+  color: white;
 }
 
-.day-date {
-    font-size: 1.1rem;
-    font-weight: 700;
-    color: #333;
-    margin: 0.2rem 0;
+.day-tasks {
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 5px;
+  padding: 2px 5px;
+  font-size: 0.7rem;
+  color: #333;
+  font-weight: 500;
 }
 
-.task-count {
-    font-size: 0.8rem;
-    color: #666;
+.recent-tasks {
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 15px;
+  padding: 15px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
-.activity-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
+.recent-task-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
-.activity-item {
-    display: grid;
-    grid-template-columns: auto 1fr auto;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem;
-    background: #f8f9fa;
-    border-radius: 8px;
+.task-name {
+  color: #333;
+  font-weight: 600;
+  font-size: 0.9rem;
 }
 
-.activity-icon {
-    font-size: 1.5rem;
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.task-session {
+  color: #666;
+  font-size: 0.8rem;
+  background: rgba(255, 255, 255, 0.6);
+  padding: 5px 10px;
+  border-radius: 10px;
+  font-weight: 500;
 }
 
-.activity-icon.completed {
-    background: #e8f5e8;
-}
-
-.activity-icon.in-progress {
-    background: #fff3e0;
-}
-
-.activity-info {
-    display: flex;
-    flex-direction: column;
-}
-
-.activity-title {
-    font-weight: 600;
-    color: #333;
-}
-
-.activity-subject {
-    font-size: 0.9rem;
-    color: #666;
-}
-
-.activity-meta {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 0.2rem;
-}
-
-.activity-time {
-    font-size: 0.8rem;
-    color: #666;
-}
-
-.activity-score {
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: #4caf50;
-}
-
-/* Emotional Insights */
-.emotional-content {
-    display: grid;
-    grid-template-columns: 1fr 2fr;
-    gap: 2rem;
-}
-
-.mood-tracker h4, .conversation-summary h4 {
-    margin: 0 0 1rem 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #333;
-}
-
+/* Emotional Card */
 .mood-chart {
-    display: flex;
-    flex-direction: column;
-    gap: 0.8rem;
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 15px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
 .mood-day {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    padding: 0.8rem;
-    background: #f8f9fa;
-    border-radius: 8px;
+  text-align: center;
+  flex: 1;
 }
 
 .mood-emoji {
-    font-size: 1.5rem;
-    cursor: pointer;
+  font-size: 2rem;
+  margin-bottom: 5px;
+  display: block;
 }
 
 .mood-date {
-    font-size: 0.9rem;
-    color: #666;
-    font-weight: 500;
+  color: #666;
+  font-size: 0.7rem;
+  font-weight: 500;
 }
 
 .summary-cards {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .summary-card {
-    padding: 1rem;
-    background: #f8f9fa;
-    border-radius: 8px;
-    border-left: 4px solid #4ecdc4;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 10px;
+  padding: 15px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .summary-topic {
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 0.5rem;
+  color: #333;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 5px;
 }
 
 .summary-text {
-    font-size: 0.9rem;
-    color: #555;
-    line-height: 1.5;
-    margin-bottom: 0.5rem;
+  color: #555;
+  font-size: 0.8rem;
+  margin-bottom: 8px;
 }
 
 .summary-sentiment {
-    font-size: 0.8rem;
-    font-weight: 500;
-    padding: 0.2rem 0.5rem;
-    border-radius: 12px;
-    display: inline-block;
+  padding: 4px 8px;
+  border-radius: 20px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
 }
 
 .summary-sentiment.positive {
-    background: #e8f5e8;
-    color: #4caf50;
+  background: rgba(76, 175, 80, 0.8);
+  color: white;
 }
 
 .summary-sentiment.neutral {
-    background: #fff3e0;
-    color: #ff9800;
+  background: rgba(255, 193, 61, 0.8);
+  color: white;
 }
 
 .summary-sentiment.negative {
-    background: #ffebee;
-    color: #f44336;
+  background: rgba(244, 67, 54, 0.8);
+  color: white;
 }
 
-/* Creative Activities */
-.creative-content {
-    display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 2rem;
+.summary-sentiment.highlighted {
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.5);
 }
 
-.doodle-gallery h4, .creativity-stats h4 {
-    margin: 0 0 1rem 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #333;
+/* Skills Card */
+.skills-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
 }
 
-.doodle-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1rem;
+.skill-box {
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 15px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
 }
 
-.doodle-item {
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s;
+.skill-box:hover {
+  background: rgba(255, 255, 255, 0.6);
+  transform: translateX(5px);
 }
 
-.doodle-item:hover {
-    transform: translateY(-2px);
+.skill-icon {
+  font-size: 2rem;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  border-radius: 50%;
+  padding: 10px;
+  min-width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
-.doodle-preview {
-    height: 100px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: 600;
-    font-size: 0.9rem;
+.skill-info {
+  flex: 1;
 }
 
-.doodle-meta {
-    padding: 0.8rem;
-    background: white;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+.skill-name {
+  color: #333;
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 8px;
 }
 
-.doodle-date, .doodle-time {
-    font-size: 0.8rem;
-    color: #666;
+.skill-progress-bar {
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 10px;
+  height: 8px;
+  overflow: hidden;
+  margin-bottom: 5px;
 }
 
-.creativity-metrics {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
+.skill-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4ecdc4, #45b7d1);
+  border-radius: 10px;
+  transition: width 0.3s ease;
 }
 
-.metric-item {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
+.skill-progress-text {
+  color: #666;
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
-.metric-label {
-    font-size: 0.9rem;
-    color: #666;
-    font-weight: 500;
+/* =========================
+   FLOATING MAGIC ANIMATION
+   ========================= */
+.floating-magic {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
 }
 
-.metric-value {
-    font-size: 1.2rem;
-    font-weight: 600;
-    color: #333;
+.magic-element {
+  position: absolute;
+  font-size: 1.5rem;
+  opacity: 0.6;
+  animation: float 8s ease-in-out infinite;
+  animation-delay: var(--delay);
+  left: var(--x);
+  top: var(--y);
 }
 
-.color-palette {
-    display: flex;
-    gap: 0.3rem;
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(0deg); }
+  25% { transform: translateY(-20px) rotate(90deg); }
+  50% { transform: translateY(-10px) rotate(180deg); }
+  75% { transform: translateY(-15px) rotate(270deg); }
 }
 
-.color-dot {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    border: 2px solid white;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.creativity-score {
-    font-size: 1.2rem;
-    font-weight: 600;
-    color: #4ecdc4;
-}
-
-/* Pomodoro Session Results */
-.pomodoro-content {
-    display: grid;
-    grid-template-columns: 1fr 2fr;
-    gap: 2rem;
-}
-
-.focus-metrics {
-    display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
-}
-
-.focus-stat {
-    text-align: center;
-    padding: 1rem;
-    background: #f8f9fa;
-    border-radius: 8px;
-}
-
-.stat-value {
-    font-size: 1.5rem;
-    font-weight: 700;
-    color: #333;
-    margin-bottom: 0.5rem;
-}
-
-.stat-label {
-    font-size: 0.9rem;
-    color: #666;
-    font-weight: 500;
-}
-
-.session-history h4 {
-    margin: 0 0 1rem 0;
-    font-size: 1rem;
-    font-weight: 600;
-    color: #333;
-}
-
-.session-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.session-item {
-    display: grid;
-    grid-template-columns: auto 1fr auto auto;
-    align-items: center;
-    gap: 1rem;
-    padding: 1rem;
-    background: #f8f9fa;
-    border-radius: 8px;
-}
-
-.session-time {
-    font-size: 0.8rem;
-    color: #666;
-    min-width: 120px;
-}
-
-.session-activity {
-    font-weight: 500;
-    color: #333;
-}
-
-.session-duration {
-    font-size: 0.9rem;
-    color: #666;
-    font-weight: 500;
-}
-
-.rating-stars {
-    display: flex;
-    gap: 0.1rem;
-}
-
-.star {
-    font-size: 0.8rem;
-    opacity: 0.3;
-}
-
-.star.filled {
-    opacity: 1;
-}
-
-/* Recommendations Section */
-.recommendations-section {
-    margin-top: 3rem;
-}
-
-.recommendations-section h2 {
-    color: white;
-    text-align: center;
-    margin-bottom: 2rem;
-    font-size: 2rem;
-    font-weight: 700;
-}
-
-.recommendations-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 1.5rem;
-}
-
-.recommendation-card {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(10px);
-    border-radius: 16px;
-    padding: 1.5rem;
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-    display: flex;
-    gap: 1rem;
-    transition: transform 0.3s ease;
-}
-
-.recommendation-card:hover {
-    transform: translateY(-3px);
-}
-
-.rec-icon {
-    font-size: 2rem;
-    flex-shrink: 0;
-}
-
-.rec-content {
-    flex: 1;
-}
-
-.rec-content h4 {
-    margin: 0 0 0.5rem 0;
-    font-size: 1.1rem;
-    font-weight: 600;
-    color: #333;
-}
-
-.rec-content p {
-    margin: 0 0 1rem 0;
-    font-size: 0.9rem;
-    color: #555;
-    line-height: 1.5;
-}
-
-.rec-priority {
-    font-size: 0.8rem;
-    font-weight: 500;
-    padding: 0.3rem 0.8rem;
-    border-radius: 12px;
-    display: inline-block;
-}
-
-.rec-priority.high {
-    background: #ffebee;
-    color: #f44336;
-}
-
-.rec-priority.medium {
-    background: #fff3e0;
-    color: #ff9800;
-}
-
-.rec-priority.low {
-    background: #e8f5e8;
-    color: #4caf50;
-}
-
-/* Responsive Design */
+/* =========================
+   RESPONSIVE DESIGN
+   ========================= */
 @media (max-width: 1200px) {
-    .overview-section {
-        grid-template-columns: 1fr 1fr;
-        gap: 1rem;
-    }
-    
-    .analytics-grid {
-        grid-template-columns: 1fr;
-    }
+  .main-features-grid {
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+  }
 }
 
 @media (max-width: 768px) {
-    .header-content {
-        flex-direction: column;
-        gap: 1rem;
-    }
-    
-    .header-actions {
-        flex-wrap: wrap;
-        justify-content: center;
-    }
-    
-    .overview-section {
-        grid-template-columns: 1fr;
-    }
-    
-    .psychometric-results,
-    .screen-time-chart,
-    .homework-content,
-    .emotional-content,
-    .creative-content,
-    .pomodoro-content {
-        grid-template-columns: 1fr;
-        gap: 1rem;
-    }
-    
-    .calendar-grid {
-        grid-template-columns: repeat(4, 1fr);
-    }
-    
-    .doodle-grid {
-        grid-template-columns: 1fr;
-    }
-    
-    .recommendations-grid {
-        grid-template-columns: 1fr;
-    }
+  .header-content {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .overview-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .main-features-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .health-grid, .psychometric-grid, .doodle-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .calendar-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  
+  .mood-chart {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
 }
 
 @media (max-width: 480px) {
-    .container {
-        padding: 0 0.5rem;
-    }
-    
-    .dashboard-main {
-        padding: 1rem 0;
-    }
-    
-    .overview-card,
-    .analytics-card,
-    .recommendation-card {
-        padding: 1rem;
-    }
-    
-    .logo-icon {
-        font-size: 2rem;
-    }
-    
-    .logo-text h1 {
-        font-size: 1.2rem;
-    }
-    
-    .calendar-grid {
-        grid-template-columns: repeat(3, 1fr);
-    }
+  .container {
+    padding: 0 15px;
+  }
+  
+  .feature-card {
+    min-height: auto;
+    padding: 20px;
+  }
+  
+  .logo-text h1 {
+    font-size: 1.5rem;
+  }
+  
+  .header-actions {
+    flex-direction: column;
+    gap: 10px;
+  }
 }
+
 </style>

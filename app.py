@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Achievement, ChatSession,ChildProfile, DoodleSession, LLMInteractions, ParentChild, SavingGoal, Transaction, HomeworkSchedule, PomodoroSession, ScreenTime, Notification, HealthTask, HealthStreak, WaterLog
+from models import db, User, Achievement, ChatSession,ChildProfile, DoodleSession, LLMInteractions, ParentChild, SavingGoal, Transaction, HomeworkSchedule, PomodoroSession, ScreenTime, Notification, HealthTask, HealthStreak, WaterLog,PsychometricTestResult
 import re, requests
 import PIL
 import os
@@ -891,6 +891,14 @@ psychometry_service = PsychometryService(OPENROUTER_API_KEY, OPENROUTER_API_URL)
 def start_psychometry_test():
     """Initialize a new psychometry assessment test session"""
     try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        if not user_id:
+            return jsonify({'error': 'user_id is required'}), 400
+
+        # Store user_id in session for later use
+        session['psychometry_user_id'] = user_id
+
         # Initialize assessment
         test_questions = psychometry_service.initialize_assessment()
         
@@ -918,7 +926,11 @@ def submit_psychometry_answer():
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data received'}), 400
-            
+        user_id = data.get('user_id')
+        session_user_id = session.get('psychometry_user_id')
+        if not user_id or not session_user_id or str(user_id) != str(session_user_id):
+            return jsonify({'error': 'User ID mismatch or missing'}), 400
+        
         user_answer = data.get('answer')
         if not user_answer:
             return jsonify({'error': 'No answer provided'}), 400
@@ -1008,7 +1020,24 @@ def complete_psychometry_assessment():
         # session.pop('psychometry_current_index', None)
         # session.pop('psychometry_responses', None)
         # session.pop('psychometry_start_time', None)
+        # ---  Save result to DB
+        child_id = session.get('psychometry_user_id')  # You must store this earlier from login/session
 
+        if child_id:
+            test_result = PsychometricTestResult(
+                child_id=child_id,
+                learning_style=assessment_results['learning_style'],
+                personality_type=assessment_results['personality_type'],
+                top_interest=assessment_results['top_interest'],
+                concentration_level=assessment_results['concentration_level'],
+                memory_strength=assessment_results['memory_strength'],
+                detailed_scores=assessment_results['detailed_scores'],
+                personality_breakdown=assessment_results['personality_breakdown'],
+                feedback=assessment_results['feedback'],
+                duration_seconds=test_duration
+            )
+            db.session.add(test_result)
+            db.session.commit()
         return jsonify({
             'results': assessment_results,
             'responses': responses,
@@ -1034,7 +1063,19 @@ def get_tasks(user_id):
         
         tasks_data = []
         for task in tasks:
-            total_duration = db.session.query(db.func.sum(PomodoroSession.duration)).filter_by(homework_id=task.id, completed=True).scalar() or 0
+            # Get session statistics and calculate totals
+            sessions = PomodoroSession.query.filter_by(homework_id=task.id)
+            total_work_time = sum(s.work_duration for s in sessions)
+            total_break_time = sum(s.break_duration for s in sessions)
+            total_time_spent_minutes = total_work_time // 60  # Convert to minutes
+            
+            session_stats = {
+                'total_sessions': sessions.count(),
+                'completed_sessions': sessions.filter_by(completed=True).count(),
+                'incomplete_sessions': sessions.filter_by(completed=False).count(),
+                'total_work_time': total_work_time // 60,  # Convert to minutes
+                'total_break_time': total_break_time // 60   # Convert to minutes
+            }
             
             tasks_data.append({
                 'id': task.id,
@@ -1042,7 +1083,9 @@ def get_tasks(user_id):
                 'task': task.task,
                 'due_date': task.due_date.isoformat() if task.due_date else None,
                 'status': task.status,
-                'time_spent': total_duration
+                'created_at': task.created_at.isoformat() if task.created_at else None,
+                'time_spent': total_time_spent_minutes,
+                'session_stats': session_stats
             })
 
         return jsonify({
@@ -1057,11 +1100,22 @@ def create_task():
     """Create a new task"""
     try:
         data = request.get_json()
+        # Handle empty due_date string properly
+        due_date_str = data.get('due_date')
+        due_date = None
+        if due_date_str and due_date_str.strip():  # Check if not empty or whitespace
+            try:
+                due_date = date.fromisoformat(due_date_str)
+            except ValueError:
+                return jsonify({'success': False, 'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+        current_time = datetime.utcnow()
+        # Create task with current timestamp
         new_task = HomeworkSchedule(
-            user_id=data['user_id'],
+           user_id=data['user_id'],
             subject=data.get('subject'),
             task=data['task'],
-            due_date=date.fromisoformat(data['due_date']) if data.get('due_date') else None
+            due_date=due_date,  # Use the properly handled due_date variable
+            created_at=current_time
         )
         db.session.add(new_task)
         db.session.commit()
@@ -1073,7 +1127,8 @@ def create_task():
                 'subject': new_task.subject,
                 'task': new_task.task,
                 'due_date': new_task.due_date.isoformat() if new_task.due_date else None,
-                'status': new_task.status
+                'status': new_task.status,
+                'created_at': current_time.strftime('%Y-%m-%d %H:%M:%S')  # Human readable time
             }
         }), 201
     except Exception as e:
@@ -1107,6 +1162,13 @@ def start_pomodoro():
     """Start a new pomodoro session for a task"""
     try:
         data = request.get_json()
+        print("📥 Received data:", data)
+
+        # Debug print to confirm presence of required keys
+        if 'user_id' not in data:
+            print("❌ Missing 'user_id' in request")
+        if 'homework_id' not in data:
+            print("❌ Missing 'homework_id' in request")
         session = PomodoroSession(
             user_id=data['user_id'],
             homework_id=data['homework_id'],
@@ -1118,6 +1180,8 @@ def start_pomodoro():
         task = db.session.get(HomeworkSchedule, data['homework_id'])
         if task:
             task.status = 'in-progress'
+
+        # Session started successfully
 
         db.session.commit()
         return jsonify({'success': True, 'session_id': session.id}), 201
@@ -1136,13 +1200,134 @@ def complete_pomodoro(session_id):
         if not session:
             return jsonify({'success': False, 'error': 'Session not found'}), 404
 
-        session.duration = duration
-        session.completed = True
-        db.session.commit()
+        # Get work and break duration from request
+        work_duration = data.get('work_duration', 0)
+        break_duration = data.get('break_duration', 0)
+        
+        # Add any remaining active time
+        if session.start_time:
+            remaining_work = int((datetime.utcnow() - session.start_time).total_seconds())
+            work_duration += remaining_work
 
+        session.work_duration = work_duration
+        session.break_duration = break_duration
+        session.completed = True
+        session.end_time = datetime.utcnow()
+
+        db.session.commit()
         return jsonify({'success': True, 'message': 'Pomodoro session completed'}), 200
     except Exception as e:
         db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/pomodoro/pause/<int:session_id>', methods=['PUT'])
+def pause_pomodoro(session_id):
+    """Pause a pomodoro session"""
+    try:
+        session = db.session.get(PomodoroSession, session_id)
+        if not session:
+            return jsonify({'success': False, 'error': 'Session not found'}), 404
+
+        # Calculate work duration so far
+        if session.start_time:
+            work_duration = int((datetime.utcnow() - session.start_time).total_seconds())
+            session.work_duration += work_duration
+
+        session.start_time = None  # Reset start time for next resume
+
+        # Session is now paused
+
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Session paused'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/pomodoro/resume/<int:session_id>', methods=['PUT'])
+def resume_pomodoro(session_id):
+    """Resume a paused pomodoro session"""
+    try:
+        session = db.session.get(PomodoroSession, session_id)
+        if not session:
+            return jsonify({'success': False, 'error': 'Session not found'}), 404
+
+        session.start_time = datetime.utcnow()
+
+        # Session resumed - break time will be calculated when session ends
+
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Session resumed'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/pomodoro/abandon/<int:session_id>', methods=['PUT'])
+def abandon_pomodoro(session_id):
+    """Abandon a pomodoro session"""
+    try:
+        session = db.session.get(PomodoroSession, session_id)
+        if not session:
+            return jsonify({'success': False, 'error': 'Session not found'}), 404
+
+        # Get work and break duration from request
+        work_duration = data.get('work_duration', 0)
+        break_duration = data.get('break_duration', 0)
+        
+        # Add any remaining active time
+        if session.start_time:
+            remaining_work = int((datetime.utcnow() - session.start_time).total_seconds())
+            work_duration += remaining_work
+
+        session.work_duration = work_duration
+        session.break_duration = break_duration
+        session.end_time = datetime.utcnow()
+
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Session abandoned'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/task-time/analytics/<int:user_id>', methods=['GET'])
+def get_task_time_analytics(user_id):
+    """Get time analytics for a user"""
+    try:
+        homework_id = request.args.get('homework_id', type=int)
+        
+        # Get session statistics
+        sessions = PomodoroSession.query.filter_by(user_id=user_id)
+        if homework_id:
+            sessions = sessions.filter_by(homework_id=homework_id)
+        
+        # Calculate analytics from PomodoroSession data
+        total_work_time = sum(s.work_duration for s in sessions)
+        total_break_time = sum(s.break_duration for s in sessions)
+        
+        session_stats = {
+            'total_sessions': sessions.count(),
+            'completed_sessions': sessions.filter_by(completed=True).count(),
+            'incomplete_sessions': sessions.filter_by(completed=False).count(),
+            'average_work_time': sessions.with_entities(db.func.avg(PomodoroSession.work_duration)).scalar() or 0,
+            'average_break_time': sessions.with_entities(db.func.avg(PomodoroSession.break_duration)).scalar() or 0
+        }
+        
+        return jsonify({
+            'success': True,
+            'analytics': {
+                'total_work_time': total_work_time,
+                'total_break_time': total_break_time,
+                'session_stats': session_stats,
+                'recent_sessions': [{
+                    'id': s.id,
+                    'start_time': s.start_time.isoformat() if s.start_time else None,
+                    'end_time': s.end_time.isoformat() if s.end_time else None,
+                    'work_duration': s.work_duration,
+                    'break_duration': s.break_duration,
+                    'completed': s.completed
+                } for s in sessions.order_by(PomodoroSession.start_time.desc()).limit(10).all()]
+            }
+        }), 200
+    except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ---------------------------

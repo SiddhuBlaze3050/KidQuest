@@ -20,6 +20,27 @@
                                 <div v-if="task.time_spent > 0" class="time-spent">
                                     <span>🕒 {{ task.time_spent }} min spent</span>
                                 </div>
+                                <!-- Enhanced time analytics -->
+                                <div v-if="task.session_stats" class="session-analytics">
+                                    <div class="analytics-grid">
+                                        <div class="analytics-item">
+                                            <span class="analytics-label">Sessions:</span>
+                                            <span class="analytics-value">{{ task.session_stats.total_sessions }}</span>
+                                        </div>
+                                        <div class="analytics-item">
+                                            <span class="analytics-label">Completed:</span>
+                                            <span class="analytics-value">{{ task.session_stats.completed_sessions }}</span>
+                                        </div>
+                                        <div class="analytics-item">
+                                            <span class="analytics-label">Focus Time:</span>
+                                            <span class="analytics-value">{{ task.session_stats.total_work_time }}m</span>
+                                        </div>
+                                        <div class="analytics-item">
+                                            <span class="analytics-label">Break Time:</span>
+                                            <span class="analytics-value">{{ task.session_stats.total_break_time }}m</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                             <div class="task-actions">
                                 <span class="task-status">{{ task.status }}</span>
@@ -57,7 +78,7 @@
             </div>
         </div>
 
-        <PomodoroTimer v-if="showPomodoro" :task="selectedTask" @close="showPomodoro = false"
+        <PomodoroTimer v-if="showPomodoro" :task="selectedTask" :userId="user.id" @close="showPomodoro = false"
             @session-complete="handleSessionComplete" />
     </div>
 </template>
@@ -96,13 +117,20 @@ export default defineComponent({
                 console.error('Error fetching tasks:', error);
             }
         };
-
         const addTask = async () => {
             try {
-                const response = await apiService.createTask({
+                // Filter out empty due_date before sending
+                const taskData = {
                     ...newTask.value,
                     user_id: props.user.id,
-                });
+                };
+                
+                // Remove due_date if it's empty
+                if (!taskData.due_date || taskData.due_date.trim() === '') {
+                    delete taskData.due_date;
+                }
+                
+                const response = await apiService.createTask(taskData);
                 if (response.success) {
                     tasks.value.push(response.task);
                     newTask.value = { task: '', subject: '', due_date: '' }; // Reset form
@@ -121,10 +149,27 @@ export default defineComponent({
             }
         };
 
-        const startPomodoro = (task) => {
-            selectedTask.value = task;
-            showPomodoro.value = true;
-        };
+    const startPomodoro = async (task) => {
+  try {
+    const userId = props.user.id
+    const homeworkId = task.id
+
+    console.log('✅ Sending to API from TaskTracker:', {
+      user_id: userId,
+      homework_id: homeworkId,
+    })
+
+    // Make API call
+    //await apiService.startPomodoro(userId, homeworkId)
+
+    // Open PomodoroTimer component
+    selectedTask.value = task
+    showPomodoro.value = true
+  } catch (err) {
+    console.error('❌ Failed to start pomodoro session:', err)
+    alert('Could not start session. Please try again.')
+  }
+}
 
         const handleSessionComplete = () => {
             fetchTasks();
@@ -408,5 +453,71 @@ export default defineComponent({
 
 .empty-state p {
     font-size: 1.1rem;
+}
+
+.task-name {
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
+
+.task-description {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 1rem;
+}
+
+/* Session Analytics Styles */
+.session-analytics {
+    margin-top: 0.8rem;
+    padding: 0.8rem;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.5rem;
+}
+
+.analytics-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.3rem 0;
+}
+
+.analytics-label {
+    font-size: 0.8rem;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.analytics-value {
+    font-size: 0.9rem;
+    font-weight: bold;
+    color: #4facfe;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .task-tracker-body {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .analytics-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .task-actions {
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .action-btn {
+        width: 100%;
+        justify-content: center;
+    }
 }
 </style>

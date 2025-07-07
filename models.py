@@ -60,8 +60,11 @@ class PomodoroSession(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     homework_id = db.Column(db.Integer, db.ForeignKey('homework_schedule.id'), nullable=True)
     start_time = db.Column(db.DateTime)
-    duration = db.Column(db.Integer)
+    end_time = db.Column(db.DateTime, nullable=True)  # When session actually ended
+    work_duration = db.Column(db.Integer, default=0)  # Actual work time in seconds
+    break_duration = db.Column(db.Integer, default=0)  # Actual break time in seconds
     completed = db.Column(db.Boolean, default=False)
+
 
 class HomeworkSchedule(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -70,13 +73,9 @@ class HomeworkSchedule(db.Model):
     task = db.Column(db.String(255))
     due_date = db.Column(db.Date)
     status = db.Column(db.String(20), default='pending') # pending, in-progress, completed
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # When task was created
     pomodoro_sessions = db.relationship('PomodoroSession', backref='homework', lazy=True)
 
-class PuzzleAlarm(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    alarm_time = db.Column(db.Time)
-    puzzle_solved = db.Column(db.Boolean, default=False)
 
 # ---------------------------
 # Creative & Doodling
@@ -147,32 +146,31 @@ class Achievement(db.Model):
     description = db.Column(db.String(255))
     date_awarded = db.Column(db.DateTime, default=datetime.utcnow)
 
-class Streak(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    last_active_date = db.Column(db.Date)
-    current_streak = db.Column(db.Integer)
 
 # ---------------------------
 # Quizzes (Psychometric / Self-Discovery)
 # ---------------------------
 
-class Quiz(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    title = db.Column(db.String(255))
-    description = db.Column(db.String(255))
+class PsychometricTestResult(db.Model):
 
-class Question(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    quiz_id = db.Column(db.Integer, db.ForeignKey('quiz.id'))
-    question_text = db.Column(db.Text)
-    question_type = db.Column(db.String(20))
+    child_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    taken_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-class UserAnswer(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    question_id = db.Column(db.Integer, db.ForeignKey('question.id'))
-    answer_text = db.Column(db.Text)
+    learning_style = db.Column(db.String(50))
+    personality_type = db.Column(db.String(50))
+    top_interest = db.Column(db.String(50))
+
+    concentration_level = db.Column(db.Float)
+    memory_strength = db.Column(db.Float)
+
+    detailed_scores = db.Column(db.JSON)
+    personality_breakdown = db.Column(db.JSON)
+    duration_seconds = db.Column(db.Float)
+    feedback = db.Column(db.Text)
+    def __repr__(self):
+        return f'<TestResult Child:{self.child_id} on {self.taken_at:%Y-%m-%d}>'
+
 
 # ---------------------------
 # Health and Habits
@@ -207,31 +205,17 @@ class ScreenTime(db.Model):
 # Safety Education
 # ---------------------------
 
-class SafetyModule(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    topic = db.Column(db.String(255))
-    content_url = db.Column(db.String(255))
-
 class UserModuleProgress(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    module_id = db.Column(db.Integer, db.ForeignKey('safety_module.id'))
-    completed = db.Column(db.Boolean, default=False)
+    module_id = db.Column(db.Integer)  # Can be skipped or just used as a static mapping
+    submodule_id = db.Column(db.Integer)
+    module_name = db.Column(db.String(100))  # add this if not already
+    submodule_name = db.Column(db.String(100))
+    progress = db.Column(db.Float, default=0.0)  # for tracking % 
+    completed = db.Column(db.Boolean,default=False)
+                          
 
-# ---------------------------
-# English Communication
-# ---------------------------
-
-class EnglishPrompt(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    prompt_text = db.Column(db.String(255))
-
-class UserPromptResponse(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    prompt_id = db.Column(db.Integer, db.ForeignKey('english_prompt.id'))
-    response_text = db.Column(db.Text)
-    date = db.Column(db.Date, default=date.today)
 
 # ---------------------------
 # Notifications & Messaging
@@ -244,13 +228,6 @@ class Notification(db.Model):
     is_read = db.Column(db.Boolean, default=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
-class Message(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    sender_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    receiver_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    text = db.Column(db.Text)
-    pre_approved = db.Column(db.Boolean, default=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 # ---------------------------
 # Admin Dashboard Metrics

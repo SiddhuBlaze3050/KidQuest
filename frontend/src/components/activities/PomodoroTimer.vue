@@ -6,7 +6,7 @@
                 <!-- Main View -->
                 <div v-if="!showSettings">
                     <button @click="toggleMinimize" class="minimize-btn">−</button>
-                    <button @click="$emit('close')" class="close-btn">×</button>
+                    <button @click="handleClose" class="close-btn">×</button>
 
                     <h2 class="title">🍅 Pomodoro Timer</h2>
 
@@ -17,6 +17,40 @@
                     </div>
 
                     <div class="mode-text">{{ currentMode.label }}</div>
+
+                    <!-- Real-time tracking info -->
+             <!--   <div v-if="activeSessionId" class="tracking-info">
+                        <div class="tracking-stats">
+                            <div class="stat">
+                                <span class="stat-label">Session Work:</span>
+                                <span class="stat-value">{{ currentSessionWorkTimeFormatted }}</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Session Break:</span>
+                                <span class="stat-value">{{ currentSessionBreakTimeFormatted }}</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Pauses:</span>
+                                <span class="stat-value">{{ pauseCount }}</span>
+                            </div>
+                        </div>
+                        <div v-if="isSessionPaused" class="session-status">
+                            <span class="status-indicator paused">Session Paused</span>
+                        </div>
+                    </div>-->
+                    <!-- Simplified tracking info -->
+                    <div v-if="activeSessionId" class="tracking-info">
+                        <div class="tracking-stats">
+                            <div class="stat">
+                                <span class="stat-label">Work Time:</span>
+                                <span class="stat-value">{{ formatTime(totalWorkTime) }}</span>
+                            </div>
+                            <div class="stat">
+                                <span class="stat-label">Session Duration:</span>
+                                <span class="stat-value">{{ formatTime(sessionDuration) }}</span>
+                            </div>
+                        </div>
+                    </div>
 
                     <div class="controls">
                         <button @click="resetTimer" class="control-btn reset-btn" title="Reset">
@@ -30,6 +64,27 @@
                         </button>
                     </div>
 
+                    <!-- Enhanced controls for active sessions -->
+                   
+                   <!-- <div v-if="activeSessionId" class="enhanced-controls">
+                        <button 
+                            @click="pauseSession" 
+                            class="control-btn pause-btn" 
+                            :disabled="isSessionPaused"
+                        >
+                            ⏸ {{ isSessionPaused ? 'Paused' : 'Pause Session' }}
+                        </button>
+                        <button 
+                            @click="resumeSession" 
+                            class="control-btn resume-btn" 
+                            :disabled="!isSessionPaused"
+                        >
+                            ▶ Resume Session
+                        </button>
+                        <button @click="abandonSession" class="control-btn abandon-btn">
+                            ❌ Abandon
+                        </button>
+                    </div> -->
                     <button @click="openSettings" class="settings-btn" title="Settings">⚙️</button>
                 </div>
 
@@ -60,19 +115,23 @@
             <div class="minimized-time">{{ formattedTime }}</div>
             <div class="minimized-controls">
                 <button @click.stop="toggleTimer" class="minimized-control-btn">{{ isRunning ? '⏸' : '▶' }}</button>
-                <button @click.stop="$emit('close')" class="minimized-control-btn">×</button>
+                <button @click.stop="handleClose" class="minimized-control-btn">×</button>
             </div>
         </div>
     </div>
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted, watch, defineProps, defineEmits } from 'vue';
+import { ref, computed, onUnmounted, watch, defineProps, defineEmits, onMounted } from 'vue';
 import { apiService } from '@/services/api';
 
 const props = defineProps({
     task: {
         type: Object,
+        required: true,
+    },
+    userId: {
+        type: Number,
         required: true,
     },
 });
@@ -101,11 +160,19 @@ const currentModeId = ref('WORK');
 const currentMode = computed(() => MODES.value[currentModeId.value]);
 const timeRemaining = ref(currentMode.value.duration);
 let timerInterval = null;
+let sessionDurationTimer = null;
 const activeSessionId = ref(null);
 
+// Simplified tracking variables
+const sessionStartTime = ref(null);
+const sessionEndTime = ref(null);
+const totalWorkTime = ref(0); // Only time when timer was actually running
 const showSettings = ref(false);
 const tempWorkMinutes = ref(workMinutes.value);
 const tempBreakMinutes = ref(breakMinutes.value);
+
+// Add a reactive variable to force session duration updates
+const currentTime = ref(Date.now());
 
 const formattedTime = computed(() => {
     const minutes = Math.floor(timeRemaining.value / 60);
@@ -113,11 +180,25 @@ const formattedTime = computed(() => {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 });
 
+const formatTime = (seconds) => {
+    if (!seconds || seconds < 0) return "0:00";
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+};
+// Computed property for session duration
+const sessionDuration = computed(() => {
+    if (!sessionStartTime.value) return 0;
+    const endTime = sessionEndTime.value || currentTime.value
+    return Math.floor((endTime - sessionStartTime.value) / 1000);
+});
+
 watch(currentMode, (newMode) => {
     if (!isRunning.value) {
         timeRemaining.value = newMode.duration;
     }
 });
+
 
 const playBeep = () => {
     try {
@@ -138,14 +219,37 @@ const playBeep = () => {
     }
 };
 
+/*const updateTrackingTime = () => {
+    if (!activeSessionId.value || !lastActiveTime.value) return;
+    
+    const currentTime = Date.now();
+    const elapsedSeconds = Math.floor((currentTime - lastActiveTime.value) / 1000);
+    
+    if (currentMode.value.id === 'work') {
+
+        currentSessionWorkTime.value += elapsedSeconds;
+        totalWorkTime.value += elapsedSeconds;
+    } else {
+        currentSessionBreakTime.value += elapsedSeconds;
+        totalBreakTime.value += elapsedSeconds;
+    }
+    
+    lastActiveTime.value = currentTime;
+};*/
 const startTimer = async () => {
     if (isRunning.value) return;
 
-    if (currentMode.value.id === 'WORK' && !activeSessionId.value) {
+    // Start new session if in work mode and no active session
+    if (currentMode.value.id === 'work' && !activeSessionId.value) {
         try {
-            const response = await apiService.startPomodoro(props.task.user_id, props.task.id);
+            console.log(props.task);
+            const response = await apiService.startPomodoro(props.userId, props.task.id);
             if (response.success) {
                 activeSessionId.value = response.session_id;
+                if (!sessionStartTime.value) {
+                    sessionStartTime.value = Date.now();
+                }
+                totalWorkTime.value = 0;
             } else {
                 console.error("Failed to start pomodoro session");
                 return;
@@ -157,9 +261,16 @@ const startTimer = async () => {
     }
 
     isRunning.value = true;
+    //lastActiveTime.value = Date.now();
+    
     timerInterval = setInterval(() => {
         if (timeRemaining.value > 0) {
             timeRemaining.value--;
+            
+             // Only count work time when timer is running
+             if (activeSessionId.value && currentMode.value.id === 'work') {
+                totalWorkTime.value++;
+            }
         } else {
             playBeep();
             switchMode(true);
@@ -168,8 +279,16 @@ const startTimer = async () => {
 };
 
 const pauseTimer = () => {
+    if (!isRunning.value) return;
+    
+    // Update tracking time before pausing
+  /*  if (activeSessionId.value) {
+        updateTrackingTime();
+    }*/
+    
     isRunning.value = false;
     clearInterval(timerInterval);
+    //lastActiveTime.value = null;
 };
 
 const toggleTimer = () => {
@@ -180,18 +299,142 @@ const toggleTimer = () => {
     }
 };
 
-const completeSession = async () => {
+// =============================================================================
+// SECTION 3: Updated Enhanced Control Functions (replace existing ones)
+// =============================================================================
+
+/*const pauseSession = async () => {
+    if (!activeSessionId.value) return;
+    
+    // Don't allow session pause if already paused
+    if (isSessionPaused.value) return;
+    
+    try {
+        // Update tracking time before pausing
+        if (isRunning.value) {
+            updateTrackingTime();
+        }
+        
+        await apiService.pausePomodoro(activeSessionId.value);
+        
+        // Pause the timer if it's running
+        if (isRunning.value) {
+            pauseTimer();
+        }
+        
+        isSessionPaused.value = true;
+        pauseCount.value++;
+        
+    } catch (error) {
+        console.error("Error pausing session:", error);
+        // Revert pause count if API call failed
+        if (pauseCount.value > 0) {
+            pauseCount.value--;
+        }
+    }
+};
+
+const resumeSession = async () => {
+    if (!activeSessionId.value || !isSessionPaused.value) return;
+
+    try {
+        await apiService.resumePomodoro(activeSessionId.value);
+        isSessionPaused.value = false;
+        
+        // Don't auto-start timer, let user control it
+        // startTimer(); // Remove this line
+        
+    } catch (error) {
+        console.error("Error resuming session:", error);
+        // Revert pause state if API call failed
+        isSessionPaused.value = true;
+    }
+};
+
+const abandonSession = async () => {
+    if (!activeSessionId.value) return;
+
+    try {
+        // Update tracking time before abandoning
+        if (isRunning.value) {
+            updateTrackingTime();
+        }
+        
+        await apiService.abandonPomodoro(
+            activeSessionId.value, 
+            currentSessionWorkTime.value, 
+            currentSessionBreakTime.value
+        );
+        
+        // Reset session state
+        pauseTimer();
+        activeSessionId.value = null;
+        isSessionPaused.value = false;
+        currentSessionWorkTime.value = 0;
+        currentSessionBreakTime.value = 0;
+        pauseCount.value = 0;
+        
+        emit('session-complete');
+    } catch (error) {
+        console.error("Error abandoning session:", error);
+    }
+};*/
+
+/*const completeSession = async () => {
+    if (!activeSessionId.value) return;
+    
+    try {
+        // Update tracking time before completing
+        if (isRunning.value) {
+            updateTrackingTime();
+        }
+        
+        await apiService.completePomodoro(
+            activeSessionId.value, 
+            currentSessionWorkTime.value, 
+            currentSessionBreakTime.value
+        );
+        
+        emit('session-complete');
+        
+        // Reset session state
+        activeSessionId.value = null;
+        isSessionPaused.value = false;
+        currentSessionWorkTime.value = 0;
+        currentSessionBreakTime.value = 0;
+        pauseCount.value = 0;
+        
+    } catch (error) {
+        console.error("Error completing pomodoro session:", error);
+    }
+};*/
+// Handle session completion when popup closes
+const handleClose = async () => {
     if (activeSessionId.value) {
-        const duration = workMinutes.value; // Always record the full duration for a completed session
+        sessionEndTime.value = Date.now();
+        
+        // Calculate total duration
+        const totalDuration = Math.floor((sessionEndTime.value - sessionStartTime.value) / 1000);
+        
+        // Calculate break duration (total duration - work duration)
+        const breakDuration = Math.max(0, totalDuration - totalWorkTime.value);
+        
         try {
-            await apiService.completePomodoro(activeSessionId.value, duration);
+            await apiService.completePomodoro(
+                activeSessionId.value, 
+                totalWorkTime.value, 
+                breakDuration
+            );
+            
             emit('session-complete');
-            activeSessionId.value = null;
         } catch (error) {
             console.error("Error completing pomodoro session:", error);
         }
     }
+    
+    emit('close');
 };
+
 
 const resetTimer = () => {
     pauseTimer();
@@ -249,8 +492,27 @@ const cancelSettings = () => {
     showSettings.value = false;
 };
 
+// Initialize session start time when component mounts
+onMounted(() => {
+    sessionStartTime.value = Date.now();
+    
+    // Start a timer to update currentTime every second for real-time session duration
+    sessionDurationTimer = setInterval(() => {
+        currentTime.value = Date.now();
+    }, 1000);
+});
+
 onUnmounted(() => {
-    clearInterval(timerInterval);
+    if (timerInterval) {
+        clearInterval(timerInterval);
+    }
+    if (sessionDurationTimer) {
+        clearInterval(sessionDurationTimer);
+    }
+    // Ensure session is completed when component is unmounted
+    if (activeSessionId.value) {
+        handleClose();
+    }
 });
 </script>
 
@@ -470,6 +732,112 @@ onUnmounted(() => {
     transform: translateY(-2px);
 }
 
+/* Tracking Info Styles */
+.tracking-info {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 1rem;
+    margin: 1rem 0;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.tracking-stats {
+    display: flex;
+    justify-content: space-around;
+    gap: 1rem;
+}
+
+.stat {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.stat-label {
+    font-size: 0.8rem;
+    opacity: 0.8;
+    margin-bottom: 0.3rem;
+}
+
+.stat-value {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #4facfe;
+}
+
+/* Enhanced Controls Styles */
+.enhanced-controls {
+    display: flex;
+    justify-content: center;
+    gap: 0.8rem;
+    margin-top: 1rem;
+    flex-wrap: wrap;
+}
+
+.pause-btn,
+.resume-btn,
+.abandon-btn {
+    padding: 0.6rem 1rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: bold;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+}
+
+.pause-btn {
+    background: #ffa726;
+    color: white;
+}
+
+.pause-btn:hover:not(:disabled) {
+    background: #ff9800;
+    transform: translateY(-2px);
+}
+
+.pause-btn:disabled,
+.resume-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none !important;
+}
+
+.pause-btn:disabled:hover,
+.resume-btn:disabled:hover {
+    background: inherit;
+    transform: none;
+}
+
+.resume-btn {
+    background: #4CAF50;
+    color: white;
+}
+
+.resume-btn:hover:not(:disabled) {
+    background: #45a049;
+    transform: translateY(-2px);
+}
+
+.resume-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.abandon-btn {
+    background: #f44336;
+    color: white;
+}
+
+.abandon-btn:hover {
+    background: #d32f2f;
+    transform: translateY(-2px);
+}
+
 /* Minimized Styles */
 .minimized-timer {
     pointer-events: all;
@@ -529,5 +897,22 @@ onUnmounted(() => {
 .minimized-control-btn:hover {
     opacity: 1;
     transform: scale(1.1);
+}
+.session-status {
+    margin-top: 0.5rem;
+    text-align: center;
+}
+
+.status-indicator {
+    padding: 0.3rem 0.8rem;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.status-indicator.paused {
+    background: rgba(255, 167, 38, 0.2);
+    color: #ffa726;
+    border: 1px solid #ffa726;
 }
 </style>

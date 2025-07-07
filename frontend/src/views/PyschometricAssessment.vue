@@ -104,18 +104,12 @@
                 <span class="result-value">{{ formatPercentage(results.results?.memory_strength) }}</span>
                 <span class="result-label">Memory</span>
               </div>
-              <div class="result-item">
-                <span class="result-value">{{ results.total_correct || 0 }}</span>
-                <span class="result-label">Correct Answers</span>
-              </div>
+             
               <div class="result-item">
                 <span class="result-value">{{ results.total_questions || 0 }}</span>
                 <span class="result-label">Total Questions</span>
               </div>
-              <div class="result-item">
-                <span class="result-value">{{ Math.round(results.accuracy || 0) }}%</span>
-                <span class="result-label">Final Accuracy</span>
-              </div>
+              
               <div class="result-item">
                 <span class="result-value">{{ results.duration_seconds || 0 }}s</span>
                 <span class="result-label">Test Duration</span>
@@ -206,6 +200,13 @@ export default {
       this.resetData();
 
       try {
+        const user = JSON.parse(localStorage.getItem('user'));
+        const user_id = user ? user.id : null;
+        if (!user_id) {
+          alert('User not logged in!');
+          this.isLoading = false;
+          return;
+        }
         console.log('Starting test, making API call to:', `${this.apiBaseUrl}/start`);
         
         const response = await fetch(`${this.apiBaseUrl}/start`, {
@@ -213,7 +214,8 @@ export default {
           headers: { 
             'Content-Type': 'application/json'
           },
-          credentials: 'include' // Important for session management
+          credentials: 'include',
+          body: JSON.stringify({ user_id }) // Important for session management
         });
 
         console.log('API Response status:', response.status);
@@ -243,6 +245,13 @@ export default {
       this.loadingMessage = 'Processing your answer...';
 
       try {
+        const user = JSON.parse(localStorage.getItem('user'));
+        const user_id = user ? user.id : null;
+        if (!user_id) {
+          alert('User not logged in!');
+          this.isLoading = false;
+          return;
+        }
         console.log('Submitting answer:', this.selectedAnswer);
         
         const response = await fetch(`${this.apiBaseUrl}/submit`, {
@@ -252,7 +261,8 @@ export default {
           },
           credentials: 'include',
           body: JSON.stringify({
-            answer: this.selectedAnswer
+            answer: this.selectedAnswer,
+            user_id
           })
         });
 
