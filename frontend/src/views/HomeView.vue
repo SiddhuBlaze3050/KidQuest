@@ -188,7 +188,7 @@ export default {
             </button>
           </div>
           <div class="nav-links" v-else>
-            <button @click="showLogin = true" class="nav-btn">Login</button>
+            <button @click="showLogin = true" class="nav-btn primary">Login</button>
             <button @click="showRegister = true" class="nav-btn primary">Sign Up</button>
           </div>
         </div>
