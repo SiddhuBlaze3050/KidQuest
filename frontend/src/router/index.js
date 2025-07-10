@@ -3,6 +3,7 @@ import HomeView from '../views/HomeView.vue'
 import AdminDashboard from '../views/AdminDashboard.vue'
 import ChildDashboard from '../views/ChildDashboard.vue'
 import { userUtils } from '@/services/api'
+import TeacherDashboard from '../views/TeacherDashboard.vue'
 import ParentDashboard from '../views/ParentDashboard.vue'
 import PyschometricAssessment from '../views/PyschometricAssessment.vue'
 import GoodTouchBadTouchModule from '../views/GoodTouchBadTouchModule.vue'
@@ -56,6 +57,24 @@ const router = createRouter({
           next()
         } else {
           // For demo purposes, allow any logged-in user to access parent dashboard
+          if (user) {
+            next()
+          } else {
+            next('/')
+          }
+        }
+      },
+    },
+    {
+      path: '/teacher-dashboard',
+      name: 'teacher-dashboard',
+      component: TeacherDashboard,
+      beforeEnter: (to, from, next) => {
+        const user = userUtils.getCurrentUser()
+        if (user && user.role === 'teacher') {
+          next()
+        } else {
+          // For demo purposes, allow any logged-in user to access teacher dashboard
           if (user) {
             next()
           } else {
