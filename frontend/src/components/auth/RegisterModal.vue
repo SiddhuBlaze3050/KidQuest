@@ -8,7 +8,6 @@
         <div class="role-buttons">
           <button @click="userType = 'kid'" class="role-btn kid-btn">🧒 I am a Kid</button>
           <button @click="userType = 'parent'" class="role-btn parent-btn">👨‍👩‍👧 I am a Parent</button>
-          <button @click="userType = 'teacher'" class="role-btn teacher-btn">👩‍🏫 I am a Teacher</button>
         </div>
       </div>
 
@@ -170,173 +169,7 @@
           <button @click="$emit('switchToLogin')" class="link-btn">Continue as Guardian <span>🔐</span></button>
         </div>
       </div>
-
-
-      <!-- Step 4: Teacher Registration -->
-      <div v-else>
-        <!-- Header -->
-        <div class="modal-header">
-          <div class="header-icon">👩‍🏫</div>
-          <h2>Guide the Quest</h2>
-          <p>Register as a teacher to lead the learning adventure!</p>
-          <button @click="$emit('close')" class="close-btn">&times;</button>
-        </div>
-
-        <!-- Form -->
-        <div class="modal-body">
-          <form @submit.prevent="handleTeacherRegister" class="auth-form">
-            <div class="form-group">
-              <label for="teacherName"><i class="fas fa-chalkboard-teacher"></i> Teacher Username</label>
-              <input id="teacherName" v-model="teacherName" type="text" placeholder="Your educator name" required
-                class="form-input" />
-            </div>
-
-            <div class="form-group">
-              <label for="teacherPassword"><i class="fas fa-lock"></i> Teacher Code</label>
-              <input id="teacherPassword" v-model="teacherPassword" type="password" placeholder="Strong password" required
-                class="form-input" />
-            </div>
-
-            <div class="form-group">
-              <label for="teacherConfirmPassword"><i class="fas fa-shield-alt"></i> Confirm Teacher Code</label>
-              <input id="teacherConfirmPassword" v-model="teacherConfirmPassword" type="password"
-                placeholder="Re-enter password" required class="form-input" />
-            </div>
-
-            <div class="form-group">
-              <label for="teacherEmail"><i class="fas fa-envelope"></i> Contact Scroll</label>
-              <input id="teacherEmail" v-model="teacherEmail" type="email" placeholder="you@school.edu" required
-                class="form-input" />
-            </div>
-
-            <div class="form-group">
-              <label for="className"><i class="fas fa-users"></i> Class Name</label>
-              <input id="className" v-model="className" type="text" placeholder="e.g., Grade 5A, Math Class" required
-                class="form-input" />
-            </div>
-
-            <div class="form-group">
-              <label for="subject"><i class="fas fa-book"></i> Primary Subject</label>
-              <select id="subject" v-model="primarySubject" class="form-input" required>
-                <option disabled value="">Choose your subject</option>
-                <option>Mathematics</option>
-                <option>Science</option>
-                <option>English</option>
-                <option>Social Studies</option>
-                <option>Art</option>
-                <option>Physical Education</option>
-                <option>Computer Science</option>
-                <option>General Studies</option>
-              </select>
-            </div>
-
-            <!-- Student Selection Section -->
-            <div class="form-group student-selection">
-              <label class="section-label">
-                <i class="fas fa-child"></i> Select Your Adventurers
-              </label>
-              <p class="helper-text">Choose the students you'll be guiding on their learning quest</p>
-              
-              <!-- Search Bar -->
-              <div class="search-container">
-                <i class="fas fa-search search-icon"></i>
-                <input 
-                  v-model="studentSearchQuery" 
-                  type="text" 
-                  placeholder="Search for students..." 
-                  class="search-input"
-                  @input="filterStudents"
-                />
-              </div>
-
-              <!-- Loading State -->
-              <div v-if="loadingStudents" class="loading-students">
-                <div class="spinner-small"></div>
-                <span>Loading adventurers...</span>
-              </div>
-
-              <!-- Student List -->
-              <div v-else class="student-list">
-                <div class="select-all-container">
-                  <label class="checkbox-container">
-                    <input 
-                      type="checkbox" 
-                      :checked="allStudentsSelected"
-                      @change="toggleAllStudents"
-                      class="checkbox-input"
-                    />
-                    <span class="checkbox-custom"></span>
-                    <span class="checkbox-label">Select All ({{ filteredStudents.length }})</span>
-                  </label>
-                </div>
-
-                <div class="student-grid">
-                  <div 
-                    v-for="student in filteredStudents" 
-                    :key="student.id" 
-                    class="student-card"
-                    :class="{ 'selected': selectedStudents.includes(student.id) }"
-                  >
-                    <label class="student-label">
-                      <input 
-                        type="checkbox" 
-                        :value="student.id"
-                        v-model="selectedStudents"
-                        class="student-checkbox"
-                      />
-                      <div class="student-info">
-                        <div class="student-avatar">{{ student.avatar || '👤' }}</div>
-                        <div class="student-details">
-                          <div class="student-name">{{ student.username }}</div>
-                          <div class="student-meta">{{ student.grade || 'No grade' }}</div>
-                        </div>
-                        <div class="selection-indicator">
-                          <i class="fas fa-check"></i>
-                        </div>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-
-                <!-- No Results -->
-                <div v-if="filteredStudents.length === 0 && !loadingStudents" class="no-results">
-                  <div class="no-results-icon">🔍</div>
-                  <p>No adventurers found matching "{{ studentSearchQuery }}"</p>
-                  <button @click="clearSearch" type="button" class="clear-search-btn">Clear Search</button>
-                </div>
-              </div>
-
-              <!-- Selected Count -->
-              <div v-if="selectedStudents.length > 0" class="selected-count">
-                <i class="fas fa-users"></i>
-                {{ selectedStudents.length }} adventurer{{ selectedStudents.length !== 1 ? 's' : '' }} selected
-              </div>
-            </div>
-
-            <button type="submit" class="btn-primary" :disabled="isLoading || selectedStudents.length === 0">
-              <span v-if="!isLoading" class="btn-content">
-                <span class="btn-icon">👩‍🏫</span>
-                Register as Teacher
-              </span>
-              <span v-else class="btn-loading">
-                <span class="spinner"></span>
-                Creating...
-              </span>
-            </button>
-
-            <div v-if="selectedStudents.length === 0" class="validation-message">
-              Please select at least one student to continue
-            </div>
-          </form>
-        </div>
-
-        <!-- Footer -->
-        <div class="modal-footer">
-          <p>Already teaching an adventurer?</p>
-          <button @click="$emit('switchToLogin')" class="link-btn">Continue as Teacher <span>🔐</span></button>
-        </div>
-      </div>
-
+      
 
       <!-- Floating Icons -->
       <div v-if="userType" class="floating-icons" :class="userType">
@@ -374,7 +207,6 @@ export default {
     const parentEmail = ref('')
     const relationshipType = ref('')
     const childUsername = ref('')
-
 
 
     const isLoading = ref(false)
