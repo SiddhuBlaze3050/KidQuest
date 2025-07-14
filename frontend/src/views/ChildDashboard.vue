@@ -46,6 +46,12 @@
 
                 <!-- Quick Stats -->
                 <div class="stats-row">
+                    <div class="stats-header">
+                        <h2 class="section-title">
+                            <span class="title-icon">📊</span>
+                            Your Adventure Stats
+                        </h2>
+                    </div>
                     <div v-for="stat in statsCards" :key="stat.label" :class="['stat-card', stat.theme]">
                         <div class="stat-icon-wrapper">
                             <div class="stat-icon">{{ stat.icon }}</div>
@@ -120,7 +126,8 @@
                         </button>
                     </div>
                     <!-- Memory Game component rendered conditionally -->
-                    <MemoryGame v-if="selectedActivity === 'Memory Game'" @close="selectedActivity = null" />
+                    <MemoryGame v-if="selectedActivity === 'Memory Game'" :user="user"
+                        @close="selectedActivity = null" />
                 </div>
 
                 <!-- Achievements Showcase -->
@@ -421,32 +428,130 @@ export default {
             }
         }
 
-        const statsCards = ref([
-            {
-                label: "✨ Stars Collected",
-                icon: "★",
-                value: userStats.value.totalStars,
-                theme: "stars-theme",
-            },
-            {
-                label: "📜 Quests Cast",
-                icon: "📜",
-                value: userStats.value.questsCompleted,
-                theme: "quests-theme",
-            },
-            {
-                label: "🧠 Skills Mastered",
-                icon: "🧠",
-                value: userStats.value.skillsLearned,
-                theme: "skills-theme",
-            },
-            {
-                label: "🎯 Today's Goals",
-                icon: "🎯",
-                value: userStats.value.todayGoals,
-                theme: "goals-theme",
+        // Login streak
+        const fetchLoginStreak = async () => {
+            try {
+                const userId = user.value?.id
+                if (!userId) return
+
+                const { data } = await axios.get(`/api/login-streak/${userId}`)
+                if (data.success) {
+                    streakDays.value = data.current_streak
+                    console.log(`Login streak for user ${userId}: ${data.current_streak} days`)
+                }
+            } catch (error) {
+                console.error('Error fetching login streak:', error)
+                // Keep default value of 0
             }
-        ]);
+        }
+
+        // Dashboard stats
+        const fetchDashboardStats = async () => {
+            try {
+                const userId = user.value?.id
+                if (!userId) return
+
+                console.log(`🔄 Fetching dashboard stats for user ${userId}`)
+                const { data } = await axios.get(`/api/child/stats/${userId}`)
+
+                if (data.success) {
+                    // Update userStats with real data
+                    userStats.value = {
+                        totalStars: data.stats.totalStars,
+                        questsCompleted: data.stats.questsCompleted,
+                        skillsLearned: data.stats.skillsLearned,
+                        todayGoals: data.stats.todayGoals
+                    }
+
+                    // Update streak and level
+                    streakDays.value = data.stats.streakDays
+                    userLevel.value = data.stats.userLevel
+
+                    // Update statsCards with real values
+                    statsCards.value = [
+                        {
+                            label: "✨ Stars Collected",
+                            icon: "★",
+                            value: userStats.value.totalStars,
+                            theme: "stars-theme",
+                        },
+                        {
+                            label: "📜 Quests Cast",
+                            icon: "📜",
+                            value: userStats.value.questsCompleted,
+                            theme: "quests-theme",
+                        },
+                        {
+                            label: "🧠 Skills Mastered",
+                            icon: "🧠",
+                            value: userStats.value.skillsLearned,
+                            theme: "skills-theme",
+                        },
+                        {
+                            label: "🎯 Today's Goals",
+                            icon: "🎯",
+                            value: userStats.value.todayGoals,
+                            theme: "goals-theme",
+                        }
+                    ];
+
+                    console.log(`✅ Dashboard stats loaded:`, userStats.value)
+                } else {
+                    console.error('Failed to fetch dashboard stats:', data.error)
+                }
+            } catch (error) {
+                console.error('Error fetching dashboard stats:', error)
+                // Keep default values
+            }
+        }
+
+        // Test function to add sample achievement
+        const addTestAchievement = async () => {
+            try {
+                const userId = user.value?.id
+                if (!userId) return
+
+                // Create a sample achievement via API
+                const achievementData = {
+                    user_id: userId,
+                    badge_name: `Test Achievement ${Date.now()}`,
+                    description: `Test achievement created at ${new Date().toLocaleTimeString()}`
+                }
+
+                console.log('🎯 Adding test achievement:', achievementData)
+
+                // Call the API to create the achievement
+                const { data } = await axios.post('/api/achievement/test', achievementData)
+
+                if (data.success) {
+                    // Show success message
+                    await Swal.fire({
+                        icon: 'success',
+                        title: 'Test Achievement Added! 🎉',
+                        text: `Created: ${data.achievement.badge_name}`,
+                        timer: 2000,
+                        showConfirmButton: false,
+                        background: 'linear-gradient(135deg, #667eea, #764ba2)',
+                        color: 'white'
+                    })
+
+                    // Refresh stats to show the change
+                    await fetchDashboardStats()
+                } else {
+                    throw new Error(data.error || 'Failed to create achievement')
+                }
+            } catch (error) {
+                console.error('Error adding test achievement:', error)
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: error.response?.data?.error || 'Failed to add test achievement',
+                })
+            }
+        }
+
+        // Initialize empty statsCards - will be populated by fetchDashboardStats
+        const statsCards = ref([]);
 
         // Skill areas
         const skillAreas = ref([
@@ -755,6 +860,42 @@ export default {
                 router.push('/good-touch-bad-touch')
             } else if (skill.name === 'Safety Measures') {
                 openGeneralSafetyModule()
+            } else if (skill.name === 'Science Explorer') {
+                // Show confirmation dialog for Science Explorer
+                Swal.fire({
+                    title: '🔬 Science Adventure Awaits!',
+                    html: `
+                        <div style="text-align: center; line-height: 1.8;">
+                            <div style="font-size: 4rem; margin: 1rem 0;">🚀🧪✨</div>
+                            <p style="font-size: 1.2rem; color: #ffffff; font-weight: 600;">
+                                Ready to explore the amazing world of science?
+                            </p>
+                            <p style="color: #ffffff; margin: 1rem 0; opacity: 0.9;">
+                                Discover physics, chemistry, and so much more through 
+                                interactive experiments and fun simulations!
+                            </p>
+                            <div style="font-size: 3rem; margin: 1rem 0;">🌟🔬🎯</div>
+                        </div>
+                    `,
+                    showCancelButton: true,
+                    confirmButtonText: '🚀 Yes, Start My Adventure!',
+                    cancelButtonText: '🏠 Maybe Later',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    customClass: {
+                        popup: 'science-adventure-popup',
+                        confirmButton: 'science-confirm-btn',
+                        cancelButton: 'science-cancel-btn',
+                        actions: 'science-actions'
+                    },
+                    buttonsStyling: false,
+                    width: '500px',
+                    padding: '2rem'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        router.push('/science-explorer')
+                    }
+                })
             } else {
                 // TODO: Navigate to other skill detail pages
                 Swal.fire({
@@ -888,8 +1029,22 @@ export default {
             return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })
         }
         // Load progress from localStorage for Good Touch Bad Touch
-        const loadGoodTouchBadTouchProgress = () => {
+        const loadGoodTouchBadTouchProgress = async () => {
             try {
+                // First try to load from the new module progress format
+                const moduleProgress = localStorage.getItem(`safetyModuleProgress_${user.value?.id || 'guest'}`)
+                if (moduleProgress) {
+                    const progressData = JSON.parse(moduleProgress)
+                    const progress = progressData.isCompleted ? 100 : 0
+
+                    const safetySkill = skillAreas.value.find(skill => skill.name === 'Good Touch Bad Touch')
+                    if (safetySkill) {
+                        safetySkill.progress = progress
+                    }
+                    return
+                }
+
+                // Fallback to old format for backward compatibility
                 const savedProgress = localStorage.getItem(`safetyProgress_${user.value?.id || 'guest'}`)
                 if (savedProgress) {
                     const progressData = JSON.parse(savedProgress)
@@ -909,19 +1064,85 @@ export default {
             }
         }
 
-        onMounted(() => {
+        // Load progress from backend and localStorage for Science Explorer
+        const loadScienceExplorerProgress = async () => {
+            try {
+                if (!user.value) return
+
+                console.log('🔬 Loading Science Explorer progress for dashboard...')
+
+                // Try loading from backend first
+                const response = await apiService.getModuleProgress(user.value.id, 'Science Explorer')
+                let progress = 0
+
+                if (response.success && response.progress && response.progress.progress_data) {
+                    const progressData = response.progress.progress_data
+                    progress = progressData.completionPercentage || 0
+                    console.log(`📊 Backend: Science Explorer ${progress}% complete`)
+                } else {
+                    // Fallback to localStorage
+                    const saved = localStorage.getItem(`scienceExplorer_${user.value.id}`)
+                    if (saved) {
+                        const progressData = JSON.parse(saved)
+                        progress = progressData.completionPercentage || 0
+                        console.log(`💾 LocalStorage: Science Explorer ${progress}% complete`)
+                    }
+                }
+
+                // Update the skill area progress
+                const scienceSkill = skillAreas.value.find(skill => skill.name === 'Science Explorer')
+                if (scienceSkill) {
+                    scienceSkill.progress = progress
+                    console.log(`✅ Updated Science Explorer dashboard progress to ${progress}%`)
+                }
+            } catch (error) {
+                console.error('❌ Error loading Science Explorer progress:', error)
+                // Try localStorage fallback on error
+                try {
+                    const saved = localStorage.getItem(`scienceExplorer_${user.value?.id}`)
+                    if (saved) {
+                        const progressData = JSON.parse(saved)
+                        const progress = progressData.completionPercentage || 0
+                        const scienceSkill = skillAreas.value.find(skill => skill.name === 'Science Explorer')
+                        if (scienceSkill) {
+                            scienceSkill.progress = progress
+                            console.log(`🔄 Fallback: Updated Science Explorer progress to ${progress}%`)
+                        }
+                    }
+                } catch (fallbackError) {
+                    console.error('⚠️ Fallback also failed:', fallbackError)
+                }
+            }
+        }
+
+        // Handle visibility change to refresh progress when returning to dashboard
+        const handleVisibilityChange = async () => {
+            if (!document.hidden) {
+                console.log('🔄 Dashboard became visible, refreshing Science Explorer progress...')
+                await loadScienceExplorerProgress()
+            }
+        }
+
+        onMounted(async () => {
             checkChildAccess()
             startScreenTimeSession()
             fetchQuote()
-            loadGoodTouchBadTouchProgress()
+            fetchLoginStreak()
+            fetchDashboardStats()
+            await loadGoodTouchBadTouchProgress()
+            await loadScienceExplorerProgress()
 
             // Add event listener for page unload
             window.addEventListener('beforeunload', logScreenTime)
+
+            // Add visibility change listener to refresh progress when returning to dashboard
+            document.addEventListener('visibilitychange', handleVisibilityChange)
         })
 
         onBeforeUnmount(() => {
-            // Remove event listener and log screen time
+            // Remove event listeners and log screen time
             window.removeEventListener('beforeunload', logScreenTime)
+            document.removeEventListener('visibilitychange', handleVisibilityChange)
             logScreenTime()
         })
 
@@ -962,7 +1183,11 @@ export default {
             Quote,
             showHealthTracker,
             openGeneralSafetyModule,
-            loadGoodTouchBadTouchProgress
+            loadGoodTouchBadTouchProgress,
+            loadScienceExplorerProgress,
+            handleVisibilityChange,
+            fetchDashboardStats,  // Export for use in template/other functions
+            addTestAchievement
         }
     }
 }
@@ -1126,38 +1351,90 @@ export default {
 
 /* Stats Row */
 .stats-row {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 1.5rem;
     margin-bottom: 3rem;
+}
+
+.stats-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+
+
+
+.stats-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: flex-start;
+}
+
+.stats-row .stats-header {
+    flex: 1 1 100%;
+    order: -1;
+    margin-bottom: 1rem;
+}
+
+@media (max-width: 768px) {
+    .stats-row {
+        gap: 0.8rem;
+        justify-content: center;
+    }
+
+    .stat-card {
+        width: 220px;
+    }
+}
+
+@media (max-width: 480px) {
+    .stat-card {
+        width: 180px;
+        padding: 1rem 0.8rem;
+    }
+
+    .stat-number {
+        font-size: 1.6rem;
+    }
+
+    .stat-icon {
+        font-size: 1.8rem;
+    }
 }
 
 .stat-card {
     background: #F0E6D2;
     /* Parchment */
     border-radius: 15px;
-    padding: 1.5rem;
+    padding: 1.5rem 1rem;
     position: relative;
     overflow: hidden;
     border: 1px solid rgba(0, 0, 0, 0.1);
     border-top: 4px solid var(--theme-color);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
     transition: all 0.4s ease;
     text-align: center;
+    aspect-ratio: 1.3 / 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 280px;
+    flex-shrink: 0;
 }
 
 .stat-card:hover {
-    transform: translateY(-8px) scale(1.03);
-    box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6), 0 0 20px var(--theme-color);
+    transform: translateY(-4px) scale(1.02);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4), 0 0 15px var(--theme-color);
 }
 
 .stat-icon-wrapper {
     position: relative;
-    margin-bottom: 1rem;
+    margin-bottom: 0.5rem;
 }
 
 .stat-icon {
-    font-size: 3rem;
+    font-size: 2.2rem;
     color: var(--theme-color);
     position: relative;
     z-index: 2;
@@ -1244,19 +1521,20 @@ export default {
 
 .stat-number {
     font-family: 'Merriweather', serif;
-    font-size: 2.5rem;
+    font-size: 2rem;
     font-weight: 700;
     line-height: 1;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.3rem;
     color: #3B312E;
     text-shadow: 1px 1px 1px rgba(255, 255, 255, 0.5);
 }
 
 .stat-label {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     color: #5a4f4a;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 0.8px;
+    font-weight: 600;
 }
 
 /* Theme specific styles */
@@ -2556,32 +2834,103 @@ export default {
     margin-bottom: 0.5rem;
 }
 
-.quote-box {
-    background: linear-gradient(135deg, #fdfbfb, #ebedee);
-    border-left: 6px solid #764ba2;
-    padding: 1rem 1.5rem;
-    border-radius: 1rem;
-    margin-top: 1rem;
-    margin-bottom: 1.5rem;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+.qoute-box {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 20px;
+    padding: 1.5rem 2rem;
+    margin: 1.5rem 0;
     position: relative;
-    animation: fadeInUp 0.8s ease;
+    box-shadow:
+        0 10px 30px rgba(102, 126, 234, 0.3),
+        0 0 20px rgba(118, 75, 162, 0.2),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    animation: fadeInUp 0.8s ease, glow 2s ease-in-out infinite alternate;
+    overflow: hidden;
+}
+
+.qoute-box::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    animation: shimmer 3s ease-in-out infinite;
 }
 
 .quote-icon {
-    font-size: 1.8rem;
+    font-size: 2.5rem;
     position: absolute;
-    top: -10px;
-    left: -10px;
+    top: -15px;
+    left: -15px;
+    background: linear-gradient(135deg, #ffd700, #ffed4e);
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 5px 15px rgba(255, 215, 0, 0.4);
+    animation: bounce 2s ease-in-out infinite;
 }
 
 .quote-text {
-    font-size: 1.1rem;
+    font-size: 1.3rem;
+    font-weight: 600;
     font-style: italic;
-    color: #333;
+    color: white;
     margin: 0;
-    padding-left: 1.5rem;
-    line-height: 1.5;
+    padding-left: 2rem;
+    line-height: 1.6;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+    letter-spacing: 0.5px;
+}
+
+@keyframes glow {
+    0% {
+        box-shadow:
+            0 10px 30px rgba(102, 126, 234, 0.3),
+            0 0 20px rgba(118, 75, 162, 0.2),
+            inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+
+    100% {
+        box-shadow:
+            0 15px 40px rgba(102, 126, 234, 0.5),
+            0 0 30px rgba(118, 75, 162, 0.4),
+            inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    }
+}
+
+@keyframes shimmer {
+    0% {
+        left: -100%;
+    }
+
+    100% {
+        left: 100%;
+    }
+}
+
+@keyframes bounce {
+
+    0%,
+    20%,
+    50%,
+    80%,
+    100% {
+        transform: translateY(0);
+    }
+
+    40% {
+        transform: translateY(-10px);
+    }
+
+    60% {
+        transform: translateY(-5px);
+    }
 }
 
 .modal-overlay {
@@ -2685,5 +3034,71 @@ export default {
 
 .control-btn span {
     font-size: 1.1rem;
+}
+
+/* Science Explorer Dialog Styling */
+.science-adventure-popup {
+    border-radius: 25px !important;
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3) !important;
+}
+
+.science-actions {
+    gap: 1rem !important;
+    justify-content: center !important;
+    margin-top: 2rem !important;
+}
+
+.science-confirm-btn {
+    background: linear-gradient(135deg, #28a745, #20c997) !important;
+    color: white !important;
+    border: none !important;
+    padding: 1rem 2rem !important;
+    border-radius: 25px !important;
+    font-weight: 700 !important;
+    font-size: 1.1rem !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4) !important;
+    cursor: pointer !important;
+    min-width: 200px !important;
+}
+
+.science-confirm-btn:hover {
+    background: linear-gradient(135deg, #20c997, #17a2b8) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(40, 167, 69, 0.6) !important;
+}
+
+.science-cancel-btn {
+    background: rgba(255, 255, 255, 0.2) !important;
+    color: white !important;
+    border: 2px solid rgba(255, 255, 255, 0.3) !important;
+    padding: 1rem 2rem !important;
+    border-radius: 25px !important;
+    font-weight: 600 !important;
+    font-size: 1.1rem !important;
+    transition: all 0.3s ease !important;
+    backdrop-filter: blur(10px) !important;
+    cursor: pointer !important;
+    min-width: 180px !important;
+}
+
+.science-cancel-btn:hover {
+    background: rgba(255, 255, 255, 0.3) !important;
+    border-color: rgba(255, 255, 255, 0.5) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2) !important;
+}
+
+/* Ensure button text is always visible */
+.science-confirm-btn:focus,
+.science-confirm-btn:active {
+    color: white !important;
+    outline: none !important;
+}
+
+.science-cancel-btn:focus,
+.science-cancel-btn:active {
+    color: white !important;
+    outline: none !important;
 }
 </style>

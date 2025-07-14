@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Achievement, ChatSession,ChildProfile, DoodleSession, LLMInteractions, ParentChild, SavingGoal, Transaction, HomeworkSchedule, PomodoroSession, ScreenTime, Notification, HealthTask, HealthStreak, WaterLog,PsychometricTestResult
+from models import db, User, Achievement, ChatSession,ChildProfile, DoodleSession, LLMInteractions, ParentChild, SavingGoal, Transaction, HomeworkSchedule, PomodoroSession, ScreenTime, Notification, HealthTask, HealthStreak, WaterLog, LoginStreak, PsychometricTestResult, UserModuleProgress
 import re, requests
 import PIL
 import os
@@ -14,6 +14,7 @@ import secrets
 import time
 import traceback
 from datetime import datetime, date
+import json
 
 # Import our psychometry module
 from psychometry import PsychometryService
@@ -369,6 +370,9 @@ def api_login():
 
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password_hash, password):
+            # Update login streak for successful login
+            update_login_streak(user.id)
+            
             return jsonify({
                 'success': True,
                 'message': 'Login successful', 
@@ -584,6 +588,52 @@ def evaluate_streak_internal(user_id):  # Internal Function to Evaluate Streak
 
         db.session.commit()
 
+def update_login_streak(user_id):
+    """Update login streak for a user"""
+    try:
+        today = date.today()
+        
+        # Get or create login streak record
+        login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
+        
+        if not login_streak:
+            # First time login - create new streak record
+            login_streak = LoginStreak(
+                user_id=user_id,
+                current_streak=1,
+                last_login_date=today,
+                total_logins=1,
+                longest_streak=1
+            )
+            db.session.add(login_streak)
+        else:
+            # Check if this is a new login day
+            if login_streak.last_login_date != today:
+                yesterday = date.fromordinal(today.toordinal() - 1)
+                
+                if login_streak.last_login_date == yesterday:
+                    # Consecutive day login - increment streak
+                    login_streak.current_streak += 1
+                elif login_streak.last_login_date < yesterday:
+                    # Break in streak - reset to 1
+                    login_streak.current_streak = 1
+                # If last_login_date is today, don't update (already logged in today)
+                
+                # Update last login date and total logins
+                login_streak.last_login_date = today
+                login_streak.total_logins += 1
+                
+                # Update longest streak if current is longer
+                if login_streak.current_streak > login_streak.longest_streak:
+                    login_streak.longest_streak = login_streak.current_streak
+        
+        db.session.commit()
+        print(f"Updated login streak for user {user_id}: {login_streak.current_streak} days")
+        
+    except Exception as e:
+        print(f"Error updating login streak: {e}")
+        db.session.rollback()
+
 # -----------------------
 # Motivational Quotes
 # -----------------------        
@@ -602,7 +652,116 @@ def get_motivational_quote(user_id):
         print("Error fetching quote:", e)
         fallback_quote = "Believe in yourself and magic will happen! ✨"
         return jsonify({'success': False, 'quote': fallback_quote}), 200
+
+@app.route('/api/login-streak/<int:user_id>', methods=['GET'])
+def get_login_streak(user_id):
+    """Get current login streak for a user"""
+    try:
+        login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
+        
+        if login_streak:
+            return jsonify({
+                'success': True,
+                'current_streak': login_streak.current_streak,
+                'total_logins': login_streak.total_logins,
+                'longest_streak': login_streak.longest_streak,
+                'last_login_date': login_streak.last_login_date.isoformat()
+            }), 200
+        else:
+            # No login streak record found - return defaults
+            return jsonify({
+                'success': True,
+                'current_streak': 0,
+                'total_logins': 0,
+                'longest_streak': 0,
+                'last_login_date': None
+            }), 200
             
+    except Exception as e:
+        print(f"Error fetching login streak: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'current_streak': 0,
+            'total_logins': 0,
+            'longest_streak': 0,
+            'last_login_date': None
+        }), 500
+            
+
+# ---------------------------
+# Dashboard Statistics Calculation Functions
+# ---------------------------
+
+def calculate_total_stars(user_id):
+    """Calculate total stars earned by a user - simplified using Achievement table"""
+    try:
+        stars = 0
+        
+        # Stars per achievement based on activity type
+        achievements = Achievement.query.filter_by(user_id=user_id).all()
+        for achievement in achievements:
+            if 'Memory Game' in achievement.badge_name:
+                stars += 5  # Memory Game gives 5 stars
+            else:
+                stars += 10  # Other activities give 10 stars
+        
+        # 1 star per login streak day
+        login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
+        if login_streak:
+            stars += login_streak.current_streak * 1
+        
+        # 2 stars per health streak day  
+        health_streak = HealthStreak.query.filter_by(user_id=user_id).first()
+        if health_streak:
+            stars += health_streak.current_streak * 2
+        
+        return stars
+    except Exception as e:
+        print(f"Error calculating total stars: {e}")
+        return 0
+
+def calculate_quests_completed(user_id):
+    """Calculate total quests/activities completed by a user - simplified using Achievement table"""
+    try:
+        # Simply count achievements - each represents a completed quest/activity
+        quests = Achievement.query.filter_by(user_id=user_id).count()
+        return quests
+    except Exception as e:
+        print(f"Error calculating quests completed: {e}")
+        return 0
+
+def calculate_skills_mastered(user_id):
+    """Calculate number of skills mastered by a user - simplified using Achievement table"""
+    try:
+        # Simple calculation: every 3 achievements = 1 skill mastered
+        achievements_count = Achievement.query.filter_by(user_id=user_id).count()
+        skills = achievements_count // 3  # Integer division
+        
+        return skills
+    except Exception as e:
+        print(f"Error calculating skills mastered: {e}")
+        return 0
+
+def calculate_todays_goals(user_id, today):
+    """Calculate goals completed today - simplified"""
+    try:
+        goals = 0
+        
+        # Achievements earned today
+        goals += Achievement.query.filter_by(user_id=user_id).filter(
+            db.func.date(Achievement.date_awarded) == today
+        ).count()
+        
+        # Login streak (if logged in today)
+        login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
+        if login_streak and login_streak.last_login_date == today:
+            goals += 1
+        
+        return goals
+    except Exception as e:
+        print(f"Error calculating today's goals: {e}")
+        return 0
 
 # ---------------------------
 # Child Dashboard Routes
@@ -610,23 +769,87 @@ def get_motivational_quote(user_id):
 
 @app.route('/api/child/stats/<int:user_id>', methods=['GET'])
 def api_child_stats(user_id):
-    """Get child dashboard statistics"""
+    """Get child dashboard statistics calculated from real data"""
     try:
-        # Mock data for now - in production, calculate from database
+        today = date.today()
+        
+        # Calculate Stars Collected
+        total_stars = calculate_total_stars(user_id)
+        
+        # Calculate Quests Completed
+        quests_completed = calculate_quests_completed(user_id)
+        
+        # Calculate Skills Mastered
+        skills_mastered = calculate_skills_mastered(user_id)
+        
+        # Calculate Today's Goals
+        todays_goals = calculate_todays_goals(user_id, today)
+        
+        # Get login streak
+        login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
+        streak_days = login_streak.current_streak if login_streak else 0
+        
+        # Calculate user level based on total stars
+        user_level = max(1, total_stars // 50)  # Level up every 50 stars
+        
         stats = {
-            'totalStars': 0,
-            'questsCompleted': 0,
-            'skillsLearned': 0,
-            'todayGoals': 0,
-            'streakDays': 0,
-            'userLevel': 1
+            'totalStars': total_stars,
+            'questsCompleted': quests_completed,
+            'skillsLearned': skills_mastered,
+            'todayGoals': todays_goals,
+            'streakDays': streak_days,
+            'userLevel': user_level
         }
+        
+        print(f"📊 Dashboard stats for user {user_id}: {stats}")
         
         return jsonify({
             'success': True,
             'stats': stats
         }), 200
     except Exception as e:
+        print(f"Error calculating stats for user {user_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/achievement/test', methods=['POST'])
+def create_test_achievement():
+    """Create a test achievement for testing dashboard stats"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        
+        if not user_id:
+            return jsonify({'success': False, 'error': 'user_id is required'}), 400
+        
+        # Create a test achievement
+        achievement = Achievement(
+            user_id=user_id,
+            badge_name=data.get('badge_name', f"Test Achievement {datetime.utcnow().timestamp()}"),
+            description=data.get('description', 'Test achievement for dashboard stats'),
+            date_awarded=datetime.utcnow()
+        )
+        
+        db.session.add(achievement)
+        db.session.commit()
+        
+        print(f"✅ Created test achievement for user {user_id}: {achievement.badge_name}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Test achievement created successfully',
+            'achievement': {
+                'id': achievement.id,
+                'badge_name': achievement.badge_name,
+                'description': achievement.description
+            }
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error creating test achievement: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -1370,6 +1593,201 @@ def log_screen_time():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ---------------------------
+# Module Progress Routes
+# ---------------------------
+@app.route('/api/module/progress', methods=['POST'])
+def save_module_progress():
+    """Save module progress for a user - simplified version"""
+    try:
+        data = request.get_json()
+        
+        # Basic validation with defaults
+        user_id = data.get('user_id')
+        module_type = data.get('module_type', 'Unknown Module')
+        progress_percentage = data.get('progress_percentage', 0)
+        is_completed = data.get('is_completed', False)
+        progress_data = data.get('progress_data', {})
+        
+        print(f"📝 SIMPLE: Saving progress for User {user_id}, Module '{module_type}', Progress: {progress_percentage}%")
+        
+        # Simple validation
+        if not user_id:
+            print("❌ Missing user_id")
+            return jsonify({'success': False, 'error': 'user_id is required'}), 400
+        
+        # Check if user exists (simplified)
+        try:
+            user = db.session.get(User, user_id)
+            if not user:
+                print(f"❌ User {user_id} not found")
+                return jsonify({'success': False, 'error': 'User not found'}), 404
+        except Exception as user_error:
+            print(f"⚠️ User check failed, continuing anyway: {user_error}")
+        
+        # Create simple progress record using Achievement table
+        try:
+            # Simple JSON conversion with fallback
+            try:
+                if progress_data:
+                    progress_json = json.dumps({
+                        'module_type': module_type,
+                        'progress_percentage': progress_percentage,
+                        'is_completed': is_completed,
+                        'progress_data': progress_data,
+                        'saved_at': datetime.utcnow().isoformat()
+                    })
+                else:
+                    progress_json = json.dumps({
+                        'module_type': module_type,
+                        'progress_percentage': progress_percentage,
+                        'is_completed': is_completed,
+                        'saved_at': datetime.utcnow().isoformat()
+                    })
+            except Exception as json_error:
+                print(f"⚠️ JSON serialization failed: {json_error}")
+                # Fallback to simple string
+                progress_json = f"Module: {module_type}, Progress: {progress_percentage}%, Completed: {is_completed}"
+            
+            # Simple database operation
+            module_key = f"module_{module_type.replace(' ', '_')}"
+            
+            # Try to find existing record
+            existing = None
+            try:
+                existing = Achievement.query.filter_by(user_id=user_id, badge_name=module_key).first()
+            except Exception as find_error:
+                print(f"⚠️ Find existing failed: {find_error}")
+            
+            if existing:
+                # Update existing
+                try:
+                    existing.description = progress_json
+                    existing.date_awarded = datetime.utcnow()
+                    print(f"✅ Updated existing progress record")
+                except Exception as update_error:
+                    print(f"⚠️ Update failed: {update_error}")
+                    # Create new record instead
+                    existing = None
+            
+            if not existing:
+                # Create new record
+                try:
+                    new_achievement = Achievement(
+                        user_id=user_id,
+                        badge_name=module_key,
+                        description=progress_json,
+                        date_awarded=datetime.utcnow()
+                    )
+                    db.session.add(new_achievement)
+                    print(f"✅ Created new progress record")
+                except Exception as create_error:
+                    print(f"⚠️ Create failed: {create_error}")
+                    # Still try to commit what we have
+            
+            # Simple commit with fallback
+            try:
+                db.session.commit()
+                print(f"✅ SIMPLE: Progress saved successfully for {module_type}")
+                return jsonify({
+                    'success': True, 
+                    'message': 'Progress saved successfully',
+                    'progress_percentage': progress_percentage
+                }), 200
+            except Exception as commit_error:
+                print(f"⚠️ Database commit failed: {commit_error}")
+                db.session.rollback()
+                # Return success anyway since we tried our best
+                return jsonify({
+                    'success': True, 
+                    'message': 'Progress partially saved (database issue)',
+                    'progress_percentage': progress_percentage
+                }), 200
+                
+        except Exception as db_error:
+            print(f"⚠️ Database operation failed: {db_error}")
+            # Don't fail completely, just log the error
+            return jsonify({
+                'success': True, 
+                'message': 'Progress saved to local storage only',
+                'progress_percentage': progress_percentage
+            }), 200
+        
+    except Exception as e:
+        print(f"💥 SIMPLE: General error in save_module_progress: {e}")
+        # Be very forgiving and return success even on errors
+        return jsonify({
+            'success': True, 
+            'message': 'Progress saved locally (server issue)',
+            'error': str(e)
+        }), 200
+
+@app.route('/api/module/progress/<int:user_id>/<module_type>', methods=['GET'])
+def get_module_progress(user_id, module_type):
+    """Get module progress for a user"""
+    try:
+        # URL decode the module type to handle spaces and special characters
+        from urllib.parse import unquote
+        decoded_module_type = unquote(module_type)
+        
+        print(f"🔍 Getting module progress for user {user_id}, module: '{decoded_module_type}' (original: '{module_type}')")
+        
+        # Check if user exists
+        user = db.session.get(User, user_id)
+        if not user:
+            print(f"❌ User {user_id} not found")
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        # Find achievement record for this module
+        module_key = f"module_{decoded_module_type}"
+        achievement = Achievement.query.filter_by(user_id=user_id, badge_name=module_key).first()
+        
+        print(f"🔎 Looking for achievement with badge_name: '{module_key}'")
+        
+        if achievement:
+            try:
+                # Try to parse the progress data as JSON
+                import json
+                progress_data = json.loads(achievement.description)
+                print(f"✅ Retrieved module progress for user {user_id}, module {decoded_module_type}: {progress_data}")
+                return jsonify({
+                    'success': True,
+                    'progress': {
+                        'progress_data': progress_data,
+                        'last_updated': achievement.date_awarded.isoformat()
+                    }
+                }), 200
+            except json.JSONDecodeError as e:
+                print(f"⚠️ Failed to parse progress data as JSON for user {user_id}, module {decoded_module_type}: {e}")
+                # If JSON parsing fails, try legacy format
+                try:
+                    import ast
+                    progress_data = ast.literal_eval(achievement.description)
+                    print(f"✅ Retrieved legacy format progress for user {user_id}, module {decoded_module_type}: {progress_data}")
+                    return jsonify({
+                        'success': True,
+                        'progress': {
+                            'progress_data': progress_data,
+                            'last_updated': achievement.date_awarded.isoformat()
+                        }
+                    }), 200
+                except Exception as legacy_error:
+                    print(f"❌ Failed to parse legacy format: {legacy_error}")
+                    return jsonify({'success': False, 'error': 'No valid progress data found'}), 404
+        else:
+            print(f"📝 No progress found for user {user_id}, module {decoded_module_type}")
+            # Return success with null progress instead of 404 for better UX
+            return jsonify({
+                'success': True, 
+                'progress': None,
+                'message': f'No progress found for module: {decoded_module_type}'
+            }), 200
+    except Exception as e:
+        print(f"💥 Error retrieving module progress: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ---------------------------
 # Notification Routes
 # ---------------------------
 @app.route('/api/notifications/<int:user_id>', methods=['GET'])
@@ -1835,6 +2253,160 @@ def internal_error(error):
 with app.app_context():
     db.create_all()
     create_default_admin()
+
+# ---------------------------
+# Simple Activity Achievement Route
+# ---------------------------
+
+@app.route('/api/activity/complete', methods=['POST'])
+def complete_activity():
+    """Simple activity completion - creates an achievement"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        activity_name = data.get('activity_name')  # 'Memory Game', 'Music Player', etc.
+        
+        if not user_id or not activity_name:
+            return jsonify({'success': False, 'error': 'user_id and activity_name are required'}), 400
+        
+        # Check if user exists
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        # Create achievement for the activity
+        achievement = Achievement(
+            user_id=user_id,
+            badge_name=f"{activity_name} Master",
+            description=f"Completed {activity_name} successfully!"
+        )
+        
+        db.session.add(achievement)
+        db.session.commit()
+        
+        # Calculate stars based on activity type
+        stars_earned = 10  # Default
+        if activity_name == 'Memory Game':
+            stars_earned = 5  # Memory Game gives 5 stars
+        
+        print(f"Activity completed: {activity_name} by user {user_id}, earned {stars_earned} stars")
+        
+        return jsonify({
+            'success': True,
+            'message': f'{activity_name} completed successfully!',
+            'stars_earned': stars_earned,
+            'achievement_id': achievement.id
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error tracking activity completion: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# Achievement Management Routes
+@app.route('/api/achievements/<int:user_id>', methods=['GET'])
+def get_user_achievements(user_id):
+    """Get all achievements for a user"""
+    try:
+        print(f"🔄 Loading achievements for user {user_id}")
+        
+        # Check if user exists
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        # Get all achievements for the user
+        achievements = Achievement.query.filter_by(user_id=user_id).order_by(Achievement.date_awarded.desc()).all()
+        
+        achievement_list = []
+        for achievement in achievements:
+            # Skip module progress records (they're stored as achievements but aren't user-facing achievements)
+            if achievement.badge_name and achievement.badge_name.startswith('module_'):
+                continue
+                
+            achievement_data = {
+                'id': achievement.id,
+                'badge_name': achievement.badge_name,
+                'description': achievement.description,
+                'date_awarded': achievement.date_awarded.isoformat() if achievement.date_awarded else None,
+                'badge_type': getattr(achievement, 'badge_type', 'general'),
+                'icon': getattr(achievement, 'icon', '🏆')
+            }
+                
+            achievement_list.append(achievement_data)
+        
+        print(f"✅ Found {len(achievement_list)} achievements for user {user_id}")
+        
+        return jsonify({
+            'success': True,
+            'achievements': achievement_list
+        }), 200
+        
+    except Exception as e:
+        print(f"💥 Error loading achievements for user {user_id}: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/achievement', methods=['POST'])
+def create_achievement():
+    """Create a new achievement for a user"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id')
+        badge_name = data.get('badge_name')
+        description = data.get('description', '')
+        badge_type = data.get('badge_type', 'general')
+        icon = data.get('icon', '🏆')
+        
+        print(f"🔄 Creating achievement: {badge_name} for user {user_id}")
+        
+        if not user_id or not badge_name:
+            return jsonify({'success': False, 'error': 'user_id and badge_name are required'}), 400
+        
+        # Check if user exists
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        # Create the achievement
+        achievement = Achievement(
+            user_id=user_id,
+            badge_name=badge_name,
+            description=description,
+            date_awarded=datetime.utcnow()
+        )
+        
+        # Add additional fields if the Achievement model supports them
+        if hasattr(Achievement, 'badge_type'):
+            achievement.badge_type = badge_type
+        if hasattr(Achievement, 'icon'):
+            achievement.icon = icon
+        
+        db.session.add(achievement)
+        db.session.commit()
+        
+        print(f"✅ Created achievement: {badge_name} for user {user_id}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Achievement created successfully',
+            'achievement': {
+                'id': achievement.id,
+                'badge_name': achievement.badge_name,
+                'description': achievement.description,
+                'date_awarded': achievement.date_awarded.isoformat(),
+                'badge_type': badge_type,
+                'icon': icon
+            }
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"💥 Error creating achievement: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)

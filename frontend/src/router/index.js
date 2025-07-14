@@ -7,6 +7,7 @@ import TeacherDashboard from '../views/TeacherDashboard.vue'
 import ParentDashboard from '../views/ParentDashboard.vue'
 import PyschometricAssessment from '../views/PyschometricAssessment.vue'
 import GoodTouchBadTouchModule from '../views/GoodTouchBadTouchModule.vue'
+import ScienceExplorerModule from '../views/ScienceExplorerModule.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -92,6 +93,19 @@ const router = createRouter({
       path: '/good-touch-bad-touch',
       name: 'good-touch-bad-touch',
       component: GoodTouchBadTouchModule,
+      beforeEnter: (to, from, next) => {
+        const user = userUtils.getCurrentUser()
+        if (user) {
+          next()
+        } else {
+          next('/')
+        }
+      },
+    },
+    {
+      path: '/science-explorer',
+      name: 'science-explorer',
+      component: ScienceExplorerModule,
       beforeEnter: (to, from, next) => {
         const user = userUtils.getCurrentUser()
         if (user) {

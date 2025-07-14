@@ -8,12 +8,11 @@
                         <i class="fas fa-arrow-left"></i>
                         Back to Dashboard
                     </button>
-                    <h1>🛡️ {{ getCurrentLesson().title }}</h1>
-                    <div class="lesson-progress">
-                        <span class="progress-text">Lesson {{ currentLessonIndex + 1 }} of {{ safetyLessons.length
-                            }}</span>
+                    <h1>🛡️ Good Touch & Bad Touch Safety Module</h1>
+                    <div class="completion-progress">
+                        <span class="progress-text">{{ isCompleted ? '100' : '0' }}% Completed</span>
                         <div class="progress-bar">
-                            <div class="progress-fill" :style="{ width: `${getOverallProgress()}%` }"></div>
+                            <div class="progress-fill" :style="{ width: `${isCompleted ? 100 : 0}%` }"></div>
                         </div>
                     </div>
                     <button @click="showSafetyInfo" class="info-btn" title="About this module">
@@ -26,35 +25,15 @@
         <!-- Main Content -->
         <main class="module-main">
             <div class="module-body">
-                <!-- Lesson Navigation Sidebar -->
-                <div class="lesson-sidebar">
-                    <h3>📚 Lessons</h3>
-                    <div class="lesson-list">
-                        <div v-for="(lesson, index) in safetyLessons" :key="lesson.id"
-                            :class="['lesson-item', { active: index === currentLessonIndex, completed: lesson.completed }]"
-                            @click="selectLesson(index)">
-                            <div class="lesson-icon">{{ lesson.icon }}</div>
-                            <div class="lesson-info">
-                                <div class="lesson-title">{{ lesson.title }}</div>
-                                <div class="lesson-desc">{{ lesson.description }}</div>
-                            </div>
-                            <div class="lesson-status">
-                                <span v-if="lesson.completed">✅</span>
-                                <span v-else-if="index === currentLessonIndex">👀</span>
-                                <span v-else>⏳</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Main Content Area -->
                 <div class="safety-iframe-container">
-                    <iframe ref="safetyIframe" :src="getCurrentLesson().url" class="safety-iframe"
-                        :title="getCurrentLesson().title" frameborder="0" allowfullscreen @load="onIframeLoad">
+                    <iframe ref="safetyIframe" src="https://www.childchapter.org/GoodTouch%26BadTouch.html"
+                        class="safety-iframe" title="Good Touch & Bad Touch Safety Module" frameborder="0"
+                        allowfullscreen @load="onIframeLoad">
                     </iframe>
                     <div v-if="isLoadingSafety" class="loading-overlay">
                         <div class="loading-spinner">🔄</div>
-                        <p>Loading {{ getCurrentLesson().title }}...</p>
+                        <p>Loading Safety Module...</p>
                     </div>
                 </div>
             </div>
@@ -64,25 +43,20 @@
         <footer class="module-controls">
             <div class="container">
                 <div class="controls-content">
-                    <div class="nav-controls">
-                        <button @click="previousLesson" :disabled="currentLessonIndex === 0"
-                            class="control-btn nav-btn">
-                            <span>⬅️</span> Previous
-                        </button>
-                        <button @click="markCurrentLessonComplete" class="control-btn complete-btn">
-                            <span>✅</span> Mark Complete
-                        </button>
-                        <button @click="nextLesson" :disabled="currentLessonIndex === safetyLessons.length - 1"
-                            class="control-btn nav-btn">
-                            <span>➡️</span> Next
-                        </button>
-                    </div>
                     <div class="utility-controls">
                         <button @click="resetZoom" class="control-btn">
                             <span>🔍</span> Reset Zoom
                         </button>
                         <button @click="toggleFullscreen" class="control-btn">
                             <span>📱</span> Fullscreen
+                        </button>
+                        <button @click="resetProgress" class="control-btn reset-btn">
+                            <span>🔄</span> Reset Completion
+                        </button>
+                    </div>
+                    <div class="completion-controls">
+                        <button @click="markModuleComplete" class="control-btn complete-btn">
+                            <span>✅</span> {{ isCompleted ? 'Module Completed!' : 'Mark Complete' }}
                         </button>
                     </div>
                 </div>
@@ -94,7 +68,7 @@
 <script>
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import { userUtils } from '@/services/api'
+import { userUtils, apiService } from '@/services/api'
 import Swal from 'sweetalert2'
 
 export default {
@@ -104,165 +78,174 @@ export default {
         const user = ref(userUtils.getCurrentUser())
         const isLoadingSafety = ref(false)
         const safetyIframe = ref(null)
-        const currentLessonIndex = ref(0)
-
-        // Safety Module Lessons from Child Chapter
-        const safetyLessons = ref([
-            {
-                id: 1,
-                title: 'Private Body Parts',
-                description: 'Learn about private body parts and body boundaries',
-                url: 'https://www.childchapter.org/GoodTouch%26BadTouch.html',
-                icon: '👤',
-                completed: false
-            },
-            {
-                id: 2,
-                title: 'Good Touch & Bad Touch',
-                description: 'Understanding the difference between good and bad touch',
-                url: 'https://www.childchapter.org/GoodTouch%26BadTouch.html',
-                icon: '🛡️',
-                completed: false
-            },
-            {
-                id: 3,
-                title: 'How To Protect Yourself',
-                description: 'Learn strategies to stay safe and protect yourself',
-                url: 'https://www.childchapter.org/GoodTouch%26BadTouch.html',
-                icon: '🔒',
-                completed: false
-            },
-            {
-                id: 4,
-                title: 'Say Stop',
-                description: 'Learn when and how to say NO and STOP',
-                url: 'https://www.childchapter.org/GoodTouch%26BadTouch.html',
-                icon: '✋',
-                completed: false
-            },
-            {
-                id: 5,
-                title: 'Tell Trusted People',
-                description: 'Identify and talk to trusted adults',
-                url: 'https://www.childchapter.org/GoodTouch%26BadTouch.html',
-                icon: '👨‍👩‍👧‍👦',
-                completed: false
-            },
-            {
-                id: 6,
-                title: 'Call Child Helpline',
-                description: 'When and how to call for help (1098 in India)',
-                url: 'https://www.childchapter.org/GoodTouch%26BadTouch.html',
-                icon: '📞',
-                completed: false
-            }
-        ])
+        const isCompleted = ref(false)
 
         // Navigation Functions
         const goBack = () => {
             router.push('/child-dashboard')
         }
 
-        const getCurrentLesson = () => {
-            return safetyLessons.value[currentLessonIndex.value] || safetyLessons.value[0]
-        }
-
-        const selectLesson = (index) => {
-            currentLessonIndex.value = index
-            isLoadingSafety.value = true
-            updateSafetyProgress()
-
-            setTimeout(() => {
-                isLoadingSafety.value = false
-            }, 1000)
-        }
-
-        const nextLesson = () => {
-            if (currentLessonIndex.value < safetyLessons.value.length - 1) {
-                currentLessonIndex.value++
-                isLoadingSafety.value = true
-                updateSafetyProgress()
-
-                setTimeout(() => {
-                    isLoadingSafety.value = false
-                }, 1000)
+        const markModuleComplete = async () => {
+            if (isCompleted.value) {
+                console.log('Module already completed, skipping...')
+                return
             }
-        }
 
-        const previousLesson = () => {
-            if (currentLessonIndex.value > 0) {
-                currentLessonIndex.value--
-                isLoadingSafety.value = true
-                updateSafetyProgress()
+            console.log('Marking module as complete...')
+            isCompleted.value = true
+            updateModuleProgress()
 
-                setTimeout(() => {
-                    isLoadingSafety.value = false
-                }, 1000)
-            }
-        }
+            // Save to backend
+            if (user.value?.id) {
+                try {
+                    const progressData = {
+                        isCompleted: isCompleted.value,
+                        completedAt: Date.now(),
+                        lastAccessed: Date.now()
+                    }
 
-        const markCurrentLessonComplete = () => {
-            const currentLesson = safetyLessons.value[currentLessonIndex.value]
-            if (!currentLesson.completed) {
-                currentLesson.completed = true
-                updateSafetyProgress()
-
-                Swal.fire({
-                    icon: 'success',
-                    title: '🎉 Lesson Completed!',
-                    text: `Great job completing "${currentLesson.title}"! You're making great progress in staying safe.`,
-                    timer: 3000,
-                    showConfirmButton: false,
-                    background: 'linear-gradient(135deg, #4CAF50, #81C784)',
-                    color: 'white'
-                })
-
-                // Auto-advance to next lesson if available
-                if (currentLessonIndex.value < safetyLessons.value.length - 1) {
-                    setTimeout(() => {
-                        nextLesson()
-                    }, 2000)
+                    console.log('Saving completion to backend:', progressData)
+                    const response = await apiService.saveModuleProgress(user.value.id, 'good_touch_bad_touch', progressData)
+                    console.log('✅ Module completion saved to backend successfully:', response)
+                } catch (error) {
+                    console.error('❌ Failed to save module completion to backend:', error)
                 }
             }
+
+            Swal.fire({
+                icon: 'success',
+                title: '🎉 Module Completed!',
+                text: 'Excellent work! You\'ve completed the Good Touch & Bad Touch safety module. You now know important ways to stay safe and protect yourself.',
+                timer: 4000,
+                showConfirmButton: true,
+                confirmButtonText: 'Great! 👍',
+                background: 'linear-gradient(135deg, #4CAF50, #81C784)',
+                color: 'white'
+            })
         }
 
-        const getOverallProgress = () => {
-            const completedLessons = safetyLessons.value.filter(lesson => lesson.completed).length
-            return Math.round((completedLessons / safetyLessons.value.length) * 100)
-        }
-
-        const updateSafetyProgress = () => {
+        const updateModuleProgress = () => {
             const progressData = {
-                currentLessonIndex: currentLessonIndex.value,
-                lessons: safetyLessons.value.map(lesson => ({
-                    id: lesson.id,
-                    completed: lesson.completed
-                })),
+                isCompleted: isCompleted.value,
+                completedAt: isCompleted.value ? Date.now() : null,
                 lastAccessed: Date.now()
             }
 
-            localStorage.setItem(`safetyProgress_${user.value?.id || 'guest'}`, JSON.stringify(progressData))
+            // Store with new key for module-specific progress
+            localStorage.setItem(`safetyModuleProgress_${user.value?.id || 'guest'}`, JSON.stringify(progressData))
+
+            // Also update the dashboard-compatible format
+            updateDashboardProgress()
         }
 
-        const loadSafetyProgress = () => {
+        const loadModuleProgress = async () => {
             try {
-                const savedProgress = localStorage.getItem(`safetyProgress_${user.value?.id || 'guest'}`)
-                if (savedProgress) {
-                    const progressData = JSON.parse(savedProgress)
-                    currentLessonIndex.value = progressData.currentLessonIndex || 0
+                console.log('Loading module progress for user:', user.value?.id)
 
-                    if (progressData.lessons) {
-                        progressData.lessons.forEach(savedLesson => {
-                            const lesson = safetyLessons.value.find(l => l.id === savedLesson.id)
-                            if (lesson) {
-                                lesson.completed = savedLesson.completed
-                            }
-                        })
+                // First try to load from backend if user is logged in
+                if (user.value?.id) {
+                    try {
+                        console.log('Attempting to load from backend...')
+                        const backendProgress = await apiService.getModuleProgress(user.value.id, 'good_touch_bad_touch')
+                        console.log('Backend response:', backendProgress)
+
+                        if (backendProgress.success && backendProgress.data) {
+                            const progressData = backendProgress.data.progress_data
+                            console.log('Backend progress data:', progressData)
+
+                            isCompleted.value = progressData.isCompleted || false
+
+                            // Also update localStorage with backend data
+                            updateModuleProgress()
+                            console.log(`✅ Module progress loaded from backend: completed: ${isCompleted.value}`)
+                            return
+                        }
+                    } catch (error) {
+                        console.log('❌ Backend progress load failed:', error.message)
                     }
                 }
+
+                // Fallback to localStorage
+                console.log('Attempting to load from localStorage...')
+                const savedProgress = localStorage.getItem(`safetyModuleProgress_${user.value?.id || 'guest'}`)
+                if (savedProgress) {
+                    const progressData = JSON.parse(savedProgress)
+                    isCompleted.value = progressData.isCompleted || false
+                    console.log(`✅ Module progress loaded from localStorage: completed: ${isCompleted.value}`)
+                } else {
+                    console.log('📝 No saved progress found - starting fresh')
+                }
             } catch (error) {
-                console.error('Error loading safety progress:', error)
+                console.error('❌ Error loading module progress:', error)
             }
+        }
+
+        const updateDashboardProgress = () => {
+            // Update the dashboard-compatible format
+            const dashboardData = {
+                lessons: [
+                    { id: 1, completed: isCompleted.value }
+                ],
+                currentLessonIndex: 0,
+                lastAccessed: Date.now()
+            }
+
+            localStorage.setItem(`safetyProgress_${user.value?.id || 'guest'}`, JSON.stringify(dashboardData))
+        }
+
+
+
+        const resetProgress = () => {
+            Swal.fire({
+                icon: 'warning',
+                title: '🔄 Reset Completion?',
+                text: 'Are you sure you want to reset your completion status? This will mark the module as incomplete.',
+                showCancelButton: true,
+                confirmButtonText: 'Yes, Reset',
+                cancelButtonText: 'Cancel',
+                confirmButtonColor: '#ff6b6b',
+                cancelButtonColor: '#6c757d',
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white'
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    // Reset completion status
+                    isCompleted.value = false
+
+                    // Update localStorage
+                    updateModuleProgress()
+
+                    // Also reset backend data if user is logged in
+                    if (user.value?.id) {
+                        try {
+                            const resetData = {
+                                isCompleted: false,
+                                completedAt: null,
+                                lastAccessed: Date.now()
+                            }
+
+                            console.log('Resetting completion in backend...')
+                            const response = await apiService.saveModuleProgress(user.value.id, 'good_touch_bad_touch', resetData)
+                            console.log('✅ Completion reset in backend successfully:', response)
+                        } catch (error) {
+                            console.error('❌ Failed to reset completion in backend:', error)
+                        }
+                    }
+
+                    // Show success message
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Completion Reset!',
+                        text: 'Your completion status has been reset. You can mark the module as complete again.',
+                        timer: 2000,
+                        showConfirmButton: false,
+                        background: 'linear-gradient(135deg, #4CAF50, #81C784)',
+                        color: 'white',
+                        position: 'top-end',
+                        toast: true
+                    })
+                }
+            })
         }
 
         const showSafetyInfo = () => {
@@ -274,6 +257,14 @@ export default {
                         <p><strong>Source:</strong> Child Chapter Association</p>
                         <p><strong>Purpose:</strong> Educational content about Good Touch & Bad Touch</p>
                         <p><strong>Age Group:</strong> Children and adolescents</p>
+                        <hr style="margin: 1rem 0;">
+                        <p><strong>How to Complete:</strong></p>
+                        <ul style="margin-left: 1rem;">
+                            <li>Read through the safety content carefully</li>
+                            <li>Take your time to understand the important safety information</li>
+                            <li>Click "Mark Complete" when you're finished reading</li>
+                            <li>Progress will show as 0% until completed, then 100%</li>
+                        </ul>
                         <hr style="margin: 1rem 0;">
                         <p><strong>Safety Tips:</strong></p>
                         <ul style="margin-left: 1rem;">
@@ -300,6 +291,8 @@ export default {
                 const iframe = safetyIframe.value
                 if (iframe && iframe.contentDocument) {
                     const iframeDoc = iframe.contentDocument
+
+                    // Try to hide headers/navigation if possible
                     const style = iframeDoc.createElement('style')
                     style.textContent = `
                         header, nav, .header, .navbar, .navigation { display: none !important; }
@@ -309,7 +302,7 @@ export default {
                     iframeDoc.head.appendChild(style)
                 }
             } catch (error) {
-                console.log('Cannot access iframe content due to CORS policy - this is expected for external sites')
+                console.log('Cannot access iframe content due to CORS policy')
             }
         }
 
@@ -335,15 +328,19 @@ export default {
         }
 
         // Lifecycle
-        onMounted(() => {
-            loadSafetyProgress()
+        onMounted(async () => {
+            await loadModuleProgress()
             isLoadingSafety.value = true
 
             // Show welcome message
+            const progressMessage = isCompleted.value
+                ? 'You have already completed this module! You can review the content or reset your completion status if needed.'
+                : 'Welcome to the Good Touch & Bad Touch safety module! Read through the content and mark it as complete when you\'re finished.'
+
             Swal.fire({
-                icon: 'info',
-                title: '🛡️ Safety Learning Adventure',
-                text: 'Welcome to your safety learning module! Learn about Good Touch & Bad Touch to stay safe and protected.',
+                icon: isCompleted.value ? 'success' : 'info',
+                title: '🛡️ Safety Learning Module',
+                text: progressMessage,
                 timer: 3000,
                 showConfirmButton: false,
                 background: 'linear-gradient(135deg, #fd79a8, #fdcb6e)',
@@ -355,23 +352,22 @@ export default {
             }, 1500)
         })
 
+        onBeforeUnmount(() => {
+            // Cleanup if needed
+        })
+
         return {
             user,
             isLoadingSafety,
             safetyIframe,
-            currentLessonIndex,
-            safetyLessons,
+            isCompleted,
             goBack,
-            getCurrentLesson,
-            selectLesson,
-            nextLesson,
-            previousLesson,
-            markCurrentLessonComplete,
-            getOverallProgress,
-            updateSafetyProgress,
-            loadSafetyProgress,
+            markModuleComplete,
+            updateModuleProgress,
+            loadModuleProgress,
             showSafetyInfo,
             onIframeLoad,
+            resetProgress,
             resetZoom,
             toggleFullscreen
         }
@@ -452,7 +448,7 @@ export default {
 }
 
 /* Progress */
-.lesson-progress {
+.completion-progress {
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -488,87 +484,12 @@ export default {
 
 .module-body {
     display: flex;
-    height: 70vh;
+    height: 75vh;
     background: rgba(255, 255, 255, 0.1);
     backdrop-filter: blur(10px);
     border-radius: 20px;
     overflow: hidden;
     box-shadow: 0 25px 50px rgba(0, 0, 0, 0.2);
-}
-
-/* Sidebar */
-.lesson-sidebar {
-    width: 300px;
-    background: rgba(255, 255, 255, 0.1);
-    border-right: 1px solid rgba(255, 255, 255, 0.2);
-    padding: 1.5rem;
-    overflow-y: auto;
-    color: white;
-}
-
-.lesson-sidebar h3 {
-    color: white;
-    margin-bottom: 1.5rem;
-    font-size: 1.2rem;
-}
-
-.lesson-list {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.lesson-item {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 15px;
-    padding: 1rem;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-}
-
-.lesson-item:hover {
-    background: rgba(255, 255, 255, 0.1);
-    transform: translateY(-2px);
-}
-
-.lesson-item.active {
-    background: rgba(255, 255, 255, 0.2);
-    border-color: rgba(255, 255, 255, 0.3);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-}
-
-.lesson-item.completed {
-    background: rgba(76, 175, 80, 0.2);
-    border-color: rgba(76, 175, 80, 0.3);
-}
-
-.lesson-icon {
-    font-size: 1.8rem;
-    min-width: 35px;
-}
-
-.lesson-info {
-    flex: 1;
-}
-
-.lesson-title {
-    font-weight: 600;
-    font-size: 1rem;
-    margin-bottom: 0.5rem;
-}
-
-.lesson-desc {
-    font-size: 0.8rem;
-    opacity: 0.8;
-    line-height: 1.4;
-}
-
-.lesson-status {
-    font-size: 1.5rem;
 }
 
 /* iFrame Container */
@@ -635,13 +556,13 @@ export default {
     align-items: center;
 }
 
-.nav-controls {
+.utility-controls {
     display: flex;
     gap: 1rem;
     align-items: center;
 }
 
-.utility-controls {
+.completion-controls {
     display: flex;
     gap: 1rem;
     align-items: center;
@@ -668,14 +589,6 @@ export default {
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
 }
 
-.nav-btn:disabled {
-    background: rgba(255, 255, 255, 0.3);
-    color: rgba(255, 255, 255, 0.6);
-    cursor: not-allowed;
-    transform: none;
-    box-shadow: none;
-}
-
 .complete-btn {
     background: linear-gradient(135deg, #4CAF50, #81C784);
     color: white;
@@ -685,6 +598,17 @@ export default {
 .complete-btn:hover {
     background: linear-gradient(135deg, #45a049, #66bb6a);
     box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+}
+
+.reset-btn {
+    background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+    color: white;
+    box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3);
+}
+
+.reset-btn:hover {
+    background: linear-gradient(135deg, #ff5252, #e53935);
+    box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4);
 }
 
 .container {
@@ -702,6 +626,7 @@ export default {
 
     .header-content h1 {
         font-size: 1.5rem;
+        text-align: center;
     }
 
     .progress-bar {
@@ -709,32 +634,25 @@ export default {
     }
 
     .module-body {
-        flex-direction: column;
-        height: auto;
+        height: 60vh;
+        margin: 0.5rem;
     }
 
-    .lesson-sidebar {
-        width: 100%;
-        height: 200px;
-        border-right: none;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    }
-
-    .lesson-list {
-        flex-direction: row;
-        gap: 1rem;
-        overflow-x: auto;
-        padding-bottom: 1rem;
-    }
-
-    .lesson-item {
-        min-width: 250px;
-        flex-shrink: 0;
+    .safety-iframe-container {
+        margin: 0.5rem;
     }
 
     .controls-content {
         flex-direction: column;
         gap: 1rem;
+    }
+
+    .utility-controls {
+        order: 2;
+    }
+
+    .completion-controls {
+        order: 1;
     }
 }
 
