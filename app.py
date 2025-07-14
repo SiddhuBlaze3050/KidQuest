@@ -483,110 +483,147 @@ def api_user_profile(user_id):
         }), 500
 
 # ---------------------------
-# Health Tab
+# Health Tracker
 # ---------------------------
-
-@app.route('/api/health', methods=['GET'])
-def api_health():
-    """API health check endpoint"""
-    return jsonify({
-        'success': True,
-        'message': 'API is running',
-        'status': 'healthy'
-    }), 200
 
 @app.route('/api/health/tasks/<int:user_id>', methods=['GET'])
 def get_health_tasks(user_id):
-    today = date.today()
-    tasks = HealthTask.query.filter_by(user_id=user_id, date=today).all()
-
-    if not tasks:
-        # Default tasks if none exist for today
-        default_tasks = ['Running', 'Yoga', 'Meditation', 'Helping in household chores']
-        for name in default_tasks:
-            db.session.add(HealthTask(user_id=user_id, task_name=name, date=today))
-        db.session.commit()
+    try:
+        today = date.today()
         tasks = HealthTask.query.filter_by(user_id=user_id, date=today).all()
 
-    return jsonify({
-        'success': True,
-        'tasks': [
-            {'id': t.id, 'name': t.task_name, 'completed': t.completed} for t in tasks
-        ]
-    }), 200
+        if not tasks:
+            # Default tasks if none exist for today
+            default_tasks = ['Running', 'Yoga', 'Meditation', 'Helping in household chores']
+            for name in default_tasks:
+                db.session.add(HealthTask(user_id=user_id, task_name=name, date=today))
+            db.session.commit()
+            tasks = HealthTask.query.filter_by(user_id=user_id, date=today).all()
+
+        return jsonify({
+            'success': True,
+            'tasks': [
+                {'id': t.id, 'name': t.task_name, 'completed': t.completed} for t in tasks
+            ]
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False, 
+            'error': str(e) 
+        }), 500
 
 @app.route('/api/health/tasks/<int:task_id>/toggle', methods=['POST'])
 def toggle_task_completion(task_id):
-    task = HealthTask.query.get(task_id)
-    if not task:
-        return jsonify({'success': False, 'error': 'Task not found'}), 404
+    try:
+        task = db.session.get(HealthTask, task_id)
+        if not task:
+            return jsonify({'success': False, 'error': 'Task not found'}), 404
 
-    task.completed = not task.completed
-    db.session.commit()
+        task.completed = not task.completed
+        db.session.commit()
 
-    # Automatically evaluate streak after toggling
-    evaluate_streak_internal(task.user_id)
+        # Automatically evaluate streak after toggling
+        evaluate_streak_internal(task.user_id)
 
-    return jsonify({'success': True, 'completed': task.completed}), 200
-
+        return jsonify({'success': True, 'completed': task.completed}), 200
+    except Exception as e:
+        return jsonify({
+            'success': False, 
+            'error': str(e) 
+        }), 500
 
 @app.route('/api/health/streak/<int:user_id>', methods=['GET'])
 def get_streak(user_id):
-    streak = HealthStreak.query.filter_by(user_id=user_id).first()
-    return jsonify({
-        'success': True,
-        'streak': streak.current_streak if streak else 0
-    }), 200
-
+    try:
+        streak = HealthStreak.query.filter_by(user_id=user_id).first()
+        return jsonify({
+            'success': True,
+            'streak': streak.current_streak if streak else 0
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False, 
+            'error': str(e) 
+        }), 500        
 
 @app.route('/api/health/water/<int:user_id>', methods=['POST'])
 def increment_water(user_id):
-    today = date.today()
-    log = WaterLog.query.filter_by(user_id=user_id, date=today).first()
+    try:
+        today = date.today()
+        log = WaterLog.query.filter_by(user_id=user_id, date=today).first()
 
-    if not log:
-        log = WaterLog(user_id=user_id, count=1, date=today)
-        db.session.add(log)
-    else:
-        log.count += 1
+        if not log:
+            log = WaterLog(user_id=user_id, count=1, date=today)
+            db.session.add(log)
+        else:
+            log.count += 1
 
-    db.session.commit()
-    return jsonify({'success': True, 'count': log.count}), 200
+        db.session.commit()
+        return jsonify({'success': True, 'count': log.count}), 200
+    except Exception as e:
+        return jsonify({
+            'success': False, 
+            'error': str(e) 
+        }), 500
 
 @app.route('/api/health/water/<int:user_id>', methods=['GET'])
 def get_today_water_count(user_id):
-    today = date.today()
-    entry = WaterLog.query.filter_by(user_id=user_id, date=today).first()
-    count = entry.count if entry else 0
-    return jsonify({'success': True, 'count': count}), 200
+    try:
+        today = date.today()
+        entry = WaterLog.query.filter_by(user_id=user_id, date=today).first()
+        count = entry.count if entry else 0
+        return jsonify({'success': True, 'count': count}), 200
+    except Exception as e:
+        return jsonify({
+            'success': False, 
+            'error': str(e) 
+        }), 500
 
 @app.route('/api/health/water/log/<int:user_id>', methods=['GET'])
 def get_water_log(user_id):
-    logs = WaterLog.query.filter_by(user_id=user_id).order_by(WaterLog.date.desc()).limit(7).all()
-    log_data = [
-        {
-            'date': log.date.strftime('%a'),  # "Mon", "Tue", etc.
-            'count': log.count
-        } for log in reversed(logs)
-    ]
-    return jsonify({'success': True, 'log': log_data}), 200
+    try:
+        logs = WaterLog.query.filter_by(user_id=user_id).order_by(WaterLog.date.desc()).limit(7).all()
+        log_data = [
+            {
+                'date': log.date.strftime('%a'),  # "Mon", "Tue", etc.
+                'count': log.count
+            } for log in reversed(logs)
+        ]
+        return jsonify({'success': True, 'log': log_data}), 200
+    except Exception as e:
+        return jsonify({
+            'success': False, 
+            'error': str(e) 
+        }), 500
 
-def evaluate_streak_internal(user_id):  # Internal Function to Evaluate Streak
-
-    today = date.today()
-    completed_count = HealthTask.query.filter_by(user_id=user_id, date=today, completed=True).count()
-
-    if completed_count >= 2:
+def evaluate_streak_internal(user_id):
+    try:
+        today = date.today()
         streak = HealthStreak.query.filter_by(user_id=user_id).first()
 
-        if not streak:
-            streak = HealthStreak(user_id=user_id, current_streak=1, last_updated=today)
-            db.session.add(streak)
-        elif streak.last_updated != today:
-            streak.current_streak += 1
-            streak.last_updated = today
+        # --- Reset if the child skipped a day ---
+        if streak and streak.last_updated:
+            missed_days = (today - streak.last_updated).days
+            if missed_days > 1:
+                streak.current_streak = 0
+                streak.last_updated = today
+                db.session.commit()
+                return
 
-        db.session.commit()
+        # --- Count today's completed tasks ---
+        completed_count = HealthTask.query.filter_by(user_id=user_id, date=today, completed=True).count()
+
+        if completed_count >= 2:
+            if not streak:
+                streak = HealthStreak(user_id=user_id, current_streak=1, last_updated=today)
+                db.session.add(streak)
+            elif streak.last_updated != today:
+                streak.current_streak += 1
+                streak.last_updated = today
+
+            db.session.commit()
+    except Exception as e:
+        print("Streak Eval Error:", traceback.format_exc())
 
 def update_login_streak(user_id):
     """Update login streak for a user"""

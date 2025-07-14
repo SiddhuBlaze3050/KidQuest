@@ -94,7 +94,7 @@
 </template>
 
 <script>
-import axios from 'axios';
+import { apiService, userUtils } from '@/services/api';
 import Chart from 'chart.js/auto';
 import { nextTick } from 'vue';
 
@@ -111,7 +111,8 @@ export default {
   },
   computed: {
     userId() {
-      return 1; // Replace with real user context
+      const user = userUtils.getCurrentUser();
+      return user?.id || 1;
     }
   },
   created() {
@@ -136,50 +137,49 @@ export default {
     },
     async fetchTasks() {
       try {
-        const { data } = await axios.get(`/api/health/tasks/${this.userId}`);
-        this.tasks = data.tasks;
+        this.tasks = await apiService.getHealthTasks(this.userId);
       } catch (error) {
         console.error('Error fetching tasks:', error);
       }
     },
+
     async toggleTask(index) {
       const task = this.tasks[index];
       try {
-        const { data } = await axios.post(`/api/health/tasks/${task.id}/toggle`);
-        this.tasks[index].completed = data.completed;
-        await this.evaluateStreak();
+        this.tasks[index].completed = await apiService.toggleHealthTask(task.id);
+        this.fetchStreak();
       } catch (error) {
         console.error('Error toggling task:', error);
       }
     },
+
     async evaluateStreak() {
       try {
-        await axios.post(`/api/health/streak/${this.userId}/evaluate`);
         this.fetchStreak();
       } catch (error) {
         console.error('Error evaluating streak:', error);
       }
     },
+
     async fetchStreak() {
       try {
-        const { data } = await axios.get(`/api/health/streak/${this.userId}`);
-        this.streak = data.streak;
+        this.streak = await apiService.getHealthStreak(this.userId);
       } catch (error) {
         console.error('Error fetching streak:', error);
       }
     },
+
     async fetchWaterCount() {
       try {
-        const { data } = await axios.get(`/api/health/water/${this.userId}`);
-        this.waterCount = data.count;
+        this.waterCount = await apiService.getWaterCount(this.userId);
       } catch (error) {
         console.error('Error fetching water count:', error);
       }
     },
+
     async incrementWater() {
       try {
-        const { data } = await axios.post(`/api/health/water/${this.userId}`);
-        this.waterCount = data.count;
+        this.waterCount = await apiService.incrementWaterCount(this.userId);
         this.fetchWaterChart(); // Refresh graph
       } catch (error) {
         console.error('Error incrementing water count:', error);
@@ -187,8 +187,7 @@ export default {
     },
     async fetchWaterChart() {
       try {
-        const { data } = await axios.get(`/api/health/water/log/${this.userId}`);
-        this.waterLog = data.log;
+        this.waterLog = await apiService.getWaterLog(this.userId);
         await nextTick(); // wait for DOM
         this.renderWaterChart();
       } catch (error) {
@@ -199,10 +198,7 @@ export default {
       if (!this.waterLog.length) return;
 
       const ctx = document.getElementById('waterChart');
-
-      if (this.waterChart) {
-        this.waterChart.destroy();
-      }
+      if (this.waterChart) this.waterChart.destroy();
 
       this.waterChart = new Chart(ctx, {
         type: 'line',

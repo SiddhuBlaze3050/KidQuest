@@ -41,16 +41,6 @@ api.interceptors.response.use(
 
 // API Service Functions
 export const apiService = {
-  // Health check
-  async healthCheck() {
-    try {
-      const response = await api.get('/api/health')
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
-
   // Authentication
   async login(username, password) {
     try {
@@ -135,6 +125,62 @@ export const apiService = {
       return response.data
     } catch (error) {
       throw error
+    }
+  },
+
+  // Health Tracker 
+
+  async getHealthTasks(userId) {
+    try {
+      const res = await api.get(`/api/health/tasks/${userId}`);
+      return res.data.tasks;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async toggleHealthTask(taskId) {
+    try {
+      const res = await api.post(`/api/health/tasks/${taskId}/toggle`);
+      return res.data.completed;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async getHealthStreak(userId) {
+    try {
+      const res = await api.get(`/api/health/streak/${userId}`);
+      return res.data.streak;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async getWaterCount(userId) {
+    try {
+      const res = await api.get(`/api/health/water/${userId}`);
+      return res.data.count;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async incrementWaterCount(userId) {
+    try {
+      const res = await api.post(`/api/health/water/${userId}`);
+      return res.data.count;
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async getWaterLog(userId) {
+    try {
+      const res = await api.get(`/api/health/water/log/${userId}`);
+      return res.data.log;
+    } catch (error) {
+      throw error;
     }
   },
 
