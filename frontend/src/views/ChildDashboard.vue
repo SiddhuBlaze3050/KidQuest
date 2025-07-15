@@ -12,7 +12,14 @@
                         <div class="user-avatar">{{ user?.username?.charAt(0)?.toUpperCase() || '👤' }}</div>
                         <div class="user-info">
                             <span class="user-greeting">Hi {{ user?.username }}! 👋</span>
-                            <span class="user-level">Level {{ userLevel }} Adventurer</span>
+                            <span class="user-level">Level {{ dynamicUserLevel }} - {{ dynamicLevelTitle }}</span>
+                            <div class="level-progress">
+                                <div class="level-progress-bar">
+                                    <div class="level-progress-fill"
+                                        :style="{ width: levelInfo.progressPercentage + '%' }"></div>
+                                </div>
+                                <span class="level-progress-text">⭐ {{ levelInfo.starsInLevel }}/10</span>
+                            </div>
                         </div>
                         <NotificationBell v-if="user" :user-id="user.id" />
                         <BubbleTimer v-if="sessionStartTime" :start-time="sessionStartTime" />
@@ -51,6 +58,78 @@
                             <span class="title-icon">📊</span>
                             Your Adventure Stats
                         </h2>
+                        <div class="header-controls">
+                            <button @click="refreshAllProgress" class="refresh-btn">
+                                🔄 Refresh Progress
+                            </button>
+
+                            <!-- Backdrop overlay when scroll is expanded -->
+                            <div v-if="isScrollExpanded" class="scroll-backdrop" @click="toggleScrollExpanded"></div>
+
+                            <!-- Golden Scroll Guide -->
+                            <div class="golden-scroll">
+                                <div class="scroll-header" @click="toggleScrollExpanded">
+                                    <span class="scroll-icon">📜</span>
+                                    <span class="scroll-title">Adventure Guide</span>
+                                    <span class="scroll-toggle">{{ isScrollExpanded ? '▲' : '▼' }}</span>
+                                </div>
+
+                                <div v-if="isScrollExpanded" class="scroll-content" @click.stop>
+                                    <div class="scroll-section">
+                                        <h4>⭐ Earning Stars & Building Your Collection</h4>
+                                        <p>• Complete learning modules like Math Magic & Word Wizard<br>
+                                            • Finish daily tasks in your Task Tracker<br>
+                                            • Take the Psychometric Test to discover your superpowers<br>
+                                            • Chat with Gandalf the Wise for learning tips!</p>
+                                    </div>
+
+                                    <div class="scroll-section">
+                                        <h4>🧠 Mastering Skills (100% Progress)</h4>
+                                        <p>• <strong>Math Magic:</strong> Interactive story adventures with numbers<br>
+                                            • <strong>Word Wizard:</strong> Vocabulary games and reading quests<br>
+                                            • <strong>Science Explorer:</strong> Cool experiments and discoveries<br>
+                                            • <strong>Safety Champions:</strong> Learn to stay safe everywhere!</p>
+                                    </div>
+
+                                    <div class="scroll-section">
+                                        <h4>🎯 Daily Goals & Healthy Habits</h4>
+                                        <p>• Set learning goals in your Task Tracker<br>
+                                            • Track your health with the Health Tracker<br>
+                                            • Save money wisely in your Treasure Chest<br>
+                                            • Keep your {{ streakDays }}-day learning streak alive! 🔥</p>
+                                    </div>
+
+                                    <div class="scroll-section">
+                                        <h4>📊 Your Progress</h4>
+                                        <p>• Level {{ levelInfo.currentLevel }}: {{ levelInfo.title }}<br>
+                                            • Stars collected: {{ levelInfo.totalStars }} ⭐<br>
+                                            • Skills mastered: {{ levelInfo.skillsMastered }} 🧠<br>
+                                            • Next level: {{ levelInfo.starsNeeded }} more stars needed!</p>
+                                    </div>
+
+                                    <div class="scroll-section">
+                                        <h4>🎮 Fun Activities & Adventures</h4>
+                                        <p>• Draw amazing pictures with the Drawing Pad<br>
+                                            • Build epic stories with Story Builder<br>
+                                            • Play the Memory Game to boost your brain<br>
+                                            • Use Pomodoro Timer for focused learning sessions<br>
+                                            • Listen to calming music while you learn!</p>
+                                    </div>
+
+                                    <div class="scroll-section">
+                                        <h4>🏆 Pro Tips from Master Adventurers</h4>
+                                        <p>• Visit each learning module every day<br>
+                                            • Ask Gandalf questions when you're stuck<br>
+                                            • Use the refresh button to update your progress<br>
+                                            • Celebrate every achievement, big or small!</p>
+                                    </div>
+
+                                    <div class="scroll-footer">
+                                        <span>✨ Remember: Every expert was once a beginner! Keep exploring! ✨</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <div v-for="stat in statsCards" :key="stat.label" :class="['stat-card', stat.theme]">
                         <div class="stat-icon-wrapper">
@@ -325,6 +404,7 @@
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { userUtils, apiService } from '@/services/api'
+import { calculateSimpleLevel, getLevelTitle, getLevelProgress, checkForLevelUp } from '@/services/levelService'
 import EnhancedChatBot from '@/components/chat/EnhancedChatBot.vue'
 import Swal from 'sweetalert2'
 import MemoryGame from '@/components/activities/MemoryGame.vue'
@@ -364,13 +444,14 @@ export default {
         const showChat = ref(false)
         const streakDays = ref(0)
         const userLevel = ref(1)
+        const levelTitle = ref("🌱 New Adventurer")
         const showFinanceTracker = ref(false)
         const currentSavings = ref(0)
         const transactions = ref([])
         const savingsGoals = ref([])
         const Quote = ref("Believe in yourself and magic will happen! ✨")
         const showHealthTracker = ref(false)
-
+        const isScrollExpanded = ref(false)
 
         // Screen Time Tracking
         const sessionStartTime = ref(null)
@@ -414,6 +495,17 @@ export default {
             todayGoals: 0
         })
 
+        // Level calculations
+        const levelInfo = computed(() => {
+            return getLevelProgress({
+                starsEarned: userStats.value.totalStars || 0,
+                skillsMastered: userStats.value.skillsLearned || 0
+            })
+        })
+
+        const dynamicUserLevel = computed(() => levelInfo.value.currentLevel)
+        const dynamicLevelTitle = computed(() => levelInfo.value.title)
+
         // Motivational quote
         const fetchQuote = async () => {
             try {
@@ -455,6 +547,9 @@ export default {
                 const { data } = await axios.get(`/api/child/stats/${userId}`)
 
                 if (data.success) {
+                    // Store old stats for level-up checking
+                    const oldStats = { ...userStats.value }
+
                     // Update userStats with real data
                     userStats.value = {
                         totalStars: data.stats.totalStars,
@@ -463,9 +558,14 @@ export default {
                         todayGoals: data.stats.todayGoals
                     }
 
-                    // Update streak and level
+                    // Update streak
                     streakDays.value = data.stats.streakDays
-                    userLevel.value = data.stats.userLevel
+
+                    // Check for level up
+                    checkForLevelUp(
+                        { starsEarned: oldStats.totalStars || 0, skillsMastered: oldStats.skillsLearned || 0 },
+                        { starsEarned: userStats.value.totalStars || 0, skillsMastered: userStats.value.skillsLearned || 0 }
+                    )
 
                     // Update statsCards with real values
                     statsCards.value = [
@@ -579,24 +679,9 @@ export default {
                 progress: 0,
                 gradient: "linear-gradient(135deg, #a8edea, #fed6e3)"
             },
+
             {
                 id: 4,
-                name: "Art Creator",
-                description: "Express your creativity",
-                icon: "🎨",
-                progress: 0,
-                gradient: "linear-gradient(135deg, #fbc2eb, #a6c1ee)"
-            },
-            {
-                id: 5,
-                name: "Life Skills",
-                description: "Important daily habits",
-                icon: "🌱",
-                progress: 0,
-                gradient: "linear-gradient(135deg, #89f7fe, #66a6ff)"
-            },
-            {
-                id: 6,
                 name: "Good Touch Bad Touch",
                 description: "Learn about body safety and personal boundaries",
                 icon: "🛡️",
@@ -604,7 +689,7 @@ export default {
                 gradient: "linear-gradient(135deg, #fd79a8, #fdcb6e)"
             },
             {
-                id: 7,
+                id: 5,
                 name: "Safety Measures",
                 description: "General safety tips and emergency procedures",
                 icon: "🚨",
@@ -932,6 +1017,42 @@ export default {
                         router.push('/word-wizard')
                     }
                 })
+            } else if (skill.name === 'Math Magic') {
+                // Show confirmation dialog for Math Magic
+                Swal.fire({
+                    title: '🔢 Math Magic Academy Awaits!',
+                    html: `
+                        <div style="text-align: center; line-height: 1.8;">
+                            <div style="font-size: 4rem; margin: 1rem 0;">🧙‍♂️🔢✨</div>
+                            <p style="font-size: 1.2rem; color: #ffffff; font-weight: 600;">
+                                Ready to cast spells with numbers and discover mathematical wonders?
+                            </p>
+                            <p style="color: #ffffff; margin: 1rem 0; opacity: 0.9;">
+                                Explore interactive math tools, solve puzzles, and become 
+                                a master of mathematical magic!
+                            </p>
+                            <div style="font-size: 3rem; margin: 1rem 0;">🌟🔢🎯</div>
+                        </div>
+                    `,
+                    showCancelButton: true,
+                    confirmButtonText: '🪄 Yes, Start Math Magic!',
+                    cancelButtonText: '🏠 Maybe Later',
+                    background: 'linear-gradient(135deg, #ff6b6b 0%, #ffa726 100%)',
+                    color: 'white',
+                    customClass: {
+                        popup: 'math-magic-popup',
+                        confirmButton: 'magic-confirm-btn',
+                        cancelButton: 'magic-cancel-btn',
+                        actions: 'magic-actions'
+                    },
+                    buttonsStyling: false,
+                    width: '500px',
+                    padding: '2rem'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        router.push('/math-magic')
+                    }
+                })
             } else {
                 // TODO: Navigate to other skill detail pages
                 Swal.fire({
@@ -948,27 +1069,45 @@ export default {
 
         const openGeneralSafetyModule = () => {
             Swal.fire({
-                icon: 'info',
-                title: '🚨 Safety Measures',
+                title: '🛡️ Safety Champions Academy Awaits!',
                 html: `
-                    <div style="text-align: left; line-height: 1.6;">
-                        <p><strong>This module will cover:</strong></p>
-                        <ul style="margin-left: 1rem;">
-                            <li>🏠 Home Safety Tips</li>
-                            <li>🚸 Road Safety Rules</li>
-                            <li>🌐 Internet Safety Guidelines</li>
-                            <li>🔥 Fire Safety Procedures</li>
-                            <li>📱 Emergency Contacts</li>
-                            <li>🆘 What to do in emergencies</li>
+                    <div style="text-align: center; line-height: 1.8;">
+                        <div style="font-size: 4rem; margin: 1rem 0;">🚨🛡️⭐</div>
+                        <p style="font-size: 1.2rem; color: #ffffff; font-weight: 600;">
+                            Ready to become a Safety Champion?
+                        </p>
+                        <p style="color: #ffffff; margin: 1rem 0; opacity: 0.9;">
+                            Learn essential safety skills through interactive visual cards covering:
+                        </p>
+                        <div style="text-align: left; margin: 1rem 0; color: #ffffff;">
+                            <ul style="list-style: none; padding: 0;">
+                                <li style="margin: 0.5rem 0;">🏠 Home Safety Tips</li>
+                                <li style="margin: 0.5rem 0;">🚸 Road Safety Rules</li>
+                                <li style="margin: 0.5rem 0;">🌐 Internet Safety Guidelines</li>
+                                <li style="margin: 0.5rem 0;">🔥 Fire Safety Procedures</li>
+                                <li style="margin: 0.5rem 0;">📱 Emergency Contacts</li>
+                                <li style="margin: 0.5rem 0;">🆘 Emergency Procedures</li>
                         </ul>
-                        <p style="margin-top: 1rem;"><em>This comprehensive safety module is coming soon!</em></p>
+                        </div>
+                        <div style="font-size: 3rem; margin: 1rem 0;">🎓🚨🌟</div>
                     </div>
                 `,
-                showConfirmButton: true,
-                confirmButtonText: 'Got it! 👍',
-                background: 'linear-gradient(135deg, #ff9a9e, #fecfef)',
+                showCancelButton: true,
+                confirmButtonText: '🛡️ Yes, Start My Safety Training!',
+                cancelButtonText: '🏠 Maybe Later',
+                background: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
                 color: 'white',
-                width: '500px'
+                customClass: {
+                    popup: 'safety-adventure-popup',
+                    confirmButton: 'safety-confirm-btn',
+                    cancelButton: 'safety-cancel-btn',
+                    actions: 'safety-actions'
+                },
+                buttonsStyling: false,
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    router.push('/safety-measures')
+                }
             })
         }
 
@@ -1043,6 +1182,10 @@ export default {
             showTaskTracker.value = true;
         };
 
+        const toggleScrollExpanded = () => {
+            isScrollExpanded.value = !isScrollExpanded.value;
+        };
+
         const completedGoals = computed(() => {
             return savingsGoals.value.filter(goal =>
                 goal.current_amount >= goal.target_amount
@@ -1076,6 +1219,11 @@ export default {
                     const safetySkill = skillAreas.value.find(skill => skill.name === 'Good Touch Bad Touch')
                     if (safetySkill) {
                         safetySkill.progress = progress
+
+                        // Update skills mastered count if this module was completed
+                        if (progress === 100) {
+                            calculateSkillsMastered()
+                        }
                     }
                     return
                 }
@@ -1097,6 +1245,68 @@ export default {
                 }
             } catch (error) {
                 console.error('Error loading Good Touch Bad Touch progress:', error)
+            }
+        }
+
+        // Load progress from localStorage for Safety Measures
+        const loadSafetyMeasuresProgress = async () => {
+            try {
+                // First try to load from the new module progress format
+                const moduleProgress = localStorage.getItem(`safetyMeasuresProgress_${user.value?.id || 'guest'}`)
+                if (moduleProgress) {
+                    const progressData = JSON.parse(moduleProgress)
+                    let progress = 0
+
+                    if (progressData.isCompleted) {
+                        progress = 100
+                    } else if (progressData.exploredCards && progressData.exploredCards.length > 0) {
+                        const totalCards = 6 // Total number of safety categories
+                        progress = Math.round((progressData.exploredCards.length / totalCards) * 100)
+                    }
+
+                    const safetySkill = skillAreas.value.find(skill => skill.name === 'Safety Measures')
+                    if (safetySkill) {
+                        safetySkill.progress = progress
+
+                        // Update skills mastered count if this module was completed
+                        if (progress === 100) {
+                            calculateSkillsMastered()
+                        }
+                    }
+                    return
+                }
+
+                // Try backend if available
+                if (user.value?.id) {
+                    try {
+                        const backendProgress = await apiService.getModuleProgress(user.value.id, 'safety_measures')
+                        if (backendProgress.success && backendProgress.data) {
+                            const progressData = backendProgress.data.progress_data
+                            let progress = 0
+
+                            if (progressData.isCompleted) {
+                                progress = 100
+                            } else if (progressData.exploredCards && progressData.exploredCards.length > 0) {
+                                const totalCards = 6
+                                progress = Math.round((progressData.exploredCards.length / totalCards) * 100)
+                            }
+
+                            const safetySkill = skillAreas.value.find(skill => skill.name === 'Safety Measures')
+                            if (safetySkill) {
+                                safetySkill.progress = progress
+
+                                // Update skills mastered count if this module was completed
+                                if (progress === 100) {
+                                    calculateSkillsMastered()
+                                }
+                            }
+                        }
+                    } catch (error) {
+                        console.log('❌ Backend Safety Measures progress load failed:', error.message)
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading Safety Measures progress:', error)
             }
         }
 
@@ -1130,6 +1340,11 @@ export default {
                 if (scienceSkill) {
                     scienceSkill.progress = progress
                     console.log(`✅ Updated Science Explorer dashboard progress to ${progress}%`)
+
+                    // Update skills mastered count if this module was completed
+                    if (progress === 100) {
+                        calculateSkillsMastered()
+                    }
                 }
             } catch (error) {
                 console.error('❌ Error loading Science Explorer progress:', error)
@@ -1143,6 +1358,11 @@ export default {
                         if (scienceSkill) {
                             scienceSkill.progress = progress
                             console.log(`🔄 Fallback: Updated Science Explorer progress to ${progress}%`)
+
+                            // Update skills mastered count if this module was completed
+                            if (progress === 100) {
+                                calculateSkillsMastered()
+                            }
                         }
                     }
                 } catch (fallbackError) {
@@ -1157,30 +1377,53 @@ export default {
                 if (!user.value) return
 
                 console.log('📚 Loading Word Wizard progress for dashboard...')
+                console.log('📚 User ID:', user.value?.id)
 
-                // Try loading from backend first
-                const response = await apiService.getModuleProgress(user.value.id, 'word_wizard')
                 let progress = 0
+                let dataSource = 'none'
 
-                if (response.success && response.progress && response.progress.progress_data) {
-                    const progressData = response.progress.progress_data
+                // Always check localStorage first (most reliable)
+                const storageKey = `wordWizard_${user.value?.id}`
+                const saved = localStorage.getItem(storageKey)
+                console.log(`📚 Checking localStorage key: ${storageKey}`)
+                console.log(`📚 Saved data:`, saved)
+
+                if (saved) {
+                    const progressData = JSON.parse(saved)
                     progress = progressData.completed ? 100 : 0
-                    console.log(`📊 Backend: Word Wizard ${progress}% complete`)
-                } else {
-                    // Fallback to localStorage
-                    const saved = localStorage.getItem(`wordWizard_${user.value.id}`)
-                    if (saved) {
-                        const progressData = JSON.parse(saved)
-                        progress = progressData.completed ? 100 : 0
-                        console.log(`💾 LocalStorage: Word Wizard ${progress}% complete`)
+                    dataSource = 'localStorage'
+                    console.log(`💾 LocalStorage: Word Wizard ${progress}% complete`)
+                    console.log(`💾 Progress data:`, progressData)
+                }
+
+                // Try backend as secondary check
+                try {
+                    const response = await apiService.getModuleProgress(user.value.id, 'word_wizard')
+                    if (response.success && response.progress && response.progress.progress_data) {
+                        const backendData = response.progress.progress_data
+                        const backendProgress = backendData.completed ? 100 : 0
+                        console.log(`📊 Backend: Word Wizard ${backendProgress}% complete`)
+
+                        // Use backend data if it shows higher progress
+                        if (backendProgress > progress) {
+                            progress = backendProgress
+                            dataSource = 'backend'
+                        }
                     }
+                } catch (backendError) {
+                    console.log(`📊 Backend call failed, using localStorage data:`, backendError.message)
                 }
 
                 // Update the skill area progress
                 const wordWizardSkill = skillAreas.value.find(skill => skill.name === 'Word Wizard')
                 if (wordWizardSkill) {
                     wordWizardSkill.progress = progress
-                    console.log(`✅ Updated Word Wizard dashboard progress to ${progress}%`)
+                    console.log(`✅ Updated Word Wizard dashboard progress to ${progress}% (source: ${dataSource})`)
+
+                    // Update skills mastered count if this module was completed
+                    if (progress === 100) {
+                        calculateSkillsMastered()
+                    }
                 }
             } catch (error) {
                 console.error('❌ Error loading Word Wizard progress:', error)
@@ -1194,6 +1437,11 @@ export default {
                         if (wordWizardSkill) {
                             wordWizardSkill.progress = progress
                             console.log(`🔄 Fallback: Updated Word Wizard progress to ${progress}%`)
+
+                            // Update skills mastered count if this module was completed
+                            if (progress === 100) {
+                                calculateSkillsMastered()
+                            }
                         }
                     }
                 } catch (fallbackError) {
@@ -1202,13 +1450,172 @@ export default {
             }
         }
 
+        // Load progress from backend and localStorage for Math Magic
+        const loadMathMagicProgress = async () => {
+            try {
+                if (!user.value) return
+
+                console.log('🔢 Loading Math Magic progress for dashboard...')
+                console.log('🔢 User ID:', user.value?.id)
+
+                let progress = 0
+                let dataSource = 'none'
+
+                // Always check localStorage first (most reliable)
+                const storageKey = `mathMagic_${user.value?.id}`
+                const saved = localStorage.getItem(storageKey)
+                console.log(`🔢 Checking localStorage key: ${storageKey}`)
+                console.log(`🔢 Saved data:`, saved)
+
+                if (saved) {
+                    const progressData = JSON.parse(saved)
+                    progress = progressData.completed ? 100 : 0
+                    dataSource = 'localStorage'
+                    console.log(`💾 LocalStorage: Math Magic ${progress}% complete`)
+                    console.log(`💾 Progress data:`, progressData)
+                }
+
+                // Try backend as secondary check
+                try {
+                    const response = await apiService.getModuleProgress(user.value.id, 'math_magic')
+                    if (response.success && response.progress && response.progress.progress_data) {
+                        const backendData = response.progress.progress_data
+                        const backendProgress = backendData.completed ? 100 : 0
+                        console.log(`📊 Backend: Math Magic ${backendProgress}% complete`)
+
+                        // Use backend data if it shows higher progress
+                        if (backendProgress > progress) {
+                            progress = backendProgress
+                            dataSource = 'backend'
+                        }
+                    }
+                } catch (backendError) {
+                    console.log(`📊 Backend call failed, using localStorage data:`, backendError.message)
+                }
+
+                // Update the skill area progress
+                const mathMagicSkill = skillAreas.value.find(skill => skill.name === 'Math Magic')
+                if (mathMagicSkill) {
+                    mathMagicSkill.progress = progress
+                    console.log(`✅ Updated Math Magic dashboard progress to ${progress}% (source: ${dataSource})`)
+
+                    // Update skills mastered count if this module was completed
+                    if (progress === 100) {
+                        calculateSkillsMastered()
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Error loading Math Magic progress:', error)
+                // Try localStorage fallback on error
+                try {
+                    const saved = localStorage.getItem(`mathMagic_${user.value?.id}`)
+                    if (saved) {
+                        const progressData = JSON.parse(saved)
+                        const progress = progressData.completed ? 100 : 0
+                        const mathMagicSkill = skillAreas.value.find(skill => skill.name === 'Math Magic')
+                        if (mathMagicSkill) {
+                            mathMagicSkill.progress = progress
+                            console.log(`🔄 Fallback: Updated Math Magic progress to ${progress}%`)
+
+                            // Update skills mastered count if this module was completed
+                            if (progress === 100) {
+                                calculateSkillsMastered()
+                            }
+                        }
+                    }
+                } catch (fallbackError) {
+                    console.error('⚠️ Math Magic fallback also failed:', fallbackError)
+                }
+            }
+        }
+
         // Handle visibility change to refresh progress when returning to dashboard
         const handleVisibilityChange = async () => {
             if (!document.hidden) {
                 console.log('🔄 Dashboard became visible, refreshing module progress...')
-                await loadScienceExplorerProgress()
-                await loadWordWizardProgress()
+                // Add a small delay to ensure any saving operations from modules have completed
+                setTimeout(async () => {
+                    await loadSafetyMeasuresProgress()
+                    await loadScienceExplorerProgress()
+                    await loadWordWizardProgress()
+                    await loadMathMagicProgress()
+                    // Update skills mastered after loading progress
+                    calculateSkillsMastered()
+                }, 500)
             }
+        }
+
+        // Calculate skills mastered based on module completion
+        const calculateSkillsMastered = () => {
+            let skillsMastered = 0
+
+            skillAreas.value.forEach(skill => {
+                if (skill.progress === 100) {
+                    skillsMastered++
+                }
+            })
+
+            console.log(`📊 Calculated skills mastered: ${skillsMastered}`)
+
+            // Store old stats for level-up checking
+            const oldStats = { ...userStats.value }
+
+            // Update the stats
+            userStats.value.skillsLearned = skillsMastered
+
+            // Update statsCards
+            const skillsCard = statsCards.value.find(card => card.label === "🧠 Skills Mastered")
+            if (skillsCard) {
+                skillsCard.value = skillsMastered
+            }
+
+            // Check for level up due to skills mastery
+            checkForLevelUp(
+                { starsEarned: oldStats.totalStars || 0, skillsMastered: oldStats.skillsLearned || 0 },
+                { starsEarned: userStats.value.totalStars || 0, skillsMastered: userStats.value.skillsLearned || 0 }
+            )
+
+            return skillsMastered
+        }
+
+        // Force refresh all module progress
+        const refreshAllProgress = async () => {
+            console.log('🔄 Force refreshing all module progress...')
+
+            // Show loading message
+            Swal.fire({
+                title: '🔄 Refreshing Progress...',
+                text: 'Updating your learning achievements!',
+                timer: 1000,
+                timerProgressBar: true,
+                showConfirmButton: false,
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                color: 'white'
+            })
+
+            await Promise.all([
+                loadGoodTouchBadTouchProgress(),
+                loadSafetyMeasuresProgress(),
+                loadScienceExplorerProgress(),
+                loadWordWizardProgress(),
+                loadMathMagicProgress()
+            ])
+
+            // Calculate and update skills mastered after loading all progress
+            calculateSkillsMastered()
+
+            // Show success message
+            setTimeout(() => {
+                Swal.fire({
+                    icon: 'success',
+                    title: '✅ Progress Updated!',
+                    text: 'All your learning progress has been refreshed!',
+                    timer: 2000,
+                    showConfirmButton: false,
+                    background: 'linear-gradient(135deg, #28a745, #20c997)',
+                    color: 'white'
+                })
+            }, 1100)
         }
 
         onMounted(async () => {
@@ -1218,8 +1625,13 @@ export default {
             fetchLoginStreak()
             fetchDashboardStats()
             await loadGoodTouchBadTouchProgress()
+            await loadSafetyMeasuresProgress()
             await loadScienceExplorerProgress()
             await loadWordWizardProgress()
+            await loadMathMagicProgress()
+
+            // Calculate skills mastered after loading all module progress
+            calculateSkillsMastered()
 
             // Add event listener for page unload
             window.addEventListener('beforeunload', logScreenTime)
@@ -1273,11 +1685,20 @@ export default {
             showHealthTracker,
             openGeneralSafetyModule,
             loadGoodTouchBadTouchProgress,
+            loadSafetyMeasuresProgress,
             loadScienceExplorerProgress,
             loadWordWizardProgress,
+            loadMathMagicProgress,
             handleVisibilityChange,
+            refreshAllProgress,
+            calculateSkillsMastered,
             fetchDashboardStats,  // Export for use in template/other functions
-            addTestAchievement
+            addTestAchievement,
+            isScrollExpanded,
+            toggleScrollExpanded,
+            levelInfo,
+            dynamicUserLevel,
+            dynamicLevelTitle
         }
     }
 }
@@ -1369,6 +1790,36 @@ export default {
 .user-level {
     font-size: 0.8rem;
     color: #666;
+    font-weight: 600;
+}
+
+.level-progress {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.3rem;
+}
+
+.level-progress-bar {
+    width: 80px;
+    height: 6px;
+    background: rgba(102, 126, 234, 0.2);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.level-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #FFD700, #FFA500);
+    transition: width 0.5s ease;
+    border-radius: 3px;
+}
+
+.level-progress-text {
+    font-size: 0.7rem;
+    color: #FFD700;
+    font-weight: 600;
+    white-space: nowrap;
 }
 
 .logout-btn {
@@ -1657,6 +2108,242 @@ export default {
 
 .title-icon {
     font-size: 2rem;
+}
+
+.header-controls {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.5rem;
+}
+
+.refresh-btn {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    padding: 0.6rem 1.2rem;
+    border-radius: 20px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+    font-size: 0.9rem;
+    flex-shrink: 0;
+}
+
+.refresh-btn:hover {
+    background: rgba(255, 255, 255, 0.3);
+    border-color: rgba(255, 255, 255, 0.5);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2);
+}
+
+/* Scroll Backdrop */
+.scroll-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(2px);
+    z-index: 999;
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    0% {
+        opacity: 0;
+    }
+
+    100% {
+        opacity: 1;
+    }
+}
+
+/* Golden Scroll Styles */
+.golden-scroll {
+    background: linear-gradient(145deg, #FFD700 0%, #FFA500 20%, #FFED4E 40%, #F39C12 60%, #E67E22 80%, #D35400 100%);
+    border: 3px solid #B8860B;
+    border-radius: 15px;
+    box-shadow:
+        0 8px 25px rgba(255, 215, 0, 0.4),
+        inset 0 2px 5px rgba(255, 255, 255, 0.3),
+        inset 0 -2px 5px rgba(0, 0, 0, 0.2);
+    cursor: pointer;
+    transition: all 0.4s ease;
+    position: relative;
+    overflow: visible;
+    max-width: 350px;
+    animation: scrollGlow 3s ease-in-out infinite alternate;
+    z-index: 1000;
+}
+
+.golden-scroll::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, #FFD700, #FFA500, #FFED4E, #F39C12);
+    border-radius: 18px;
+    z-index: -1;
+}
+
+.golden-scroll::after {
+    content: '';
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    right: 5px;
+    bottom: 5px;
+    background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.3), transparent 50%);
+    border-radius: 12px;
+    pointer-events: none;
+}
+
+.golden-scroll:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow:
+        0 12px 35px rgba(255, 215, 0, 0.6),
+        inset 0 2px 8px rgba(255, 255, 255, 0.4),
+        inset 0 -2px 8px rgba(0, 0, 0, 0.3);
+}
+
+.scroll-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.5rem;
+    background: rgba(0, 0, 0, 0.1);
+    border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+    color: #2C1810;
+    font-weight: 700;
+    text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+    border-radius: 15px 15px 0 0;
+    transition: all 0.3s ease;
+}
+
+.scroll-header:hover {
+    background: rgba(0, 0, 0, 0.15);
+    transform: translateY(-1px);
+}
+
+.scroll-icon {
+    font-size: 1.5rem;
+    margin-right: 0.5rem;
+}
+
+.scroll-title {
+    flex: 1;
+    font-size: 1.1rem;
+    letter-spacing: 0.5px;
+}
+
+.scroll-toggle {
+    font-size: 1.2rem;
+    transition: transform 0.3s ease;
+    color: #8B4513;
+}
+
+.golden-scroll:hover .scroll-toggle {
+    transform: scale(1.2);
+}
+
+.scroll-content {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    padding: 1.5rem;
+    color: #2C1810;
+    animation: expandContent 0.4s ease-out;
+    background: linear-gradient(145deg, #FFD700 0%, #FFA500 20%, #FFED4E 40%, #F39C12 60%, #E67E22 80%, #D35400 100%);
+    border: 3px solid #B8860B;
+    border-top: none;
+    border-radius: 0 0 15px 15px;
+    box-shadow: 0 8px 25px rgba(255, 215, 0, 0.6);
+    z-index: 1001;
+    max-height: 400px;
+    overflow-y: auto;
+}
+
+.scroll-section {
+    margin-bottom: 1.2rem;
+    padding: 0.8rem;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    border-left: 4px solid #B8860B;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.scroll-section:last-of-type {
+    margin-bottom: 1rem;
+}
+
+.scroll-section h4 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1rem;
+    color: #2C1810;
+    font-weight: 700;
+    text-shadow: 1px 1px 1px rgba(255, 255, 255, 0.5);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.scroll-section p {
+    margin: 0;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    color: #3E2723;
+    text-shadow: 0.5px 0.5px 1px rgba(255, 255, 255, 0.3);
+}
+
+.scroll-footer {
+    text-align: center;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    border-top: 2px solid rgba(0, 0, 0, 0.1);
+    color: #2C1810;
+    font-weight: 600;
+    font-style: italic;
+    text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.4);
+}
+
+/* Animations */
+@keyframes scrollGlow {
+    0% {
+        box-shadow:
+            0 8px 25px rgba(255, 215, 0, 0.4),
+            inset 0 2px 5px rgba(255, 255, 255, 0.3),
+            inset 0 -2px 5px rgba(0, 0, 0, 0.2);
+    }
+
+    100% {
+        box-shadow:
+            0 8px 25px rgba(255, 215, 0, 0.6),
+            inset 0 2px 8px rgba(255, 255, 255, 0.4),
+            inset 0 -2px 8px rgba(0, 0, 0, 0.3);
+    }
+}
+
+
+
+@keyframes expandContent {
+    0% {
+        opacity: 0;
+        transform: translateY(-20px) scaleY(0);
+        transform-origin: top;
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0) scaleY(1);
+        transform-origin: top;
+    }
 }
 
 /* Features Section */
@@ -2869,6 +3556,45 @@ export default {
         flex-direction: column;
         gap: 1rem;
     }
+
+    .level-progress-bar {
+        width: 60px;
+    }
+
+    .level-progress-text {
+        font-size: 0.65rem;
+    }
+
+    .header-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+    }
+
+    .golden-scroll {
+        max-width: 100%;
+    }
+
+    .scroll-header {
+        padding: 0.8rem 1rem;
+    }
+
+    .scroll-content {
+        padding: 1rem;
+    }
+
+    .scroll-section {
+        padding: 0.6rem;
+        margin-bottom: 0.8rem;
+    }
+
+    .scroll-section h4 {
+        font-size: 0.9rem;
+    }
+
+    .scroll-section p {
+        font-size: 0.8rem;
+    }
 }
 
 @media (max-width: 480px) {
@@ -2883,6 +3609,34 @@ export default {
     .quest-card {
         flex-direction: column;
         text-align: center;
+    }
+
+    .stats-header {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+        gap: 1rem;
+    }
+
+    .section-title {
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+
+    .header-controls {
+        justify-content: center;
+    }
+
+    .golden-scroll {
+        align-self: center;
+    }
+
+    .scroll-title {
+        font-size: 1rem;
+    }
+
+    .scroll-icon {
+        font-size: 1.3rem;
     }
 }
 

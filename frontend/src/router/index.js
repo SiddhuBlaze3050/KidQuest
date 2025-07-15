@@ -9,6 +9,8 @@ import PyschometricAssessment from '../views/PyschometricAssessment.vue'
 import GoodTouchBadTouchModule from '../views/GoodTouchBadTouchModule.vue'
 import ScienceExplorerModule from '../views/ScienceExplorerModule.vue'
 import WordWizardModule from '../views/WordWizardModule.vue'
+import MathMagicModule from '../views/MathMagicModule.vue'
+import SafetyMeasuresModule from '../views/SafetyMeasuresModule.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -120,6 +122,32 @@ const router = createRouter({
       path: '/word-wizard',
       name: 'word-wizard',
       component: WordWizardModule,
+      beforeEnter: (to, from, next) => {
+        const user = userUtils.getCurrentUser()
+        if (user) {
+          next()
+        } else {
+          next('/')
+        }
+      },
+    },
+    {
+      path: '/math-magic',
+      name: 'math-magic',
+      component: MathMagicModule,
+      beforeEnter: (to, from, next) => {
+        const user = userUtils.getCurrentUser()
+        if (user) {
+          next()
+        } else {
+          next('/')
+        }
+      },
+    },
+    {
+      path: '/safety-measures',
+      name: 'safety-measures',
+      component: SafetyMeasuresModule,
       beforeEnter: (to, from, next) => {
         const user = userUtils.getCurrentUser()
         if (user) {
