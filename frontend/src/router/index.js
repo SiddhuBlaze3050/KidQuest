@@ -8,6 +8,7 @@ import ParentDashboard from '../views/ParentDashboard.vue'
 import PyschometricAssessment from '../views/PyschometricAssessment.vue'
 import GoodTouchBadTouchModule from '../views/GoodTouchBadTouchModule.vue'
 import ScienceExplorerModule from '../views/ScienceExplorerModule.vue'
+import WordWizardModule from '../views/WordWizardModule.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -106,6 +107,19 @@ const router = createRouter({
       path: '/science-explorer',
       name: 'science-explorer',
       component: ScienceExplorerModule,
+      beforeEnter: (to, from, next) => {
+        const user = userUtils.getCurrentUser()
+        if (user) {
+          next()
+        } else {
+          next('/')
+        }
+      },
+    },
+    {
+      path: '/word-wizard',
+      name: 'word-wizard',
+      component: WordWizardModule,
       beforeEnter: (to, from, next) => {
         const user = userUtils.getCurrentUser()
         if (user) {

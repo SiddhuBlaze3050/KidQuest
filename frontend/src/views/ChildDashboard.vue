@@ -896,6 +896,42 @@ export default {
                         router.push('/science-explorer')
                     }
                 })
+            } else if (skill.name === 'Word Wizard') {
+                // Show confirmation dialog for Word Wizard
+                Swal.fire({
+                    title: '📚 Word Wizard Academy Awaits!',
+                    html: `
+                        <div style="text-align: center; line-height: 1.8;">
+                            <div style="font-size: 4rem; margin: 1rem 0;">🧙‍♂️📖✨</div>
+                            <p style="font-size: 1.2rem; color: #ffffff; font-weight: 600;">
+                                Ready to cast spells with words and expand your vocabulary?
+                            </p>
+                            <p style="color: #ffffff; margin: 1rem 0; opacity: 0.9;">
+                                Discover amazing words, learn their meanings, and become 
+                                a master of language through fun activities!
+                            </p>
+                            <div style="font-size: 3rem; margin: 1rem 0;">🌟📚🎯</div>
+                        </div>
+                    `,
+                    showCancelButton: true,
+                    confirmButtonText: '🪄 Yes, Start My Magic!',
+                    cancelButtonText: '🏠 Maybe Later',
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    color: 'white',
+                    customClass: {
+                        popup: 'word-wizard-popup',
+                        confirmButton: 'wizard-confirm-btn',
+                        cancelButton: 'wizard-cancel-btn',
+                        actions: 'wizard-actions'
+                    },
+                    buttonsStyling: false,
+                    width: '500px',
+                    padding: '2rem'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        router.push('/word-wizard')
+                    }
+                })
             } else {
                 // TODO: Navigate to other skill detail pages
                 Swal.fire({
@@ -1115,11 +1151,63 @@ export default {
             }
         }
 
+        // Load progress from backend and localStorage for Word Wizard
+        const loadWordWizardProgress = async () => {
+            try {
+                if (!user.value) return
+
+                console.log('📚 Loading Word Wizard progress for dashboard...')
+
+                // Try loading from backend first
+                const response = await apiService.getModuleProgress(user.value.id, 'word_wizard')
+                let progress = 0
+
+                if (response.success && response.progress && response.progress.progress_data) {
+                    const progressData = response.progress.progress_data
+                    progress = progressData.completed ? 100 : 0
+                    console.log(`📊 Backend: Word Wizard ${progress}% complete`)
+                } else {
+                    // Fallback to localStorage
+                    const saved = localStorage.getItem(`wordWizard_${user.value.id}`)
+                    if (saved) {
+                        const progressData = JSON.parse(saved)
+                        progress = progressData.completed ? 100 : 0
+                        console.log(`💾 LocalStorage: Word Wizard ${progress}% complete`)
+                    }
+                }
+
+                // Update the skill area progress
+                const wordWizardSkill = skillAreas.value.find(skill => skill.name === 'Word Wizard')
+                if (wordWizardSkill) {
+                    wordWizardSkill.progress = progress
+                    console.log(`✅ Updated Word Wizard dashboard progress to ${progress}%`)
+                }
+            } catch (error) {
+                console.error('❌ Error loading Word Wizard progress:', error)
+                // Try localStorage fallback on error
+                try {
+                    const saved = localStorage.getItem(`wordWizard_${user.value?.id}`)
+                    if (saved) {
+                        const progressData = JSON.parse(saved)
+                        const progress = progressData.completed ? 100 : 0
+                        const wordWizardSkill = skillAreas.value.find(skill => skill.name === 'Word Wizard')
+                        if (wordWizardSkill) {
+                            wordWizardSkill.progress = progress
+                            console.log(`🔄 Fallback: Updated Word Wizard progress to ${progress}%`)
+                        }
+                    }
+                } catch (fallbackError) {
+                    console.error('⚠️ Word Wizard fallback also failed:', fallbackError)
+                }
+            }
+        }
+
         // Handle visibility change to refresh progress when returning to dashboard
         const handleVisibilityChange = async () => {
             if (!document.hidden) {
-                console.log('🔄 Dashboard became visible, refreshing Science Explorer progress...')
+                console.log('🔄 Dashboard became visible, refreshing module progress...')
                 await loadScienceExplorerProgress()
+                await loadWordWizardProgress()
             }
         }
 
@@ -1131,6 +1219,7 @@ export default {
             fetchDashboardStats()
             await loadGoodTouchBadTouchProgress()
             await loadScienceExplorerProgress()
+            await loadWordWizardProgress()
 
             // Add event listener for page unload
             window.addEventListener('beforeunload', logScreenTime)
@@ -1185,6 +1274,7 @@ export default {
             openGeneralSafetyModule,
             loadGoodTouchBadTouchProgress,
             loadScienceExplorerProgress,
+            loadWordWizardProgress,
             handleVisibilityChange,
             fetchDashboardStats,  // Export for use in template/other functions
             addTestAchievement
