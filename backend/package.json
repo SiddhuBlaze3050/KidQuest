@@ -1,0 +1,16 @@
+{
+  "name": "se-project-backend",
+  "version": "1.0.0",
+  "description": "Backend for SE Project - Child Development Platform",
+  "main": "app.py",
+  "scripts": {
+    "start": "python app.py",
+    "dev": "python app.py"
+  },
+  "keywords": ["flask", "backend", "child-development"],
+  "author": "SE May Team 25",
+  "license": "MIT",
+  "engines": {
+    "python": ">=3.8"
+  }
+}

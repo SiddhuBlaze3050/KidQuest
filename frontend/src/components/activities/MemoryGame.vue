@@ -41,7 +41,16 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue';
+import { apiService } from '../../services/api.js';
+import Swal from 'sweetalert2';
+
+const props = defineProps({
+  user: {
+    type: Object,
+    required: true
+  }
+});
 
 const emit = defineEmits(['close']);
 const icons = ['🧙‍♂️', '🐉', '🏰', '🔮', '⚔️', '🛡️', '📜', '💎'];
@@ -50,6 +59,7 @@ const flippedCards = ref([]);
 const moves = ref(0);
 const timer = ref(0);
 let timerInterval = null;
+const gameCompleted = ref(false);
 
 const gameComplete = computed(() => cards.value.length > 0 && cards.value.every(c => c.matched));
 const formattedTime = computed(() => {
@@ -68,6 +78,7 @@ const startTimer = () => {
 const resetGame = () => {
   moves.value = 0;
   timer.value = 0;
+  gameCompleted.value = false; // Reset completion tracking
   startTimer();
 
   const doubledIcons = [...icons, ...icons];
@@ -104,6 +115,52 @@ const flipCard = (card) => {
     }
   }
 };
+
+// Track game completion and award stars
+watch(gameComplete, async (isComplete) => {
+  if (isComplete && !gameCompleted.value) {
+    gameCompleted.value = true;
+
+    try {
+      // Track the completion in the backend
+      const response = await fetch('/api/activity/complete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          user_id: props.user.id,
+          activity_name: 'Memory Game'
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Show success notification with stars earned
+        await Swal.fire({
+          icon: 'success',
+          title: '🎉 Memory Game Complete!',
+          html: `
+            <div style="text-align: center;">
+              <p><strong>Congratulations!</strong></p>
+              <p>🌟 You earned <strong>${data.stars_earned} stars</strong>!</p>
+              <p>⏱️ Time: ${formattedTime.value}</p>
+              <p>🎯 Moves: ${moves.value}</p>
+            </div>
+          `,
+          timer: 3000,
+          showConfirmButton: false,
+          background: 'linear-gradient(135deg, #667eea, #764ba2)',
+          color: 'white'
+        });
+      }
+    } catch (error) {
+      console.error('Error tracking memory game completion:', error);
+    }
+  }
+});
 
 onMounted(() => {
   resetGame();

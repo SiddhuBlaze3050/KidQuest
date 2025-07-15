@@ -195,6 +195,14 @@ class HealthStreak(db.Model):
     current_streak = db.Column(db.Integer, default=0)
     last_updated = db.Column(db.Date, default=date.today)
 
+class LoginStreak(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
+    current_streak = db.Column(db.Integer, default=0)
+    last_login_date = db.Column(db.Date, default=date.today)
+    total_logins = db.Column(db.Integer, default=0)
+    longest_streak = db.Column(db.Integer, default=0)
+
 class ScreenTime(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
@@ -239,3 +247,6 @@ class DashboardMetrics(db.Model):
     average_session_duration = db.Column(db.Float)  
     top_features = db.Column(db.Text) 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+

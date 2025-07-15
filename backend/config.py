@@ -2,7 +2,13 @@ import os
 
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'se_project_key')
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', 'sqlite:///app.db')
+    
+    # Backend directory path
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    
+    INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
+    DATABASE_PATH = os.path.join(INSTANCE_DIR, 'app.db')
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', f'sqlite:///{DATABASE_PATH}')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     GROQ_API_KEY = "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"
