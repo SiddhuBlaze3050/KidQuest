@@ -3,12 +3,11 @@ import os
 class Config:
     SECRET_KEY = os.environ.get('SECRET_KEY', 'se_project_key')
     
-    # Get the directory where this config file is located (backend directory)
+    # Backend directory path
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     
-    # Construct database path relative to backend directory
-    DATABASE_PATH = os.path.join(BASE_DIR, 'instance', 'app.db')
-    
+    INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
+    DATABASE_PATH = os.path.join(INSTANCE_DIR, 'app.db')
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', f'sqlite:///{DATABASE_PATH}')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 

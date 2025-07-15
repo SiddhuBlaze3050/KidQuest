@@ -23,6 +23,11 @@ app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = secrets.token_hex(16)
 
+# Ensure instance directory exists on app startup
+instance_dir = getattr(app.config, 'INSTANCE_DIR', None)
+if instance_dir:
+    os.makedirs(instance_dir, exist_ok=True)
+
 # Configure CORS for Vue.js frontend
 CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"], supports_credentials=True)
 
@@ -49,6 +54,7 @@ def create_default_admin():
             )
             db.session.add(admin_user)
             db.session.commit()
+            print("Database tables created successfully!")
             print("Default admin created successfully!")
         else:
             print("Admin already exists!")
@@ -2290,9 +2296,25 @@ def internal_error(error):
 
 def initialize_database():
     """Initialize the database and create default users"""
-    with app.app_context():
-        db.create_all()
-        create_default_admin()
+    try:
+        # Ensure instance directory exists
+        instance_dir = app.config.get('INSTANCE_DIR')
+        if instance_dir and not os.path.exists(instance_dir):
+            os.makedirs(instance_dir, exist_ok=True)
+            
+        with app.app_context():
+            # Create all database tables
+            db.create_all()
+            # print("Database created successfully")
+            
+            # Create default admin user
+            create_default_admin()
+            
+    except Exception as e:
+        print(f"❌ Error initializing database: {e}")
+        import traceback
+        traceback.print_exc()
+        raise e
 
 # ---------------------------
 # Simple Activity Achievement Route
