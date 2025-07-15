@@ -17,7 +17,7 @@ from datetime import datetime, date
 import json
 
 # Import our psychometry module
-from psychometry import PsychometryService
+from services.psychometry import PsychometryService
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -1525,13 +1525,14 @@ def resume_pomodoro(session_id):
 def abandon_pomodoro(session_id):
     """Abandon a pomodoro session"""
     try:
+        data = request.get_json()
         session = db.session.get(PomodoroSession, session_id)
         if not session:
             return jsonify({'success': False, 'error': 'Session not found'}), 404
 
         # Get work and break duration from request
-        work_duration = data.get('work_duration', 0)
-        break_duration = data.get('break_duration', 0)
+        work_duration = data.get('work_duration', 0) if data else 0
+        break_duration = data.get('break_duration', 0) if data else 0
         
         # Add any remaining active time
         if session.start_time:
@@ -2287,9 +2288,11 @@ def internal_error(error):
 # Application Initialization
 # ---------------------------
 
-with app.app_context():
-    db.create_all()
-    create_default_admin()
+def initialize_database():
+    """Initialize the database and create default users"""
+    with app.app_context():
+        db.create_all()
+        create_default_admin()
 
 # ---------------------------
 # Simple Activity Achievement Route
@@ -2446,4 +2449,6 @@ def create_achievement():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
+    # Initialize database when running directly
+    initialize_database()
     app.run(debug=True, port=5000)
