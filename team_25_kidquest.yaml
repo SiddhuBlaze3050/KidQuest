@@ -5,9 +5,9 @@ info:
   version: 1.0.0
   description: |
     KidQuest is a comprehensive child development platform that provides educational tools, 
-    emotional support, health tracking, and parent-teacher collaboration features.
+    emotional support, health tracking, financial literacy, and parent-teacher collaboration features.
     
-    **Authentication**: Most endpoints require user authentication. Use the login endpoint 
+    **Authentication**: Most endpoints require session-based authentication. Use the login endpoint 
     to obtain session credentials.
     
     **User Roles**: 
@@ -33,6 +33,7 @@ components:
       type: apiKey
       in: cookie
       name: session
+      description: Flask session-based authentication
     
   schemas:
     User:
@@ -266,6 +267,39 @@ components:
         error:
           type: string
 
+    Achievement:
+      type: object
+      properties:
+        id:
+          type: integer
+        badge_name:
+          type: string
+        description:
+          type: string
+        date_awarded:
+          type: string
+          format: date-time
+        badge_type:
+          type: string
+        icon:
+          type: string
+
+    DashboardStats:
+      type: object
+      properties:
+        totalStars:
+          type: integer
+        questsCompleted:
+          type: integer
+        skillsLearned:
+          type: integer
+        todayGoals:
+          type: integer
+        streakDays:
+          type: integer
+        userLevel:
+          type: integer
+
 paths:
   # Authentication Endpoints
   /api/auth/register:
@@ -280,6 +314,33 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              child_registration:
+                summary: Child Registration
+                value:
+                  username: "johnny_quest"
+                  password: "secret123"
+                  email: "johnny@example.com"
+                  role: "child"
+              parent_registration:
+                summary: Parent Registration
+                value:
+                  username: "parent_user"
+                  password: "parent123"
+                  email: "parent@example.com"
+                  role: "parent"
+                  relationship_type: "Mother"
+                  child_username: "johnny_quest"
+              teacher_registration:
+                summary: Teacher Registration
+                value:
+                  username: "teacher_smith"
+                  password: "teach123"
+                  email: "teacher@school.edu"
+                  role: "teacher"
+                  className: "Grade 5A"
+                  primarySubject: "Mathematics"
+                  selectedStudents: [1, 2, 3]
       responses:
         '201':
           description: User registered successfully
@@ -296,8 +357,16 @@ paths:
                     $ref: '#/components/schemas/User'
         '400':
           description: Missing required fields or invalid data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
         '409':
           description: Username or email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
 
   /api/auth/login:
     post:
@@ -311,6 +380,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/LoginRequest'
+            example:
+              username: "johnny_quest"
+              password: "secret123"
       responses:
         '200':
           description: Login successful
@@ -327,6 +399,10 @@ paths:
                     $ref: '#/components/schemas/User'
         '401':
           description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
 
   # Chat/Emotional Support Endpoints
   /api/chat:
@@ -343,6 +419,10 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/ChatMessage'
+            example:
+              message: "I'm feeling sad today"
+              user_id: 1
+              session_id: 123
       responses:
         '200':
           description: Chatbot response
@@ -352,6 +432,10 @@ paths:
                 $ref: '#/components/schemas/ChatResponse'
         '400':
           description: Message is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
 
   /api/chat/history/{user_id}:
     get:
@@ -367,6 +451,7 @@ paths:
           required: true
           schema:
             type: integer
+          description: User ID
       responses:
         '200':
           description: Chat history retrieved
@@ -381,6 +466,19 @@ paths:
                     type: array
                     items:
                       type: object
+                      properties:
+                        id:
+                          type: string
+                        message:
+                          type: string
+                        sender:
+                          type: string
+                          enum: [user, assistant]
+                        timestamp:
+                          type: string
+                          format: date-time
+                        session_id:
+                          type: integer
 
   /api/chat/sessions/{user_id}:
     get:
@@ -396,6 +494,7 @@ paths:
           required: true
           schema:
             type: integer
+          description: User ID
       responses:
         '200':
           description: Chat sessions retrieved
@@ -410,6 +509,18 @@ paths:
                     type: array
                     items:
                       type: object
+                      properties:
+                        id:
+                          type: integer
+                        updated_at:
+                          type: string
+                          format: date-time
+                        interaction_count:
+                          type: integer
+                        last_message_preview:
+                          type: string
+                        mood_tag:
+                          type: string
 
   # Finance Tracker Endpoints
   /api/finance/transactions/{user_id}:
@@ -426,6 +537,7 @@ paths:
           required: true
           schema:
             type: integer
+          description: User ID
       responses:
         '200':
           description: Transactions retrieved
@@ -471,6 +583,11 @@ paths:
                 - amount
                 - type
                 - description
+            example:
+              user_id: 1
+              amount: 25.50
+              type: "income"
+              description: "Allowance money"
       responses:
         '201':
           description: Transaction added successfully
@@ -498,6 +615,7 @@ paths:
           required: true
           schema:
             type: integer
+          description: User ID
       responses:
         '200':
           description: Savings goals retrieved
@@ -539,6 +657,10 @@ paths:
                 - user_id
                 - label
                 - target_amount
+            example:
+              user_id: 1
+              label: "New Bike"
+              target_amount: 150.00
       responses:
         '201':
           description: Savings goal created
@@ -567,6 +689,7 @@ paths:
           required: true
           schema:
             type: integer
+          description: User ID
       responses:
         '200':
           description: Tasks retrieved
@@ -580,7 +703,25 @@ paths:
                   tasks:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Task'
+                      allOf:
+                        - $ref: '#/components/schemas/Task'
+                        - type: object
+                          properties:
+                            session_stats:
+                              type: object
+                              properties:
+                                total_sessions:
+                                  type: integer
+                                completed_sessions:
+                                  type: integer
+                                incomplete_sessions:
+                                  type: integer
+                                total_work_time:
+                                  type: integer
+                                  description: Total work time in minutes
+                                total_break_time:
+                                  type: integer
+                                  description: Total break time in minutes
 
   /api/tasks:
     post:
@@ -609,6 +750,11 @@ paths:
               required:
                 - user_id
                 - task
+            example:
+              user_id: 1
+              subject: "Mathematics"
+              task: "Complete chapter 5 exercises"
+              due_date: "2025-07-20"
       responses:
         '201':
           description: Task created successfully
@@ -619,6 +765,8 @@ paths:
                 properties:
                   success:
                     type: boolean
+                  message:
+                    type: string
                   task:
                     $ref: '#/components/schemas/Task'
 
@@ -636,6 +784,7 @@ paths:
           required: true
           schema:
             type: integer
+          description: Task ID
       requestBody:
         required: true
         content:
@@ -648,11 +797,26 @@ paths:
                   enum: [pending, in-progress, completed]
               required:
                 - status
+            example:
+              status: "completed"
       responses:
         '200':
           description: Task status updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
         '404':
           description: Task not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
 
   # Pomodoro Timer Endpoints
   /api/pomodoro/start:
@@ -677,6 +841,9 @@ paths:
               required:
                 - user_id
                 - homework_id
+            example:
+              user_id: 1
+              homework_id: 5
       responses:
         '201':
           description: Pomodoro session started
@@ -704,6 +871,7 @@ paths:
           required: true
           schema:
             type: integer
+          description: Session ID
       requestBody:
         required: true
         content:
@@ -717,11 +885,123 @@ paths:
                 break_duration:
                   type: integer
                   description: Break duration in seconds
+            example:
+              work_duration: 1500
+              break_duration: 300
       responses:
         '200':
           description: Session completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
         '404':
           description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /api/pomodoro/pause/{session_id}:
+    put:
+      summary: Pause Pomodoro session
+      description: Pause a running Pomodoro session
+      tags:
+        - Pomodoro Timer
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Session ID
+      responses:
+        '200':
+          description: Session paused
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+
+  /api/pomodoro/resume/{session_id}:
+    put:
+      summary: Resume Pomodoro session
+      description: Resume a paused Pomodoro session
+      tags:
+        - Pomodoro Timer
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Session ID
+      responses:
+        '200':
+          description: Session resumed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+
+  /api/pomodoro/abandon/{session_id}:
+    put:
+      summary: Abandon Pomodoro session
+      description: Abandon a Pomodoro session
+      tags:
+        - Pomodoro Timer
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Session ID
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                work_duration:
+                  type: integer
+                  description: Work duration in seconds
+                break_duration:
+                  type: integer
+                  description: Break duration in seconds
+      responses:
+        '200':
+          description: Session abandoned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
 
   # Health Tracking Endpoints
   /api/health/tasks/{user_id}:
@@ -738,6 +1018,7 @@ paths:
           required: true
           schema:
             type: integer
+          description: User ID
       responses:
         '200':
           description: Health tasks retrieved
@@ -767,6 +1048,7 @@ paths:
           required: true
           schema:
             type: integer
+          description: Task ID
       responses:
         '200':
           description: Task status toggled
@@ -794,6 +1076,7 @@ paths:
           required: true
           schema:
             type: integer
+          description: User ID
       responses:
         '200':
           description: Water intake retrieved
@@ -820,6 +1103,7 @@ paths:
           required: true
           schema:
             type: integer
+          description: User ID
       responses:
         '200':
           description: Water intake incremented
@@ -847,6 +1131,7 @@ paths:
           required: true
           schema:
             type: integer
+          description: User ID
       responses:
         '200':
           description: Health streak retrieved
@@ -859,6 +1144,43 @@ paths:
                     type: boolean
                   streak:
                     type: integer
+
+  /api/health/water/log/{user_id}:
+    get:
+      summary: Get water intake log
+      description: Get the last 7 days of water intake history
+      tags:
+        - Health Tracking
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: User ID
+      responses:
+        '200':
+          description: Water intake log retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  log:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        date:
+                          type: string
+                          description: Day abbreviation (Mon, Tue, etc.)
+                        count:
+                          type: integer
+                          description: Number of glasses consumed
 
   # Drawing/Creative Endpoints
   /api/drawings/save:
@@ -885,13 +1207,23 @@ paths:
                   type: string
                 time_taken:
                   type: integer
+                  description: Time spent drawing in seconds
                 ref_image_path:
                   type: string
+                  description: Path to reference image used
                 ref_image_title:
                   type: string
+                  description: Title of reference image
               required:
                 - user_id
                 - image_data
+            example:
+              user_id: 1
+              image_data: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA..."
+              description: "My beautiful house drawing"
+              time_taken: 600
+              ref_image_path: "/static/reference_images/house.png"
+              ref_image_title: "House"
       responses:
         '200':
           description: Drawing saved successfully
@@ -902,9 +1234,17 @@ paths:
                 properties:
                   success:
                     type: boolean
+                  message:
+                    type: string
                   drawing_id:
                     type: integer
-                  message:
+                  file_path:
+                    type: string
+                  file_size:
+                    type: integer
+                  time_taken:
+                    type: integer
+                  ref_image_title:
                     type: string
 
   /api/drawings/{user_id}:
@@ -921,6 +1261,7 @@ paths:
           required: true
           schema:
             type: integer
+          description: User ID
       responses:
         '200':
           description: Drawings retrieved
@@ -934,7 +1275,19 @@ paths:
                   drawings:
                     type: array
                     items:
-                      $ref: '#/components/schemas/Drawing'
+                      allOf:
+                        - $ref: '#/components/schemas/Drawing'
+                        - type: object
+                          properties:
+                            file_exists:
+                              type: boolean
+                              description: Whether the file exists on disk
+                            is_completed:
+                              type: boolean
+                              description: Whether the drawing session was completed
+                            ref_image_path:
+                              type: string
+                              description: Path to reference image used
 
   /api/drawings/reference-images:
     get:
@@ -966,6 +1319,151 @@ paths:
                         url:
                           type: string
 
+  /api/drawings/random-reference:
+    get:
+      summary: Get random reference image
+      description: Get a random reference image for drawing inspiration
+      tags:
+        - Creative Activities
+      responses:
+        '200':
+          description: Random reference image retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  reference:
+                    type: object
+                    properties:
+                      path:
+                        type: string
+                      filename:
+                        type: string
+                      title:
+                        type: string
+                      url:
+                        type: string
+
+  /api/drawings/start-session:
+    post:
+      summary: Start drawing session
+      description: Start a new drawing session with timer
+      tags:
+        - Creative Activities
+      security:
+        - SessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: integer
+                ref_image_path:
+                  type: string
+                ref_image_title:
+                  type: string
+            example:
+              user_id: 1
+              ref_image_path: "/static/reference_images/house.png"
+              ref_image_title: "House"
+      responses:
+        '201':
+          description: Drawing session started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  session_id:
+                    type: integer
+                  start_time:
+                    type: string
+                    format: date-time
+                  ref_image_title:
+                    type: string
+
+  /api/drawings/image/{drawing_id}:
+    get:
+      summary: Get drawing image
+      description: Get a specific drawing image as base64
+      tags:
+        - Creative Activities
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: drawing_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Drawing ID
+      responses:
+        '200':
+          description: Drawing image retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  image_data:
+                    type: string
+                    description: Base64 encoded image data
+                  description:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+        '404':
+          description: Drawing not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  /api/drawings/delete/{drawing_id}:
+    delete:
+      summary: Delete drawing
+      description: Delete a drawing from both database and file system
+      tags:
+        - Creative Activities
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: drawing_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Drawing ID
+      responses:
+        '200':
+          description: Drawing deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '404':
+          description: Drawing not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
   # Psychometric Testing Endpoints
   /api/psychometry/start:
     post:
@@ -986,6 +1484,8 @@ paths:
                   type: integer
               required:
                 - user_id
+            example:
+              user_id: 1
       responses:
         '200':
           description: Test started, first question returned
@@ -1000,12 +1500,17 @@ paths:
                     type: array
                     items:
                       type: string
+                  correct_answer:
+                    type: string
+                  category:
+                    type: string
                   question_number:
                     type: integer
                   total_questions:
                     type: integer
                   progress:
                     type: number
+                    format: float
 
   /api/psychometry/submit:
     post:
@@ -1029,6 +1534,9 @@ paths:
               required:
                 - user_id
                 - answer
+            example:
+              user_id: 1
+              answer: "A"
       responses:
         '200':
           description: Answer submitted, next question or results returned
@@ -1044,24 +1552,52 @@ paths:
                         type: array
                         items:
                           type: string
+                      correct_answer:
+                        type: string
+                      category:
+                        type: string
                       question_number:
                         type: integer
                       total_questions:
                         type: integer
                       progress:
                         type: number
+                        format: float
                   - type: object
                     properties:
                       results:
                         type: object
+                        properties:
+                          learning_style:
+                            type: string
+                          personality_type:
+                            type: string
+                          top_interest:
+                            type: string
+                          concentration_level:
+                            type: number
+                          memory_strength:
+                            type: number
+                          detailed_scores:
+                            type: object
+                          personality_breakdown:
+                            type: object
+                          feedback:
+                            type: string
+                      responses:
+                        type: array
+                        items:
+                          type: object
                       total_questions:
                         type: integer
                       total_correct:
                         type: integer
                       accuracy:
                         type: number
+                        format: float
                       duration_seconds:
                         type: number
+                        format: float
 
   # Child Dashboard Endpoints
   /api/child/stats/{user_id}:
@@ -1078,6 +1614,7 @@ paths:
           required: true
           schema:
             type: integer
+          description: User ID
       responses:
         '200':
           description: Child statistics retrieved
@@ -1089,20 +1626,7 @@ paths:
                   success:
                     type: boolean
                   stats:
-                    type: object
-                    properties:
-                      totalStars:
-                        type: integer
-                      questsCompleted:
-                        type: integer
-                      skillsLearned:
-                        type: integer
-                      todayGoals:
-                        type: integer
-                      streakDays:
-                        type: integer
-                      userLevel:
-                        type: integer
+                    $ref: '#/components/schemas/DashboardStats'
 
   /api/child/quests/{user_id}:
     get:
@@ -1118,6 +1642,7 @@ paths:
           required: true
           schema:
             type: integer
+          description: User ID
       responses:
         '200':
           description: Child quests retrieved
@@ -1146,16 +1671,24 @@ paths:
                         completed:
                           type: boolean
 
-  # Utility Endpoints
-  /api/health:
-    get:
-      summary: API health check
-      description: Check if the API is running and healthy
+  /api/child/quest/{quest_id}/toggle:
+    post:
+      summary: Toggle quest completion
+      description: Toggle quest completion status
       tags:
-        - Utility
+        - Child Dashboard
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: quest_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: Quest ID
       responses:
         '200':
-          description: API is healthy
+          description: Quest status updated
           content:
             application/json:
               schema:
@@ -1165,15 +1698,16 @@ paths:
                     type: boolean
                   message:
                     type: string
-                  status:
-                    type: string
+                  starsEarned:
+                    type: integer
 
-  /api/quote/{user_id}:
+  # Achievement Management Endpoints
+  /api/achievements/{user_id}:
     get:
-      summary: Get motivational quote
-      description: Get a daily motivational quote for a user
+      summary: Get user achievements
+      description: Get all achievements for a user
       tags:
-        - Utility
+        - Achievements
       security:
         - SessionAuth: []
       parameters:
@@ -1182,9 +1716,10 @@ paths:
           required: true
           schema:
             type: integer
+          description: User ID
       responses:
         '200':
-          description: Motivational quote retrieved
+          description: Achievements retrieved
           content:
             application/json:
               schema:
@@ -1192,9 +1727,155 @@ paths:
                 properties:
                   success:
                     type: boolean
-                  quote:
-                    type: string
+                  achievements:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Achievement'
 
+  /api/achievement:
+    post:
+      summary: Create achievement
+      description: Create a new achievement for a user
+      tags:
+        - Achievements
+      security:
+        - SessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: integer
+                badge_name:
+                  type: string
+                description:
+                  type: string
+                badge_type:
+                  type: string
+                  default: "general"
+                icon:
+                  type: string
+                  default: "🏆"
+              required:
+                - user_id
+                - badge_name
+            example:
+              user_id: 1
+              badge_name: "Math Master"
+              description: "Completed 10 math exercises"
+              badge_type: "academic"
+              icon: "🧮"
+      responses:
+        '201':
+          description: Achievement created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  achievement:
+                    $ref: '#/components/schemas/Achievement'
+
+  /api/achievement/test:
+    post:
+      summary: Create test achievement
+      description: Create a test achievement for testing dashboard stats
+      tags:
+        - Achievements
+      security:
+        - SessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: integer
+                badge_name:
+                  type: string
+                description:
+                  type: string
+              required:
+                - user_id
+            example:
+              user_id: 1
+              badge_name: "Test Achievement"
+              description: "This is a test achievement"
+      responses:
+        '201':
+          description: Test achievement created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  achievement:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                      badge_name:
+                        type: string
+                      description:
+                        type: string
+
+  /api/activity/complete:
+    post:
+      summary: Complete activity
+      description: Mark an activity as completed and create achievement
+      tags:
+        - Achievements
+      security:
+        - SessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: integer
+                activity_name:
+                  type: string
+                  description: Activity name like 'Memory Game', 'Music Player', etc.
+              required:
+                - user_id
+                - activity_name
+            example:
+              user_id: 1
+              activity_name: "Memory Game"
+      responses:
+        '200':
+          description: Activity completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  stars_earned:
+                    type: integer
+                  achievement_id:
+                    type: integer
+
+  # User Profile Endpoints
   /api/user/profile/{user_id}:
     get:
       summary: Get user profile
@@ -1209,6 +1890,7 @@ paths:
           required: true
           schema:
             type: integer
+          description: User ID
       responses:
         '200':
           description: User profile retrieved
@@ -1223,27 +1905,538 @@ paths:
                     $ref: '#/components/schemas/User'
         '404':
           description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiResponse'
+
+  # Module Progress Endpoints
+  /api/module/progress:
+    post:
+      summary: Save module progress
+      description: Save module progress for a user
+      tags:
+        - Module Progress
+      security:
+        - SessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: integer
+                module_type:
+                  type: string
+                progress_percentage:
+                  type: number
+                  format: float
+                  minimum: 0
+                  maximum: 100
+                is_completed:
+                  type: boolean
+                  default: false
+                progress_data:
+                  type: object
+                  description: Additional progress data
+              required:
+                - user_id
+                - module_type
+            example:
+              user_id: 1
+              module_type: "Math Practice"
+              progress_percentage: 75.5
+              is_completed: false
+              progress_data:
+                current_level: 3
+                questions_answered: 15
+                correct_answers: 12
+      responses:
+        '200':
+          description: Progress saved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  progress_percentage:
+                    type: number
+                    format: float
+
+  /api/module/progress/{user_id}/{module_type}:
+    get:
+      summary: Get module progress
+      description: Get module progress for a specific user and module
+      tags:
+        - Module Progress
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: User ID
+        - name: module_type
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Module type (URL encoded)
+      responses:
+        '200':
+          description: Module progress retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  progress:
+                    type: object
+                    properties:
+                      progress_data:
+                        type: object
+                      last_updated:
+                        type: string
+                        format: date-time
+                    nullable: true
+                  message:
+                    type: string
+
+  # Notification Endpoints
+  /api/notifications/{user_id}:
+    get:
+      summary: Get notifications
+      description: Get all notifications for a user
+      tags:
+        - Notifications
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: User ID
+      responses:
+        '200':
+          description: Notifications retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  notifications:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        content:
+                          type: string
+                        is_read:
+                          type: boolean
+                        timestamp:
+                          type: string
+                          format: date-time
+
+  /api/notifications/mark-read:
+    post:
+      summary: Mark notifications as read
+      description: Mark multiple notifications as read
+      tags:
+        - Notifications
+      security:
+        - SessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                notification_ids:
+                  type: array
+                  items:
+                    type: integer
+              required:
+                - notification_ids
+            example:
+              notification_ids: [1, 2, 3]
+      responses:
+        '200':
+          description: Notifications marked as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+
+  /api/notifications/create-sample:
+    post:
+      summary: Create sample notifications
+      description: Create sample notifications for testing (development only)
+      tags:
+        - Notifications
+      security:
+        - SessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: integer
+              required:
+                - user_id
+            example:
+              user_id: 1
+      responses:
+        '201':
+          description: Sample notifications created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+
+  # Utility Endpoints
+  /api/quote/{user_id}:
+    get:
+      summary: Get motivational quote
+      description: Get a daily motivational quote for a user
+      tags:
+        - Utility
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: User ID
+      responses:
+        '200':
+          description: Motivational quote retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  quote:
+                    type: string
+
+  /api/login-streak/{user_id}:
+    get:
+      summary: Get login streak
+      description: Get current login streak for a user
+      tags:
+        - Utility
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: User ID
+      responses:
+        '200':
+          description: Login streak retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  current_streak:
+                    type: integer
+                  total_logins:
+                    type: integer
+                  longest_streak:
+                    type: integer
+                  last_login_date:
+                    type: string
+                    format: date
+                    nullable: true
+
+  /api/screen-time/log:
+    post:
+      summary: Log screen time
+      description: Log screen time for a user
+      tags:
+        - Utility
+      security:
+        - SessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: integer
+                duration_seconds:
+                  type: integer
+                  description: Duration in seconds
+              required:
+                - user_id
+                - duration_seconds
+            example:
+              user_id: 1
+              duration_seconds: 3600
+      responses:
+        '200':
+          description: Screen time logged
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+
+  /api/task-time/analytics/{user_id}:
+    get:
+      summary: Get task time analytics
+      description: Get time analytics for a user's tasks
+      tags:
+        - Utility
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: User ID
+        - name: homework_id
+          in: query
+          required: false
+          schema:
+            type: integer
+          description: Optional homework ID to filter analytics
+      responses:
+        '200':
+          description: Task time analytics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  analytics:
+                    type: object
+                    properties:
+                      total_work_time:
+                        type: integer
+                        description: Total work time in seconds
+                      total_break_time:
+                        type: integer
+                        description: Total break time in seconds
+                      session_stats:
+                        type: object
+                        properties:
+                          total_sessions:
+                            type: integer
+                          completed_sessions:
+                            type: integer
+                          incomplete_sessions:
+                            type: integer
+                          average_work_time:
+                            type: number
+                            format: float
+                          average_break_time:
+                            type: number
+                            format: float
+                      recent_sessions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: integer
+                            start_time:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            end_time:
+                              type: string
+                              format: date-time
+                              nullable: true
+                            work_duration:
+                              type: integer
+                            break_duration:
+                              type: integer
+                            completed:
+                              type: boolean
+
+  # Legacy Endpoints
+  /chatbot:
+    post:
+      summary: Legacy chatbot endpoint
+      description: Legacy chatbot endpoint for backward compatibility
+      tags:
+        - Legacy
+      security:
+        - SessionAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: integer
+                user_message:
+                  type: string
+              required:
+                - user_id
+                - user_message
+      responses:
+        '200':
+          description: Chatbot response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  response:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+                  session_id:
+                    type: integer
+                  mood:
+                    type: string
+
+  /chat-history/{user_id}:
+    get:
+      summary: Legacy chat history
+      description: Legacy route for chat history
+      tags:
+        - Legacy
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: User ID
+      responses:
+        '200':
+          description: Chat history retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  chat_history:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        message:
+                          type: string
+                        sender:
+                          type: string
+                        timestamp:
+                          type: string
+                          format: date-time
+
+  /clear-chat/{user_id}:
+    delete:
+      summary: Clear chat history
+      description: Clear all chat history for a user
+      tags:
+        - Legacy
+      security:
+        - SessionAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: integer
+          description: User ID
+      responses:
+        '200':
+          description: Chat history cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
 
 tags:
   - name: Authentication
     description: User registration and login endpoints
   - name: Chat & Emotional Support
-    description: AI-powered emotional support chatbot
+    description: AI-powered emotional support chatbot with session management
   - name: Finance Tracker
-    description: Financial literacy and money management
+    description: Financial literacy and money management tools
   - name: Task Management
-    description: Homework and task tracking
+    description: Homework and task tracking system
   - name: Pomodoro Timer
-    description: Focus and productivity timer
+    description: Focus and productivity timer with session management
   - name: Health Tracking
     description: Physical wellness and habit tracking
   - name: Creative Activities
-    description: Drawing and artistic expression
+    description: Drawing and artistic expression tools
   - name: Psychometric Testing
     description: Learning style and personality assessment
   - name: Child Dashboard
     description: Child-specific dashboard and statistics
+  - name: Achievements
+    description: Achievement and badge system
   - name: User Management
     description: User profile and account management
+  - name: Module Progress
+    description: Educational module progress tracking
+  - name: Notifications
+    description: User notification system
   - name: Utility
     description: System utilities and helper endpoints
+  - name: Legacy
+    description: Legacy endpoints for backward compatibility

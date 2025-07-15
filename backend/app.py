@@ -29,7 +29,11 @@ if instance_dir:
     os.makedirs(instance_dir, exist_ok=True)
 
 # Configure CORS for Vue.js frontend
-CORS(app, origins=["http://localhost:5173", "http://127.0.0.1:5173"], supports_credentials=True)
+CORS(app, 
+     origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5000", "https://editor.swagger.io", "*"], 
+     supports_credentials=True,
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+     allow_headers=["Content-Type", "Authorization", "Accept"])
 
 db.init_app(app)
 
