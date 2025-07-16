@@ -1,251 +1,266 @@
-# 🔧 Backend API Guide for Vue.js Frontend
+# KidQuest API Guide with JWT Authentication
 
-## 🚀 Server Configuration
+This guide explains how to use the KidQuest API with JWT authentication.
 
-Your Flask backend is now configured to work with Vue.js frontend running on:
-- **Frontend URL**: http://localhost:5173 (Vue.js default)
-- **Backend URL**: http://localhost:5000 (Flask API)
+## Authentication Endpoints
 
-## 📡 Available API Endpoints
+### Login
 
-### 🔐 Authentication Routes
+**Endpoint:** `/api/auth/login`
+**Method:** `POST`
+**Description:** Authenticate a user and get JWT tokens
+**Rate Limit:** 5 attempts per 5 minutes
 
-#### Register User
-```
-POST /api/auth/register
-Content-Type: application/json
-
+**Request:**
+```json
 {
-  "username": "string",
-  "email": "string", 
-  "password": "string",
-  "role": "user" // optional, defaults to "user"
-}
-
-Response:
-{
-  "success": true,
-  "message": "User registered successfully",
-  "user": {
-    "id": 1,
-    "username": "testuser",
-    "email": "test@example.com",
-    "role": "user"
-  }
+  "username": "admin",
+  "password": "admin123"
 }
 ```
 
-#### Login User
-```
-POST /api/auth/login
-Content-Type: application/json
-
-{
-  "username": "string",
-  "password": "string"
-}
-
-Response:
+**Success Response (200 OK):**
+```json
 {
   "success": true,
   "message": "Login successful",
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6",
   "user": {
     "id": 1,
-    "username": "testuser", 
-    "email": "test@example.com",
-    "role": "user"
+    "username": "admin",
+    "email": "admin@example.com",
+    "role": "admin"
   }
 }
 ```
 
-### 💬 Chat Routes
+**Error Responses:**
+- `400 Bad Request`: Missing username or password
+- `401 Unauthorized`: Invalid credentials
+- `403 Forbidden`: Account temporarily locked
+- `429 Too Many Requests`: Rate limit exceeded
 
-#### Send Chat Message
-```
-POST /api/chat
-Content-Type: application/json
+### Refresh Token
 
+**Endpoint:** `/api/auth/refresh`
+**Method:** `POST`
+**Description:** Get a new access token using a refresh token
+
+**Request:**
+```json
 {
-  "message": "Hello, I need help with time management",
-  "user_id": 1 // optional, defaults to 1
-}
-
-Response:
-{
-  "success": true,
-  "response": "I'd be happy to help you with time management! What specific challenges are you facing?",
-  "timestamp": "2025-01-28T10:30:00.000Z"
+  "refresh_token": "a1b2c3d4-e5f6-g7h8-i9j0-k1l2m3n4o5p6"
 }
 ```
 
-#### Get Chat History
-```
-GET /api/chat/history/{user_id}
-
-Response:
+**Success Response (200 OK):**
+```json
 {
   "success": true,
-  "messages": [
-    {
-      "id": 1,
-      "message": "Hello",
-      "sender": "user",
-      "timestamp": "2025-01-28T10:30:00.000Z"
-    },
-    {
-      "id": 2,
-      "message": "Hi there! How can I help you today?",
-      "sender": "assistant", 
-      "timestamp": "2025-01-28T10:30:05.000Z"
-    }
-  ]
+  "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "refresh_token": "q7r8s9t0-u1v2-w3x4-y5z6-a7b8c9d0e1f2"
 }
 ```
 
-### 👤 User Routes
+**Error Responses:**
+- `400 Bad Request`: Missing refresh token
+- `401 Unauthorized`: Invalid or expired refresh token
 
-#### Get User Profile
+### Logout
+
+**Endpoint:** `/api/auth/logout`
+**Method:** `POST`
+**Description:** Invalidate the current access token and optionally all refresh tokens
+**Authentication:** Required
+
+**Headers:**
 ```
-GET /api/user/profile/{user_id}
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
 
-Response:
+**Request (optional):**
+```json
+{
+  "revoke_all": true  // Set to true to logout from all devices
+}
+```
+
+**Success Response (200 OK):**
+```json
 {
   "success": true,
-  "user": {
-    "id": 1,
-    "username": "testuser",
-    "email": "test@example.com", 
-    "role": "user"
-  }
+  "message": "Logged out successfully"
 }
 ```
 
-### 🔍 Health Check
-```
-GET /api/health
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid token
 
-Response:
+## Protected Endpoints
+
+### Test Authentication
+
+**Endpoint:** `/api/auth/protected`
+**Method:** `GET`
+**Description:** Test if authentication is working
+**Authentication:** Required
+
+**Headers:**
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+**Success Response (200 OK):**
+```json
 {
   "success": true,
-  "message": "API is running",
-  "status": "healthy"
+  "message": "You have access to this protected resource",
+  "user_id": 1,
+  "role": "admin"
 }
 ```
 
-## 🛠️ Vue.js Axios Configuration
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid token
 
-Add this to your Vue.js main.js or a separate API service file:
+### Role-Specific Endpoints
 
-```javascript
-import axios from 'axios'
+#### Admin Only
 
-// Configure axios base URL
-axios.defaults.baseURL = 'http://localhost:5000'
-axios.defaults.headers.common['Content-Type'] = 'application/json'
+**Endpoint:** `/api/auth/admin`
+**Method:** `GET`
+**Description:** Test if user has admin role
+**Authentication:** Required
+**Role:** Admin
 
-// Request interceptor
-axios.interceptors.request.use(
-  (config) => {
-    console.log('Making request:', config)
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
-  }
-)
-
-// Response interceptor  
-axios.interceptors.response.use(
-  (response) => {
-    return response
-  },
-  (error) => {
-    console.error('API Error:', error)
-    if (error.response?.status === 401) {
-      // Handle unauthorized access
-      // Redirect to login or clear user session
-    }
-    return Promise.reject(error)
-  }
-)
-
-export default axios
+**Headers:**
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
-## 📋 Example Usage in Vue.js
-
-```javascript
-// Login example
-async function login(username, password) {
-  try {
-    const response = await axios.post('/api/auth/login', {
-      username,
-      password
-    })
-    
-    if (response.data.success) {
-      // Store user data in Pinia store or localStorage
-      localStorage.setItem('user', JSON.stringify(response.data.user))
-      return response.data.user
-    }
-  } catch (error) {
-    console.error('Login failed:', error.response?.data?.error)
-    throw error
-  }
-}
-
-// Chat example
-async function sendMessage(message, userId = 1) {
-  try {
-    const response = await axios.post('/api/chat', {
-      message,
-      user_id: userId
-    })
-    
-    if (response.data.success) {
-      return response.data.response
-    }
-  } catch (error) {
-    console.error('Message failed:', error.response?.data?.error)
-    throw error
-  }
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "You have admin access",
+  "user_id": 1
 }
 ```
 
-## 🔧 Installation & Setup
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid token
+- `403 Forbidden`: Insufficient permissions
 
-1. **Install Flask-CORS** (already added to requirements.txt):
-   ```bash
-   pip install -r requirements.txt
-   ```
+#### Parent Only
 
-2. **Start Flask Backend**:
-   ```bash
-   python app.py
-   ```
-   Backend will run on: http://localhost:5000
+**Endpoint:** `/api/auth/parent`
+**Method:** `GET`
+**Description:** Test if user has parent role
+**Authentication:** Required
+**Role:** Parent or Admin
 
-3. **Start Vue.js Frontend**:
-   ```bash
-   cd frontend
-   npm run dev
-   ```
-   Frontend will run on: http://localhost:5173
+**Headers:**
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
 
-## 🧪 Testing Default Admin Account
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "You have parent access",
+  "user_id": 2
+}
+```
 
-You can test with the default admin account:
-- **Username**: admin
-- **Password**: admin123
-- **Email**: admin123@gmail.com
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid token
+- `403 Forbidden`: Insufficient permissions
 
-## 🎯 Next Steps for Vue.js Development
+#### Child Only
 
-1. Create authentication components (Login/Register)
-2. Set up Pinia stores for user state management
-3. Create chat interface components
-4. Add skill learning area components
-5. Implement routing with Vue Router
-6. Style with Bootstrap or your preferred CSS framework
+**Endpoint:** `/api/auth/child`
+**Method:** `GET`
+**Description:** Test if user has child role
+**Authentication:** Required
+**Role:** Child, Parent, Teacher, or Admin
 
-Your backend is now ready to support your Vue.js frontend! 🚀 
+**Headers:**
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "You have child access",
+  "user_id": 3
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid token
+- `403 Forbidden`: Insufficient permissions
+
+#### Teacher Only
+
+**Endpoint:** `/api/auth/teacher`
+**Method:** `GET`
+**Description:** Test if user has teacher role
+**Authentication:** Required
+**Role:** Teacher or Admin
+
+**Headers:**
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "message": "You have teacher access",
+  "user_id": 4
+}
+```
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid token
+- `403 Forbidden`: Insufficient permissions
+
+## Using JWT Authentication with Existing Endpoints
+
+To use JWT authentication with existing endpoints, include the access token in the Authorization header:
+
+```
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+```
+
+## Error Handling
+
+All API endpoints return consistent error responses:
+
+```json
+{
+  "success": false,
+  "error": "Error message"
+}
+```
+
+Common error status codes:
+- `400 Bad Request`: Invalid request parameters
+- `401 Unauthorized`: Authentication required or invalid token
+- `403 Forbidden`: Insufficient permissions
+- `404 Not Found`: Resource not found
+- `429 Too Many Requests`: Rate limit exceeded
+- `500 Internal Server Error`: Server error
+
+## Token Management
+
+- Access tokens expire after 30 minutes
+- Refresh tokens expire after 30 days
+- Always store tokens securely (httpOnly cookies or encrypted localStorage)
+- Implement token refresh when access tokens expire
+- Clear tokens on logout

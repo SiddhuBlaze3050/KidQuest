@@ -1,1 +1,1 @@
-# Services package for backend modules
+# Services package initialization
