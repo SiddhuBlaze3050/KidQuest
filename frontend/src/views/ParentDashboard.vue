@@ -1,5 +1,27 @@
 <template>
   <div class="parent-dashboard">
+    <!-- Transactions Modal (add here, at the top, so it overlays everything) -->
+    <div v-if="modalComponent === 'transactions-modal'" class="transactions-modal modal-overlay" @click="closeModal">
+      <div class="transactions-popup" @click.stop>
+        <div class="popup-header">
+          <span>Recent Transactions</span>
+          <button class="close-btn" @click="closeModal">×</button>
+        </div>
+        <div class="popup-body">
+          <div class="transaction-list">
+            <div v-if="financeStats.recent.length === 0" class="no-transactions">No transactions yet.</div>
+            <div v-for="t in financeStats.recent" :key="t.id" class="transaction-item" :class="t.type">
+              <div class="transaction-date">{{ t.date }}</div>
+              <div class="transaction-desc">{{ t.description }}</div>
+              <div class="transaction-amount">
+                {{ t.type === 'income' ? '+' : '-' }}₹{{ t.amount }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- End Transactions Modal -->
     <!-- Header -->
     <header class="dashboard-header">
       <div class="container">
@@ -8,7 +30,7 @@
             <span class="logo-icon">👨‍👩‍👧‍👦</span>
             <div class="logo-text">
               <h1>Parent Dashboard</h1>
-              <span class="subtitle">{{ childName }}'s Progress Monitor</span>
+              <span class="subtitle">Progress Monitor</span>
             </div>
           </div>
           <div class="header-actions">
@@ -109,6 +131,8 @@
               </div>
             </div>
           </div>
+
+          
 
           <!-- Psychometric Test -->
           <div class="feature-card psychometric-card" @click="showPsychometricModal">
@@ -533,11 +557,12 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { userUtils } from '@/services/api'
+import { apiService } from '@/services/api' // adjust path as needed
 
 // Reactive State
-const childName = ref('Aleena')
+
 const selectedPeriod = ref('daily')
 const showModal = ref(false)
 const modalTitle = ref('')
@@ -595,11 +620,46 @@ const skillProgress = ref([
   { id: 2, name: 'Science Lab', icon: '🔬', progress: 60, level: 1, milestones: [] }
 ])
 
-const financeStats = ref({
-  savings: 45,
-  recent: [
-    { type: 'income', amount: 20, desc: 'Pocket Money', date: '2025-07-01' }
-  ]
+
+const financeStats = ref({ savings: 0, recent: [] })
+const childId = ref(null)
+
+// Get the childId for this parent from ParentChild table
+const fetchChildId = async () => {
+  try {
+    const res = await apiService.get('/api/parentchild')
+    console.log('apiService.get(/api/parentchild) result:', res)
+    const parentId = userUtils.getCurrentUser()?.id
+    const link = Array.isArray(res.links) ? res.links.find(l => l.parent_id === parentId) : null
+    if (link) childId.value = link.child_id
+    console.log('Current parentId:', parentId)
+    console.log('Links:', res.links)
+  } catch (e) {
+    console.error('Failed to fetch childId', e)
+  }
+}
+
+// Fetch transactions and calculate savings
+const fetchFinanceStats = async () => {
+  if (!childId.value) return
+  try {
+    const res = await apiService.getTransactions(childId.value)
+    if (res.success) {
+      financeStats.value.recent = res.transactions.slice(0, 5)
+      financeStats.value.savings = res.transactions.reduce((sum, t) => {
+        return sum + (t.type === 'income' ? t.amount : -t.amount)
+      }, 0)
+    }
+  } catch (e) {
+    console.error('Failed to fetch transactions', e)
+  }
+}
+
+onMounted(async () => {
+  await fetchChildId()
+  if (childId.value) {
+    await fetchFinanceStats()
+  }
 })
 
 const healthStats = ref({
@@ -646,12 +706,16 @@ const openModal = (title, component, data) => {
   modalData.value = data
   showModal.value = true
 }
-const closeModal = () => { showModal.value = false }
+
+const closeModal = () => {
+  showModal.value = false
+  modalComponent.value = ''
+}
 
 const showProgressModal = () => openModal('Overall Progress', 'progress-modal', { progress: overallProgress.value })
 const showScreenTimeModal = () => openModal('Screen Time', 'screentime-modal', screenTimeData.value)
 const showAchievementModal = () => openModal('Achievement', 'achievement-modal', todayAchievement.value)
-const showFinanceModal = () => openModal('Finance', 'money-card', financeStats.value)
+const showFinanceModal = () => openModal('Recent Transactions', 'transactions-modal', financeStats.value)
 const showHealthModal = () => openModal('Health', 'health-modal', healthStats.value)
 const showPsychometricModal = () => openModal('Psychometric', 'psychometric-modal', psychometricData.value)
 const showDoodlingModal = () => openModal('Doodling', 'doodling-modal', doodleStats.value)
@@ -1382,6 +1446,93 @@ const exportData = () => {
 .summary-sentiment.highlighted {
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.transactions-modal.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(30, 30, 30, 0.5);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.transactions-popup {
+  background: #fff;
+  border-radius: 18px;
+  max-width: 400px;
+  width: 90vw;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  padding: 0;
+  position: relative;
+  animation: fadeIn 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.popup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.2rem 1.5rem 0.5rem 1.5rem;
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #31417A;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.7rem;
+  color: #31417A;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.close-btn:hover {
+  color: #ff5252;
+}
+
+.popup-body {
+  padding: 0 1.5rem 1.5rem 1.5rem;
+}
+
+.transaction-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.transaction-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 1rem;
+  padding: 1rem 0;
+  border-radius: 10px;
+  margin-bottom: 0.5rem;
+  border-left: 3px solid transparent;
+  background: #f7f8fa;
+  color: #31417A;
+}
+
+.transaction-item.income {
+  background: rgba(76, 175, 80, 0.08);
+  color: #388e3c;
+  border-left-color: #4CAF50;
+}
+
+.transaction-item.expense {
+  background: rgba(255, 82, 82, 0.08);
+  color: #c62828;
+  border-left-color: #ff5252;
+}
+
+.transaction-date { opacity: 0.8; font-size: 0.9rem; }
+.transaction-desc { font-weight: bold; }
+.transaction-amount { font-weight: bold; font-size: 1.1rem; }
+.no-transactions { color: #888; text-align: center; padding: 1.5rem 0; }
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.95);}
+  to { opacity: 1; transform: scale(1);}
 }
 
 /* Skills Card */

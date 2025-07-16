@@ -1056,6 +1056,24 @@ def chatbot_logic(user_id, user_message, session_id=None):
     }
 
 #Finance tracker APIs
+@app.route('/api/parentchild', methods=['GET'])
+def get_parent_child_links():
+    try:
+        links = ParentChild.query.all()
+        return jsonify({
+            "links": [
+                {
+                    "id": link.id,
+                    "parent_id": link.parent_id,
+                    "child_id": link.child_id,
+                    "relationship_type": link.relationship_type
+                }
+                for link in links
+            ]
+        }), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 @app.route('/api/finance/transactions/<int:user_id>', methods=['GET'])
 def get_transactions(user_id):
     try:
