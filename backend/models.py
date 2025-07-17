@@ -1,7 +1,32 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, date, time
+import uuid
 
 db = SQLAlchemy()
+
+# ----------------------------
+# JWT Authentication Models
+# ----------------------------
+class TokenBlacklist(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    token_jti = db.Column(db.String(36), unique=True, nullable=False)  # JWT ID
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    blacklisted_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    
+    def __repr__(self):
+        return f'<TokenBlacklist {self.token_jti}>'
+
+class RefreshToken(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    token_hash = db.Column(db.String(255), unique=True, nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    is_revoked = db.Column(db.Boolean, default=False)
+    
+    def __repr__(self):
+        return f'<RefreshToken {self.id} for user {self.user_id}>'
 
 
 
@@ -13,9 +38,16 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
-    role = db.Column(db.String(10), nullable=False)  # 'parent' or 'child'
+    role = db.Column(db.String(10), nullable=False)  # 'child', 'parent', 'teacher', 'admin'
     
-   
+    # JWT Authentication fields
+    password_reset_token = db.Column(db.String(255), nullable=True)
+    password_reset_expires = db.Column(db.DateTime, nullable=True)
+    last_login = db.Column(db.DateTime, nullable=True)
+    login_attempts = db.Column(db.Integer, default=0)
+    account_locked_until = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relationships
     child_profile = db.relationship('ChildProfile', backref='user', uselist=False)
@@ -25,6 +57,8 @@ class User(db.Model):
     child_relationships = db.relationship('ParentChild', 
                                           backref='child', 
                                           foreign_keys='ParentChild.child_id')
+    refresh_tokens = db.relationship('RefreshToken', backref='user', lazy='dynamic', cascade="all, delete-orphan")
+    blacklisted_tokens = db.relationship('TokenBlacklist', backref='user', lazy='dynamic', cascade="all, delete-orphan")
 
 
 # ----------------------------

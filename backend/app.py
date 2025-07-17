@@ -1,20 +1,16 @@
-from flask import Flask, request, jsonify, session
+from flask import Flask, request, jsonify, session, g
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Achievement, ChatSession,ChildProfile, DoodleSession, LLMInteractions, ParentChild, SavingGoal, Transaction, HomeworkSchedule, PomodoroSession, ScreenTime, Notification, HealthTask, HealthStreak, WaterLog, LoginStreak, PsychometricTestResult, UserModuleProgress
+from models import db, User, Achievement, ChatSession, ChildProfile, DoodleSession, LLMInteractions, ParentChild, SavingGoal, Transaction, HomeworkSchedule, PomodoroSession, ScreenTime, Notification, HealthTask, HealthStreak, WaterLog, LoginStreak, PsychometricTestResult, UserModuleProgress, TokenBlacklist, RefreshToken
 import re, requests
-import PIL
 import os
 import random
 import glob
 import base64
 from config import Config
-from openai import OpenAI
-import secrets
-import time
-import traceback
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import json
+import traceback
 
 # Import our psychometry module
 from services.psychometry import PsychometryService
@@ -23,7 +19,7 @@ from services.notifications import NotificationService
 
 app = Flask(__name__)
 app.config.from_object(Config)
-app.secret_key = secrets.token_hex(16)
+app.secret_key = os.environ.get('SECRET_KEY', 'se_project_key')
 
 # Ensure instance directory exists on app startup
 instance_dir = getattr(app.config, 'INSTANCE_DIR', None)
@@ -39,10 +35,15 @@ CORS(app,
 
 db.init_app(app)
 
-EMAIL_REGEX = re.compile(r"[^@]+@[^@]+\.[^@]+") 
+# Import and initialize JWT authentication
+try:
+    from app_jwt import init_jwt_auth
+    app = init_jwt_auth(app)
+    print("JWT Authentication initialized successfully!")
+except ImportError as e:
+    print(f"Warning: JWT Authentication not initialized - {str(e)}")
 
-# Initialize OpenAI client
-client = OpenAI(base_url="https://api.groq.com/openai/v1",api_key=app.config['GROQ_API_KEY'])
+EMAIL_REGEX = re.compile(r"[^@]+@[^@]+\.[^@]+") 
 
 # ---------------------------
 # Utility Functions
@@ -65,241 +66,54 @@ def create_default_admin():
         else:
             print("Admin already exists!")
 
-# ---------------------------
-# Chatbot System Setup
-# ---------------------------
-
-def load_chatbot_prompt():
-    """Load the chatbot system prompt from markdown file"""
+def update_login_streak(user_id):
+    """Update login streak for a user"""
     try:
-        with open('chatbot_prompt.md', 'r', encoding='utf-8') as file:
-            return file.read()
-    except FileNotFoundError:
-        return """You are a caring emotional companion chatbot for children and teens. 
-        Provide empathetic support, teach coping strategies, and educate about safety."""
-
-# Load system prompt from markdown file
-SYSTEM_PROMPT = load_chatbot_prompt()
-
-@app.route('/api/chat/sessions/<int:user_id>', methods=['GET'])
-def api_chat_sessions(user_id):
-    """Get all chat sessions for a user"""
-    try:
-        sessions = ChatSession.query.filter_by(user_id=user_id)\
-                                   .order_by(ChatSession.updated_at.desc()).all()
+        today = date.today()
         
-        sessions_data = []
-        for session in sessions:
-            interaction_count = LLMInteractions.query.filter_by(session_id=session.id).count()
-            last_message = LLMInteractions.query.filter_by(session_id=session.id)\
-                                                .order_by(LLMInteractions.user_timestamp.desc()).first()
-            
-            sessions_data.append({
-                'id': session.id,
-                'created_at': session.created_at.isoformat(),
-                'updated_at': session.updated_at.isoformat() if session.updated_at else session.created_at.isoformat(),
-                'mood_tag': session.mood_tag,
-                'interaction_count': interaction_count,
-                'last_message_preview': last_message.user_message[:50] + '...' if last_message and len(last_message.user_message) > 50 else last_message.user_message if last_message else '',
-                'summary': session.summary
-            })
+        # Get or create login streak record
+        login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
         
-        return jsonify({
-            'success': True,
-            'sessions': sessions_data
-        }), 200
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/chat/session/<int:session_id>', methods=['GET'])
-def api_get_session(session_id):
-    """Get detailed session with all interactions"""
-    try:
-        session = db.session.get(ChatSession, session_id)
-        if not session:
-            return jsonify({'success': False, 'error': 'Session not found'}), 404
-        
-        interactions = LLMInteractions.query.filter_by(session_id=session_id)\
-                                           .order_by(LLMInteractions.user_timestamp.asc()).all()
-        
-        messages = []
-        for interaction in interactions:
-            # Add user message
-            messages.append({
-                'id': f"user_{interaction.id}",
-                'message': interaction.user_message,
-                'sender': 'user',
-                'timestamp': interaction.user_timestamp.isoformat(),
-                'mood_tag': interaction.mood_tag
-            })
-            
-            # Add bot response if available
-            if interaction.llm_response:
-                messages.append({
-                    'id': f"bot_{interaction.id}",
-                    'message': interaction.llm_response,
-                    'sender': 'assistant',
-                    'timestamp': interaction.llm_timestamp.isoformat() if interaction.llm_timestamp else interaction.user_timestamp.isoformat()
-                })
-        
-        return jsonify({
-            'success': True,
-            'session': {
-                'id': session.id,
-                'created_at': session.created_at.isoformat(),
-                'updated_at': session.updated_at.isoformat() if session.updated_at else session.created_at.isoformat(),
-                'mood_tag': session.mood_tag,
-                'summary': session.summary,
-                'messages': messages
-            }
-        }), 200
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/chat/session/<int:session_id>/summary', methods=['PUT'])
-def update_session_summary(session_id):
-    """Update session summary"""
-    try:
-        data = request.get_json()
-        summary = data.get('summary')
-        
-        session = db.session.get(ChatSession, session_id)
-        if not session:
-            return jsonify({'success': False, 'error': 'Session not found'}), 404
-        
-        session.summary = summary
-        session.updated_at = datetime.utcnow()
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': 'Session summary updated'
-        }), 200
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-# ---------------------------
-# Legacy Chatbot Routes (for backward compatibility)
-# ---------------------------
-
-@app.route('/chatbot', methods=['POST'])
-def chatbot():
-    data = request.get_json()
-    user_id = data.get('user_id')
-    user_message = data.get('user_message')
-
-    if not user_id or not user_message:
-        return jsonify({'error': 'user_id and message are required'}), 400
-
-    try:
-        response_data = chatbot_logic(user_id, user_message)
-        return jsonify(response_data), 200
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/chat/sessions/<int:user_id>', methods=['GET'])
-def get_chat_sessions(user_id):
-    """Get all chat sessions for a user with metadata"""
-    try:
-        sessions = ChatSession.query.filter_by(user_id=user_id)\
-                                   .order_by(ChatSession.updated_at.desc()).all()
-        
-        session_list = []
-        for session in sessions:
-            # Get interaction count
-            interaction_count = LLMInteractions.query.filter_by(session_id=session.id).count()
-            
-            # Get last message preview
-            last_interaction = LLMInteractions.query.filter_by(session_id=session.id)\
-                                                   .order_by(LLMInteractions.user_timestamp.desc()).first()
-            
-            last_message_preview = "New conversation"
-            if last_interaction:
-                preview_text = last_interaction.user_message
-                last_message_preview = (preview_text[:50] + "...") if len(preview_text) > 50 else preview_text
-            
-            session_list.append({
-                'id': session.id,
-                'updated_at': session.updated_at.isoformat(),
-                'interaction_count': interaction_count,
-                'last_message_preview': last_message_preview,
-                'mood_tag': session.mood_tag  # Include mood_tag from session
-            })
-        
-        return jsonify({
-            'success': True,
-            'sessions': session_list
-        }), 200
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-    
-@app.route('/chat-history/<int:user_id>', methods=['GET'])
-def get_chat_history(user_id):
-    """Legacy route - updated for new model"""
-    try:
-        # Get recent interactions across all sessions
-        interactions = db.session.query(LLMInteractions)\
-                                 .join(ChatSession)\
-                                 .filter(ChatSession.user_id == user_id)\
-                                 .order_by(LLMInteractions.user_timestamp.asc())\
-                                 .limit(50).all()
-        
-        chat_history = []
-        for interaction in interactions:
-            # Add user message
-            chat_history.append({
-                'id': f"user_{interaction.id}",
-                'message': interaction.user_message,
-                'sender': 'user',
-                'timestamp': interaction.user_timestamp.isoformat()
-            })
-            
-            # Add bot response if available
-            if interaction.llm_response:
-                chat_history.append({
-                    'id': f"bot_{interaction.id}",
-                    'message': interaction.llm_response,
-                    'sender': 'assistant',
-                    'timestamp': interaction.llm_timestamp.isoformat() if interaction.llm_timestamp else interaction.user_timestamp.isoformat()
-                })
-        
-        return jsonify({'chat_history': chat_history}), 200
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/clear-chat/<int:user_id>', methods=['DELETE'])
-def clear_chat_history(user_id):
-    """Legacy route - updated for new model"""
-    try:
-        # Delete all sessions and their interactions for user
-        sessions = ChatSession.query.filter_by(user_id=user_id).all()
-        for session in sessions:
-            LLMInteractions.query.filter_by(session_id=session.id).delete()
-            db.session.delete(session)
+        if not login_streak:
+            # First time login - create new streak record
+            login_streak = LoginStreak(
+                user_id=user_id,
+                current_streak=1,
+                last_login_date=today,
+                total_logins=1,
+                longest_streak=1
+            )
+            db.session.add(login_streak)
+        else:
+            # Check if this is a new login day
+            if login_streak.last_login_date != today:
+                yesterday = date.fromordinal(today.toordinal() - 1)
+                
+                if login_streak.last_login_date == yesterday:
+                    # Consecutive day login - increment streak
+                    login_streak.current_streak += 1
+                elif login_streak.last_login_date < yesterday:
+                    # Break in streak - reset to 1
+                    login_streak.current_streak = 1
+                # If last_login_date is today, don't update (already logged in today)
+                
+                # Update last login date and total logins
+                login_streak.last_login_date = today
+                login_streak.total_logins += 1
+                
+                # Update longest streak if current is longer
+                if login_streak.current_streak > login_streak.longest_streak:
+                    login_streak.longest_streak = login_streak.current_streak
         
         db.session.commit()
-        return jsonify({'message': 'Chat history cleared successfully'}), 200
+        print(f"Updated login streak for user {user_id}: {login_streak.current_streak} days")
+        
     except Exception as e:
+        print(f"Error updating login streak: {e}")
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
 
 # ---------------------------
-# API Routes for Vue.js Frontend
+# Authentication Routes
 # ---------------------------
 
 @app.route('/api/auth/register', methods=['POST'])
@@ -343,12 +157,13 @@ def api_register():
 
             # Optional: Link to child if username exists
             child = User.query.filter_by(username=child_username, role='child').first()
-            parent_relationship = ParentChild(
-                parent_id=user.id,
-                child_id=child.id if child else None,
-                relationship_type=relationship_type
-            )
-            db.session.add(parent_relationship)
+            if child:
+                parent_relationship = ParentChild(
+                    parent_id=user.id,
+                    child_id=child.id,
+                    relationship_type=relationship_type
+                )
+                db.session.add(parent_relationship)
 
         db.session.commit()
 
@@ -366,8 +181,6 @@ def api_register():
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
-
-
 
 @app.route('/api/auth/login', methods=['POST'])
 def api_login():
@@ -412,77 +225,23 @@ def api_login():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/chat', methods=['POST'])
-def api_chat():
-    """API endpoint for chat interface with session support"""
+@app.route('/api/auth/session/logout', methods=['POST'])
+def api_session_logout():
+    """API endpoint for session-based user logout"""
     try:
-        data = request.get_json()
-        message = data.get('message')
-        user_id = data.get('user_id', 1)
-        session_id = data.get('session_id')  # Add session_id support
-        
-        if not message:
-            return jsonify({'success': False, 'error': 'Message is required'}), 400
-        
-        # Use existing chatbot logic with session support
-        response_data = chatbot_logic(user_id, message, session_id)
+        # Clear session
+        session.clear()
         return jsonify({
             'success': True,
-            'response': response_data['response'],
-            'timestamp': response_data['timestamp'],
-            'session_id': response_data['session_id']  # Include session_id in response
+            'message': 'Logged out successfully'
         }), 200
     except Exception as e:
-        db.session.rollback()
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/chat/history/<int:user_id>', methods=['GET'])
-def api_chat_history(user_id):
-    """API endpoint to get chat history with new session-based model"""
-    try:
-        # Get recent chat sessions for user (last 5 sessions)
-        sessions = ChatSession.query.filter_by(user_id=user_id)\
-                                   .order_by(ChatSession.updated_at.desc())\
-                                   .limit(5).all()
-        
-        messages = []
-        for session in reversed(sessions):  # Show oldest sessions first
-            interactions = LLMInteractions.query.filter_by(session_id=session.id)\
-                                               .order_by(LLMInteractions.user_timestamp.asc()).all()
-            
-            for interaction in interactions:
-                # Add user message
-                messages.append({
-                    'id': f"user_{interaction.id}",
-                    'message': interaction.user_message,
-                    'sender': 'user',
-                    'timestamp': interaction.user_timestamp.isoformat(),
-                    'session_id': session.id
-                })
-                
-                # Add bot response if available
-                if interaction.llm_response:
-                    messages.append({
-                        'id': f"bot_{interaction.id}",
-                        'message': interaction.llm_response,
-                        'sender': 'assistant',
-                        'timestamp': interaction.llm_timestamp.isoformat() if interaction.llm_timestamp else interaction.user_timestamp.isoformat(),
-                        'session_id': session.id
-                    })
-        
-        return jsonify({
-            'success': True,
-            'messages': messages[-50:]  # Limit to last 50 messages
-        }), 200
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-    
+# ---------------------------
+# User Profile Routes
+# ---------------------------
+
 @app.route('/api/user/profile/<int:user_id>', methods=['GET'])
 def api_user_profile(user_id):
     """API endpoint to get user profile"""
@@ -507,7 +266,7 @@ def api_user_profile(user_id):
         }), 500
 
 # ---------------------------
-# Health Tracker
+# Health Tracker Routes
 # ---------------------------
 
 @app.route('/api/health/tasks/<int:user_id>', methods=['GET'])
@@ -585,6 +344,35 @@ def toggle_task_completion(task_id):
             'error': str(e) 
         }), 500
 
+def evaluate_streak_internal(user_id):
+    try:
+        today = date.today()
+        streak = HealthStreak.query.filter_by(user_id=user_id).first()
+
+        # --- Reset if the child skipped a day ---
+        if streak and streak.last_updated:
+            missed_days = (today - streak.last_updated).days
+            if missed_days > 1:
+                streak.current_streak = 0
+                streak.last_updated = today
+                db.session.commit()
+                return
+
+        # --- Count today's completed tasks ---
+        completed_count = HealthTask.query.filter_by(user_id=user_id, date=today, completed=True).count()
+
+        if completed_count >= 2:
+            if not streak:
+                streak = HealthStreak(user_id=user_id, current_streak=1, last_updated=today)
+                db.session.add(streak)
+            elif streak.last_updated != today:
+                streak.current_streak += 1
+                streak.last_updated = today
+
+            db.session.commit()
+    except Exception as e:
+        print("Streak Eval Error:", traceback.format_exc())
+
 @app.route('/api/health/streak/<int:user_id>', methods=['GET'])
 def get_streak(user_id):
     try:
@@ -649,81 +437,6 @@ def get_water_log(user_id):
             'error': str(e) 
         }), 500
 
-def evaluate_streak_internal(user_id):
-    try:
-        today = date.today()
-        streak = HealthStreak.query.filter_by(user_id=user_id).first()
-
-        # --- Reset if the child skipped a day ---
-        if streak and streak.last_updated:
-            missed_days = (today - streak.last_updated).days
-            if missed_days > 1:
-                streak.current_streak = 0
-                streak.last_updated = today
-                db.session.commit()
-                return
-
-        # --- Count today's completed tasks ---
-        completed_count = HealthTask.query.filter_by(user_id=user_id, date=today, completed=True).count()
-
-        if completed_count >= 2:
-            if not streak:
-                streak = HealthStreak(user_id=user_id, current_streak=1, last_updated=today)
-                db.session.add(streak)
-            elif streak.last_updated != today:
-                streak.current_streak += 1
-                streak.last_updated = today
-
-            db.session.commit()
-    except Exception as e:
-        print("Streak Eval Error:", traceback.format_exc())
-
-def update_login_streak(user_id):
-    """Update login streak for a user"""
-    try:
-        today = date.today()
-        
-        # Get or create login streak record
-        login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
-        
-        if not login_streak:
-            # First time login - create new streak record
-            login_streak = LoginStreak(
-                user_id=user_id,
-                current_streak=1,
-                last_login_date=today,
-                total_logins=1,
-                longest_streak=1
-            )
-            db.session.add(login_streak)
-        else:
-            # Check if this is a new login day
-            if login_streak.last_login_date != today:
-                yesterday = date.fromordinal(today.toordinal() - 1)
-                
-                if login_streak.last_login_date == yesterday:
-                    # Consecutive day login - increment streak
-                    login_streak.current_streak += 1
-                elif login_streak.last_login_date < yesterday:
-                    # Break in streak - reset to 1
-                    login_streak.current_streak = 1
-                # If last_login_date is today, don't update (already logged in today)
-                
-                # Update last login date and total logins
-                login_streak.last_login_date = today
-                login_streak.total_logins += 1
-                
-                # Update longest streak if current is longer
-                if login_streak.current_streak > login_streak.longest_streak:
-                    login_streak.longest_streak = login_streak.current_streak
-        
-        db.session.commit()
-        print(f"Updated login streak for user {user_id}: {login_streak.current_streak} days")
-        
-    except Exception as e:
-        print(f"Error updating login streak: {e}")
-        db.session.rollback()
-
 # -----------------------
 # Motivational Quotes
 # -----------------------        
@@ -777,10 +490,9 @@ def get_login_streak(user_id):
             'longest_streak': 0,
             'last_login_date': None
         }), 500
-            
 
 # ---------------------------
-# Dashboard Statistics Calculation Functions
+# JWT Authentication Routes
 # ---------------------------
 
 def calculate_total_stars(user_id):
@@ -895,7 +607,7 @@ def calculate_todays_goals(user_id, today):
         return 0
 
 # ---------------------------
-# Child Dashboard Routes
+# Main Entry Point
 # ---------------------------
 
 @app.route('/api/child/stats/<int:user_id>', methods=['GET'])
