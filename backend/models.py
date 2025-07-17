@@ -235,6 +235,13 @@ class Notification(db.Model):
     content = db.Column(db.String(255))
     is_read = db.Column(db.Boolean, default=False)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    # Enhanced fields for comprehensive notification system
+    notification_type = db.Column(db.String(50), default='general')  # achievement, health, learning, financial, system
+    priority = db.Column(db.String(20), default='normal')  # low, normal, high, urgent
+    action_url = db.Column(db.String(255), nullable=True)  # Link to relevant page/action
+    related_user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # For parent notifications about child
+    extra_data = db.Column(db.JSON, nullable=True)  # Additional data like stats, achievements, etc.
 
 
 # ---------------------------

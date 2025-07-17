@@ -18,7 +18,12 @@
                                     <div class="level-progress-fill"
                                         :style="{ width: levelInfo.progressPercentage + '%' }"></div>
                                 </div>
-                                <span class="level-progress-text">⭐ {{ levelInfo.starsInLevel }}/10</span>
+                                <span class="level-progress-text">XP {{ levelInfo.starsInLevel }}/10</span>
+                                <div class="xp-breakdown" title="Experience Points Breakdown">
+                                    <span class="xp-stars">{{ levelInfo.xpFromStars }}⭐</span>
+                                    <span v-if="levelInfo.xpFromSkills > 0" class="xp-skills">+{{ levelInfo.xpFromSkills
+                                        }}🧠</span>
+                                </div>
                             </div>
                         </div>
                         <NotificationBell v-if="user" :user-id="user.id" />
@@ -63,6 +68,11 @@
                                 🔄 Refresh Progress
                             </button>
 
+                            <!-- Debug button for development -->
+                            <button @click="debugUserStats" class="refresh-btn" style="margin-left: 0.5rem">
+                                🐛 Debug Stats
+                            </button>
+
                             <!-- Backdrop overlay when scroll is expanded -->
                             <div v-if="isScrollExpanded" class="scroll-backdrop" @click="toggleScrollExpanded"></div>
 
@@ -76,9 +86,12 @@
 
                                 <div v-if="isScrollExpanded" class="scroll-content" @click.stop>
                                     <div class="scroll-section">
-                                        <h4>⭐ Earning Stars & Building Your Collection</h4>
-                                        <p>• Complete learning modules like Math Magic & Word Wizard<br>
-                                            • Finish daily tasks in your Task Tracker<br>
+                                        <h4>⭐ Earning XP & Leveling Up</h4>
+                                        <p>• <strong>Stars (1 XP each):</strong> Complete learning modules, daily tasks,
+                                            and activities<br>
+                                            • <strong>Skills (18 XP each):</strong> Master complete modules like Math
+                                            Magic & Word Wizard<br>
+                                            • <strong>Level Up:</strong> Every 10 XP advances you to the next level<br>
                                             • Take the Psychometric Test to discover your superpowers<br>
                                             • Chat with Gandalf the Wise for learning tips!</p>
                                     </div>
@@ -100,11 +113,13 @@
                                     </div>
 
                                     <div class="scroll-section">
-                                        <h4>📊 Your Progress</h4>
+                                        <h4>📊 Your Progress & XP System</h4>
                                         <p>• Level {{ levelInfo.currentLevel }}: {{ levelInfo.title }}<br>
-                                            • Stars collected: {{ levelInfo.totalStars }} ⭐<br>
-                                            • Skills mastered: {{ levelInfo.skillsMastered }} 🧠<br>
-                                            • Next level: {{ levelInfo.starsNeeded }} more stars needed!</p>
+                                            • Total XP: {{ levelInfo.totalXP }} ({{ levelInfo.xpFromStars }}⭐ + {{
+                                                levelInfo.xpFromSkills }}🧠)<br>
+                                            • Experience Points: 1 star = 1 XP, 1 completed skill = 18 XP<br>
+                                            • Next level: {{ levelInfo.starsNeeded }} more XP needed!<br>
+                                            • Each level requires 10 XP to advance</p>
                                     </div>
 
                                     <div class="scroll-section">
@@ -1210,8 +1225,14 @@ export default {
         // Load progress from localStorage for Good Touch Bad Touch
         const loadGoodTouchBadTouchProgress = async () => {
             try {
+                // Only load if user ID exists (no fallback to 'guest')
+                if (!user.value?.id) {
+                    console.log('👶 New user: No progress to load for Good Touch Bad Touch')
+                    return
+                }
+
                 // First try to load from the new module progress format
-                const moduleProgress = localStorage.getItem(`safetyModuleProgress_${user.value?.id || 'guest'}`)
+                const moduleProgress = localStorage.getItem(`safetyModuleProgress_${user.value.id}`)
                 if (moduleProgress) {
                     const progressData = JSON.parse(moduleProgress)
                     const progress = progressData.isCompleted ? 100 : 0
@@ -1229,7 +1250,7 @@ export default {
                 }
 
                 // Fallback to old format for backward compatibility
-                const savedProgress = localStorage.getItem(`safetyProgress_${user.value?.id || 'guest'}`)
+                const savedProgress = localStorage.getItem(`safetyProgress_${user.value.id}`)
                 if (savedProgress) {
                     const progressData = JSON.parse(savedProgress)
                     if (progressData.lessons) {
@@ -1251,8 +1272,14 @@ export default {
         // Load progress from localStorage for Safety Measures
         const loadSafetyMeasuresProgress = async () => {
             try {
+                // Only load if user ID exists (no fallback to 'guest')
+                if (!user.value?.id) {
+                    console.log('👶 New user: No progress to load for Safety Measures')
+                    return
+                }
+
                 // First try to load from the new module progress format
-                const moduleProgress = localStorage.getItem(`safetyMeasuresProgress_${user.value?.id || 'guest'}`)
+                const moduleProgress = localStorage.getItem(`safetyMeasuresProgress_${user.value.id}`)
                 if (moduleProgress) {
                     const progressData = JSON.parse(moduleProgress)
                     let progress = 0
@@ -1313,7 +1340,10 @@ export default {
         // Load progress from backend and localStorage for Science Explorer
         const loadScienceExplorerProgress = async () => {
             try {
-                if (!user.value) return
+                if (!user.value?.id) {
+                    console.log('👶 New user: No progress to load for Science Explorer')
+                    return
+                }
 
                 console.log('🔬 Loading Science Explorer progress for dashboard...')
 
@@ -1374,16 +1404,19 @@ export default {
         // Load progress from backend and localStorage for Word Wizard
         const loadWordWizardProgress = async () => {
             try {
-                if (!user.value) return
+                if (!user.value?.id) {
+                    console.log('👶 New user: No progress to load for Word Wizard')
+                    return
+                }
 
                 console.log('📚 Loading Word Wizard progress for dashboard...')
-                console.log('📚 User ID:', user.value?.id)
+                console.log('📚 User ID:', user.value.id)
 
                 let progress = 0
                 let dataSource = 'none'
 
                 // Always check localStorage first (most reliable)
-                const storageKey = `wordWizard_${user.value?.id}`
+                const storageKey = `wordWizard_${user.value.id}`
                 const saved = localStorage.getItem(storageKey)
                 console.log(`📚 Checking localStorage key: ${storageKey}`)
                 console.log(`📚 Saved data:`, saved)
@@ -1429,7 +1462,7 @@ export default {
                 console.error('❌ Error loading Word Wizard progress:', error)
                 // Try localStorage fallback on error
                 try {
-                    const saved = localStorage.getItem(`wordWizard_${user.value?.id}`)
+                    const saved = localStorage.getItem(`wordWizard_${user.value.id}`)
                     if (saved) {
                         const progressData = JSON.parse(saved)
                         const progress = progressData.completed ? 100 : 0
@@ -1453,16 +1486,19 @@ export default {
         // Load progress from backend and localStorage for Math Magic
         const loadMathMagicProgress = async () => {
             try {
-                if (!user.value) return
+                if (!user.value?.id) {
+                    console.log('👶 New user: No progress to load for Math Magic')
+                    return
+                }
 
                 console.log('🔢 Loading Math Magic progress for dashboard...')
-                console.log('🔢 User ID:', user.value?.id)
+                console.log('🔢 User ID:', user.value.id)
 
                 let progress = 0
                 let dataSource = 'none'
 
                 // Always check localStorage first (most reliable)
-                const storageKey = `mathMagic_${user.value?.id}`
+                const storageKey = `mathMagic_${user.value.id}`
                 const saved = localStorage.getItem(storageKey)
                 console.log(`🔢 Checking localStorage key: ${storageKey}`)
                 console.log(`🔢 Saved data:`, saved)
@@ -1508,7 +1544,7 @@ export default {
                 console.error('❌ Error loading Math Magic progress:', error)
                 // Try localStorage fallback on error
                 try {
-                    const saved = localStorage.getItem(`mathMagic_${user.value?.id}`)
+                    const saved = localStorage.getItem(`mathMagic_${user.value.id}`)
                     if (saved) {
                         const progressData = JSON.parse(saved)
                         const progress = progressData.completed ? 100 : 0
@@ -1618,8 +1654,53 @@ export default {
             }, 1100)
         }
 
+        // Debug user stats (development only)
+        const debugUserStats = async () => {
+            if (!user.value?.id) {
+                Swal.fire('Error', 'No user ID found', 'error')
+                return
+            }
+
+            try {
+                const response = await apiService.debugUserStats(user.value.id)
+                if (response.success) {
+                    const debug = response.debug_info
+
+                    console.log('🐛 Debug Info:', debug)
+
+                    const debugText = `
+                        <div style="text-align: left; font-family: monospace; font-size: 0.9rem;">
+                            <strong>User ID:</strong> ${debug.user_id}<br>
+                            <strong>Achievements:</strong> ${debug.achievements_count}<br>
+                            <strong>Total Stars:</strong> ${debug.total_stars_calculated}<br>
+                            <strong>Skills Mastered:</strong> ${debug.skills_mastered_calculated}<br>
+                            <strong>Login Streak:</strong> ${debug.login_streak}<br>
+                            <strong>Health Streak:</strong> ${debug.health_streak}<br>
+                            <strong>Quests Completed:</strong> ${debug.quests_completed}<br><br>
+                            <strong>Raw Achievements:</strong><br>
+                            ${debug.raw_achievements.length === 0 ? 'None' :
+                            debug.raw_achievements.map(a => `• ${a.badge_name}`).join('<br>')
+                        }
+                        </div>
+                    `
+
+                    Swal.fire({
+                        title: '🐛 Debug User Stats',
+                        html: debugText,
+                        width: '600px',
+                        confirmButtonText: 'Close'
+                    })
+                }
+            } catch (error) {
+                console.error('Debug error:', error)
+                Swal.fire('Error', 'Failed to fetch debug info', 'error')
+            }
+        }
+
         onMounted(async () => {
             checkChildAccess()
+            console.log('👶 Child Dashboard mounted for user:', user.value?.id || 'undefined')
+
             startScreenTimeSession()
             fetchQuote()
             fetchLoginStreak()
@@ -1631,7 +1712,8 @@ export default {
             await loadMathMagicProgress()
 
             // Calculate skills mastered after loading all module progress
-            calculateSkillsMastered()
+            const skillsCalculated = calculateSkillsMastered()
+            console.log('📊 Final skills calculated for user:', user.value?.id, '=', skillsCalculated)
 
             // Add event listener for page unload
             window.addEventListener('beforeunload', logScreenTime)
@@ -1698,7 +1780,8 @@ export default {
             toggleScrollExpanded,
             levelInfo,
             dynamicUserLevel,
-            dynamicLevelTitle
+            dynamicLevelTitle,
+            debugUserStats
         }
     }
 }
@@ -1820,6 +1903,24 @@ export default {
     color: #FFD700;
     font-weight: 600;
     white-space: nowrap;
+}
+
+.xp-breakdown {
+    display: flex;
+    gap: 0.3rem;
+    align-items: center;
+    margin-top: 0.2rem;
+    font-size: 0.65rem;
+}
+
+.xp-stars {
+    color: #FFD700;
+    font-weight: 600;
+}
+
+.xp-skills {
+    color: #90EE90;
+    font-weight: 600;
 }
 
 .logout-btn {

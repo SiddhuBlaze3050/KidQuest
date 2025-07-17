@@ -29,15 +29,18 @@
                                         </div>
                                         <div class="analytics-item">
                                             <span class="analytics-label">Completed:</span>
-                                            <span class="analytics-value">{{ task.session_stats.completed_sessions }}</span>
+                                            <span class="analytics-value">{{ task.session_stats.completed_sessions
+                                                }}</span>
                                         </div>
                                         <div class="analytics-item">
                                             <span class="analytics-label">Focus Time:</span>
-                                            <span class="analytics-value">{{ task.session_stats.total_work_time }}m</span>
+                                            <span class="analytics-value">{{ task.session_stats.total_work_time
+                                                }}m</span>
                                         </div>
                                         <div class="analytics-item">
                                             <span class="analytics-label">Break Time:</span>
-                                            <span class="analytics-value">{{ task.session_stats.total_break_time }}m</span>
+                                            <span class="analytics-value">{{ task.session_stats.total_break_time
+                                                }}m</span>
                                         </div>
                                     </div>
                                 </div>
@@ -142,10 +145,20 @@ export default defineComponent({
 
         const updateTaskStatus = async (task, status) => {
             try {
-                await apiService.updateTaskStatus(task.id, status);
+                console.log(`🎯 Updating task ${task.id} status to: ${status}`);
+                const response = await apiService.updateTaskStatus(task.id, status);
+                console.log(`✅ Task status update response:`, response);
+
                 task.status = status;
+
+                // If task was completed, show success message and emit event for notification refresh
+                if (status === 'completed') {
+                    console.log(`🎉 Task completed: ${task.task}`);
+                    // You could emit an event here if parent component needs to refresh notifications
+                    emit('task-completed', { task, response });
+                }
             } catch (error) {
-                console.error('Error updating task status:', error);
+                console.error('❌ Error updating task status:', error);
             }
         };
 

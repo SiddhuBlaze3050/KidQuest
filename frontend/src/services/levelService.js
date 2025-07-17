@@ -37,20 +37,24 @@ const LEVEL_REWARDS = {
 }
 
 /**
- * Calculate simple level based on stars and skills
- * 10 stars = 1 level, each skill mastered = +2 levels
+ * Calculate total experience points
+ * 1 star = 1 XP, 1 completed skill = 18 XP
+ */
+const calculateTotalXP = (userStats) => {
+  const { starsEarned = 0, skillsMastered = 0 } = userStats
+  return starsEarned + skillsMastered * 18
+}
+
+/**
+ * Calculate level based on total XP
+ * Level 1: 0-9 XP, Level 2: 10-19 XP, Level 3: 20-29 XP, etc.
+ * Each level requires 10 more XP than the previous
  */
 export const calculateSimpleLevel = (userStats) => {
-  const { starsEarned = 0, skillsMastered = 0 } = userStats
+  const totalXP = calculateTotalXP(userStats)
 
-  // Base level from stars (every 10 stars = 1 level)
-  const starLevels = Math.floor(starsEarned / 10)
-
-  // Bonus levels from skills mastered (each 100% module = +2 levels)
-  const skillBonusLevels = skillsMastered * 2
-
-  // Total level (minimum level 1)
-  return Math.max(1, starLevels + skillBonusLevels)
+  // Each level requires 10 XP, starting from level 1
+  return Math.max(1, Math.floor(totalXP / 10) + 1)
 }
 
 /**
@@ -75,20 +79,28 @@ export const getLevelTitle = (level) => {
  */
 export const getLevelProgress = (userStats) => {
   const { starsEarned = 0, skillsMastered = 0 } = userStats
+  const totalXP = calculateTotalXP(userStats)
   const currentLevel = calculateSimpleLevel(userStats)
 
-  // Progress within current star level (0-9 stars to next level)
-  const starsInCurrentLevel = starsEarned % 10
-  const starsToNextLevel = 10 - starsInCurrentLevel
+  // Calculate XP needed for current level and next level
+  const currentLevelMinXP = (currentLevel - 1) * 10
+  const nextLevelMinXP = currentLevel * 10
+
+  // XP progress within current level
+  const xpInCurrentLevel = totalXP - currentLevelMinXP
+  const xpNeededForNext = nextLevelMinXP - totalXP
 
   return {
     currentLevel,
     title: getLevelTitle(currentLevel),
-    starsInLevel: starsInCurrentLevel,
-    starsNeeded: starsToNextLevel,
-    progressPercentage: (starsInCurrentLevel / 10) * 100,
+    starsInLevel: xpInCurrentLevel,
+    starsNeeded: xpNeededForNext,
+    progressPercentage: (xpInCurrentLevel / 10) * 100,
     totalStars: starsEarned,
     skillsMastered,
+    totalXP,
+    xpFromStars: starsEarned,
+    xpFromSkills: skillsMastered * 18,
   }
 }
 

@@ -4,6 +4,12 @@
     <header class="app-header">
       <div class="container">
         <div class="header-content">
+          <div class="header-left">
+            <button @click="goBackToDashboard" class="back-btn">
+              <i class="fas fa-arrow-left"></i>
+              <span>Back to Dashboard</span>
+            </button>
+          </div>
           <div class="app-logo">
             <span class="logo-icon">🧠</span>
             <span class="logo-text">Psychometric Test</span>
@@ -58,13 +64,8 @@
               <h3 v-else class="error-text">⚠️ Question not loaded properly</h3>
             </div>
             <div class="options-container" v-if="currentQuestion && currentQuestion.options">
-              <div
-                v-for="(text, letter) in currentQuestion.options"
-                :key="letter"
-                class="option"
-                :class="{ selected: selectedAnswer === letter }"
-                @click="selectOption(letter)"
-              >
+              <div v-for="(text, letter) in currentQuestion.options" :key="letter" class="option"
+                :class="{ selected: selectedAnswer === letter }" @click="selectOption(letter)">
                 <div class="option-letter">{{ letter }}</div>
                 <div class="option-text">{{ text }}</div>
               </div>
@@ -104,18 +105,18 @@
                 <span class="result-value">{{ formatPercentage(results.results?.memory_strength) }}</span>
                 <span class="result-label">Memory</span>
               </div>
-             
+
               <div class="result-item">
                 <span class="result-value">{{ results.total_questions || 0 }}</span>
                 <span class="result-label">Total Questions</span>
               </div>
-              
+
               <div class="result-item">
                 <span class="result-value">{{ results.duration_seconds || 0 }}s</span>
                 <span class="result-label">Test Duration</span>
               </div>
             </div>
-            
+
             <div v-if="results.results && results.results.detailed_scores" class="category-breakdown">
               <h4>Category Breakdown</h4>
               <ul>
@@ -124,7 +125,7 @@
                 </li>
               </ul>
             </div>
-            
+
             <div v-if="results.results && results.results.feedback" class="feedback-section">
               <h3>Personalized Feedback:</h3>
               <div v-html="results.results.feedback"></div>
@@ -134,12 +135,8 @@
 
         <!-- Action Buttons -->
         <div v-if="showQuestion || showResults" class="action-buttons">
-          <button 
-            v-if="showQuestion" 
-            class="btn primary-btn" 
-            @click="submitAnswer" 
-            :disabled="!selectedAnswer || isLoading"
-          >
+          <button v-if="showQuestion" class="btn primary-btn" @click="submitAnswer"
+            :disabled="!selectedAnswer || isLoading">
             Submit Answer
           </button>
           <button v-if="showResults" class="btn secondary-btn" @click="restartTest">
@@ -152,8 +149,22 @@
 </template>
 
 <script>
+import { useRouter } from 'vue-router'
+
 export default {
   name: 'PsychometricTestView',
+  setup() {
+    const router = useRouter()
+
+    const goBackToDashboard = () => {
+      router.push('/child-dashboard')
+    }
+
+    return {
+      router,
+      goBackToDashboard
+    }
+  },
   data() {
     return {
       // Test state
@@ -161,21 +172,21 @@ export default {
       isLoading: false,
       loadingMessage: 'Starting the assessment...',
       debugMode: false,
-      
+
       // Question data
       currentQuestion: null,
       selectedAnswer: null,
       currentQuestionNumber: 1,
       totalQuestions: 0,
-      
+
       // Progress tracking
       currentAccuracy: 0,
       progressPercentage: 0,
-      
+
       // Results
       results: {},
       showResults: false,
-      
+
       // API base URL - adjust this to match your Flask app
       apiBaseUrl: 'http://localhost:5000/api/psychometry'
     }
@@ -208,10 +219,10 @@ export default {
           return;
         }
         console.log('Starting test, making API call to:', `${this.apiBaseUrl}/start`);
-        
+
         const response = await fetch(`${this.apiBaseUrl}/start`, {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json'
           },
           credentials: 'include',
@@ -219,7 +230,7 @@ export default {
         });
 
         console.log('API Response status:', response.status);
-        
+
         if (!response.ok) {
           const errorText = await response.text();
           console.error('API Error Response:', errorText);
@@ -228,7 +239,7 @@ export default {
 
         const data = await response.json();
         console.log('API Response data:', data);
-        
+
         this.displayQuestion(data);
         this.isLoading = false;
       } catch (error) {
@@ -240,7 +251,7 @@ export default {
 
     async submitAnswer() {
       if (!this.selectedAnswer) return;
-      
+
       this.isLoading = true;
       this.loadingMessage = 'Processing your answer...';
 
@@ -253,10 +264,10 @@ export default {
           return;
         }
         console.log('Submitting answer:', this.selectedAnswer);
-        
+
         const response = await fetch(`${this.apiBaseUrl}/submit`, {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json'
           },
           credentials: 'include',
@@ -276,9 +287,9 @@ export default {
 
         const data = await response.json();
         console.log('Submit response data:', data);
-        
+
         this.isLoading = false;
-        
+
         if (data.results) {
           // Test is complete
           this.showTestResults(data);
@@ -296,14 +307,14 @@ export default {
 
     displayQuestion(data) {
       console.log('displayQuestion called with:', data);
-      
+
       // Ensure we have the question data
       if (!data || !data.question) {
         console.error('Invalid question data received:', data);
         this.currentQuestion = null;
         return;
       }
-      
+
       // Set the current question - this should contain all the question data
       this.currentQuestion = {
         question: data.question,
@@ -311,13 +322,13 @@ export default {
         correct_answer: data.correct_answer,
         category: data.category
       };
-      
+
       console.log('Current question set to:', this.currentQuestion);
-      
+
       this.selectedAnswer = null;
       this.currentQuestionNumber = data.question_number || 1;
       this.totalQuestions = data.total_questions || 1;
-      
+
       // Update progress
       this.progressPercentage = data.progress || 0;
     },
@@ -379,10 +390,10 @@ export default {
 </script>
 
 <style scoped>
-* { 
-  margin: 0; 
-  padding: 0; 
-  box-sizing: border-box; 
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 .psychometric-app {
@@ -406,6 +417,67 @@ export default {
   justify-content: space-between;
   align-items: center;
   padding: 1rem 0;
+  position: relative;
+}
+
+.header-left {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(102, 126, 234, 0.1);
+  color: #667eea;
+  border: 2px solid rgba(102, 126, 234, 0.2);
+  padding: 0.75rem 1.5rem;
+  border-radius: 25px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 600;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.back-btn:hover {
+  background: rgba(102, 126, 234, 0.2);
+  border-color: rgba(102, 126, 234, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.back-btn i {
+  font-size: 1rem;
+}
+
+.back-btn span {
+  font-size: 0.9rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .back-btn span {
+    display: none;
+  }
+
+  .back-btn {
+    padding: 0.75rem;
+    min-width: 50px;
+    justify-content: center;
+  }
+
+  .app-logo {
+    font-size: 1.2rem;
+  }
+
+  .header-subtitle {
+    font-size: 0.8rem;
+    top: 70%;
+  }
 }
 
 .app-logo {
@@ -415,6 +487,10 @@ export default {
   font-size: 1.5rem;
   font-weight: bold;
   color: #6366f1;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
 }
 
 .logo-icon {
@@ -424,6 +500,11 @@ export default {
 .header-subtitle {
   color: #666;
   font-size: 1rem;
+  position: absolute;
+  left: 50%;
+  top: 75%;
+  transform: translateX(-50%);
+  white-space: nowrap;
 }
 
 .app-main {
@@ -449,19 +530,19 @@ export default {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
 }
 
-.stat-item { 
-  text-align: center; 
+.stat-item {
+  text-align: center;
 }
 
-.stat-value { 
-  font-size: 2rem; 
-  font-weight: bold; 
+.stat-value {
+  font-size: 2rem;
+  font-weight: bold;
   display: block;
   color: #667eea;
 }
 
-.stat-label { 
-  font-size: 0.9rem; 
+.stat-label {
+  font-size: 0.9rem;
   color: #666;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -522,9 +603,9 @@ export default {
   text-align: left;
 }
 
-.options-container { 
-  display: grid; 
-  gap: 1rem; 
+.options-container {
+  display: grid;
+  gap: 1rem;
 }
 
 .option {
@@ -703,8 +784,13 @@ export default {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .debug-info {
@@ -731,32 +817,32 @@ export default {
   .container {
     padding: 0 0.5rem;
   }
-  
+
   .welcome-card,
   .question-card,
   .loading-card,
   .results-card {
     padding: 2rem 1rem;
   }
-  
+
   .results-grid {
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 1rem;
   }
-  
+
   .result-item {
     padding: 1.5rem 1rem;
   }
-  
+
   .result-value {
     font-size: 1.5rem;
   }
-  
+
   .stats-bar {
     flex-direction: column;
     gap: 1rem;
   }
-  
+
   .header-content {
     flex-direction: column;
     gap: 0.5rem;
@@ -768,7 +854,7 @@ export default {
   .welcome-card h1 {
     font-size: 2rem;
   }
-  
+
   .btn {
     width: 100%;
     min-width: auto;

@@ -18,6 +18,8 @@ import json
 
 # Import our psychometry module
 from services.psychometry import PsychometryService
+# Import notification service
+from services.notifications import NotificationService
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -381,7 +383,19 @@ def api_login():
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password_hash, password):
             # Update login streak for successful login
+            old_streak = LoginStreak.query.filter_by(user_id=user.id).first()
+            old_streak_count = old_streak.current_streak if old_streak else 0
+            
             update_login_streak(user.id)
+            
+            # Check for login streak notifications
+            new_streak = LoginStreak.query.filter_by(user_id=user.id).first()
+            if new_streak and new_streak.current_streak > old_streak_count:
+                NotificationService.check_and_notify_streaks(user.id)
+            
+            # Send welcome notification for new users (first login)
+            if new_streak and new_streak.total_logins == 1:
+                NotificationService.notify_welcome(user.id, user.username)
             
             return jsonify({
                 'success': True,
@@ -533,7 +547,36 @@ def toggle_task_completion(task_id):
         db.session.commit()
 
         # Automatically evaluate streak after toggling
+        old_streak = HealthStreak.query.filter_by(user_id=task.user_id).first()
+        old_streak_count = old_streak.current_streak if old_streak else 0
+        
         evaluate_streak_internal(task.user_id)
+        
+        # Check for health streak notifications and create achievements
+        if task.completed:
+            new_streak = HealthStreak.query.filter_by(user_id=task.user_id).first()
+            if new_streak and new_streak.current_streak > old_streak_count:
+                NotificationService.check_and_notify_streaks(task.user_id)
+            
+            # Notify task completion
+            NotificationService.notify_task_completion(task.user_id, task.task_name)
+            
+            # Create achievement for health task completion (3 stars each)
+            try:
+                achievement = Achievement(
+                    user_id=task.user_id,
+                    badge_name=f"Health Task: {task.task_name}",
+                    description=f"Completed health task: {task.task_name}",
+                    date_awarded=datetime.utcnow()
+                )
+                db.session.add(achievement)
+                db.session.commit()
+                
+                # Create achievement notification
+                NotificationService.notify_achievement(task.user_id, "Health Task Completed", 3)
+                print(f"✅ Health task achievement created for user {task.user_id}: {task.task_name}")
+            except Exception as achievement_error:
+                print(f"⚠️ Health task achievement creation failed: {achievement_error}")
 
         return jsonify({'success': True, 'completed': task.completed}), 200
     except Exception as e:
@@ -748,10 +791,27 @@ def calculate_total_stars(user_id):
         # Stars per achievement based on activity type
         achievements = Achievement.query.filter_by(user_id=user_id).all()
         for achievement in achievements:
+            # Skip module progress records (they're stored as achievements but aren't star-earning)
+            if achievement.badge_name and achievement.badge_name.startswith('module_'):
+                continue
+                
+            # Calculate stars based on activity type
             if 'Memory Game' in achievement.badge_name:
                 stars += 5  # Memory Game gives 5 stars
+            elif 'Task Completed' in achievement.badge_name:
+                stars += 5  # Task completion gives 5 stars
+            elif 'Health Task' in achievement.badge_name:
+                stars += 3  # Health task gives 3 stars
+            elif 'Finance:' in achievement.badge_name:
+                stars += 2  # Finance transaction gives 2 stars
+            elif 'Psychometric Test' in achievement.badge_name:
+                stars += 15  # Psychometric test gives 15 stars
+            elif 'Module Completed' in achievement.badge_name:
+                stars += 20  # Module completion gives 20 stars
+            elif 'Master' in achievement.badge_name:
+                stars += 10  # Activity masters give 10 stars
             else:
-                stars += 10  # Other activities give 10 stars
+                stars += 8  # Other activities give 8 stars
         
         # 1 star per login streak day
         login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
@@ -779,10 +839,18 @@ def calculate_quests_completed(user_id):
         return 0
 
 def calculate_skills_mastered(user_id):
-    """Calculate number of skills mastered by a user - simplified using Achievement table"""
+    """Calculate number of skills mastered by a user - Note: Frontend handles real calculation based on module completion"""
     try:
-        # Simple calculation: every 3 achievements = 1 skill mastered
+        # For new users, return 0. Frontend will calculate based on actual module progress
+        # This ensures new users start with 0 skills mastered
         achievements_count = Achievement.query.filter_by(user_id=user_id).count()
+        
+        # If user has no achievements, definitely 0 skills mastered
+        if achievements_count == 0:
+            return 0
+            
+        # Simple fallback calculation: every 3 achievements = 1 skill mastered
+        # But frontend overrides this with actual module completion data
         skills = achievements_count // 3  # Integer division
         
         return skills
@@ -791,19 +859,35 @@ def calculate_skills_mastered(user_id):
         return 0
 
 def calculate_todays_goals(user_id, today):
-    """Calculate goals completed today - simplified"""
+    """Calculate goals completed today - comprehensive"""
     try:
         goals = 0
         
-        # Achievements earned today
-        goals += Achievement.query.filter_by(user_id=user_id).filter(
+        # Achievements earned today (exclude module progress records)
+        todays_achievements = Achievement.query.filter_by(user_id=user_id).filter(
             db.func.date(Achievement.date_awarded) == today
-        ).count()
+        ).all()
+        
+        for achievement in todays_achievements:
+            # Skip module progress records
+            if achievement.badge_name and achievement.badge_name.startswith('module_'):
+                continue
+            goals += 1
         
         # Login streak (if logged in today)
         login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
         if login_streak and login_streak.last_login_date == today:
             goals += 1
+        
+        # Health tasks completed today
+        health_tasks_today = HealthTask.query.filter_by(user_id=user_id, date=today, completed=True).count()
+        goals += health_tasks_today
+        
+        # Tasks completed today
+        tasks_today = HomeworkSchedule.query.filter_by(user_id=user_id, status='completed').filter(
+            db.func.date(HomeworkSchedule.created_at) == today
+        ).count()
+        goals += tasks_today
         
         return goals
     except Exception as e:
@@ -836,8 +920,8 @@ def api_child_stats(user_id):
         login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
         streak_days = login_streak.current_streak if login_streak else 0
         
-        # Calculate user level based on total stars
-        user_level = max(1, total_stars // 50)  # Level up every 50 stars
+        # Calculate user level based on total stars (match frontend: 10 stars = 1 level)
+        user_level = max(1, total_stars // 10)  # Level up every 10 stars
         
         stats = {
             'totalStars': total_stars,
@@ -1106,6 +1190,56 @@ def add_transaction():
         db.session.add(transaction)
         db.session.commit()
         
+        # Create achievement for financial transaction (2 stars each)
+        try:
+            achievement = Achievement(
+                user_id=data['user_id'],
+                badge_name=f"Finance: {data['type'].title()}",
+                description=f"Added {data['type']}: {data['description']} (₹{data['amount']})",
+                date_awarded=datetime.utcnow()
+            )
+            db.session.add(achievement)
+            db.session.commit()
+            
+            # Create achievement notification
+            NotificationService.notify_achievement(data['user_id'], f"Financial {data['type'].title()}", 2)
+            print(f"✅ Finance achievement created for user {data['user_id']}: {data['type']} ₹{data['amount']}")
+        except Exception as achievement_error:
+            print(f"⚠️ Finance achievement creation failed: {achievement_error}")
+        
+        # Check for savings goal milestones after adding transaction
+        if data['type'] == 'income':  # Only check on income additions
+            try:
+                # Calculate current savings
+                user_transactions = Transaction.query.filter_by(user_id=data['user_id']).all()
+                current_savings = sum(t.amount if t.type == 'income' else -t.amount for t in user_transactions)
+                
+                # Check goals for milestones
+                goals = SavingGoal.query.filter_by(user_id=data['user_id']).all()
+                for goal in goals:
+                    progress = min(round((current_savings / goal.target_amount) * 100), 100) if goal.target_amount > 0 else 0
+                    
+                    # Notify on milestone achievements (25%, 50%, 75%, 100%)
+                    milestones = [25, 50, 75, 100]
+                    for milestone in milestones:
+                        if progress >= milestone:
+                            # Create a simple check to avoid duplicate notifications
+                            # In production, you'd want a more sophisticated system
+                            recent_notifications = Notification.query.filter_by(
+                                user_id=data['user_id'],
+                                notification_type='financial'
+                            ).order_by(Notification.timestamp.desc()).limit(5).all()
+                            
+                            milestone_already_notified = any(
+                                f"{milestone}%" in notif.content for notif in recent_notifications
+                            )
+                            
+                            if not milestone_already_notified:
+                                NotificationService.notify_savings_milestone(data['user_id'], goal.label, progress)
+                                break  # Only notify for the highest milestone reached
+            except Exception as e:
+                print(f"Error checking savings milestones: {e}")
+        
         return jsonify({
             'success': True,
             'transaction': {
@@ -1326,6 +1460,24 @@ def complete_psychometry_assessment():
             )
             db.session.add(test_result)
             db.session.commit()
+            
+            # Create achievement for psychometric test completion (15 stars)
+            try:
+                achievement = Achievement(
+                    user_id=child_id,
+                    badge_name="Psychometric Test Completed",
+                    description=f"Completed psychometric assessment with {accuracy:.1f}% accuracy",
+                    date_awarded=datetime.utcnow()
+                )
+                db.session.add(achievement)
+                db.session.commit()
+                
+                # Create achievement notification
+                NotificationService.notify_achievement(child_id, "Psychometric Test Completed", 15)
+                print(f"✅ Psychometric test achievement created for user {child_id}")
+            except Exception as achievement_error:
+                print(f"⚠️ Psychometric test achievement creation failed: {achievement_error}")
+                
         return jsonify({
             'results': assessment_results,
             'responses': responses,
@@ -1434,8 +1586,42 @@ def update_task_status(task_id):
         if not task:
             return jsonify({'success': False, 'error': 'Task not found'}), 404
 
+        # Store old status to check if task was just completed
+        old_status = task.status
         task.status = new_status
         db.session.commit()
+        
+        # Send notification and create achievement when task is marked as completed
+        if new_status == 'completed' and old_status != 'completed':
+            try:
+                # Create a descriptive task name for the notification
+                task_description = f"{task.subject}: {task.task}" if task.subject else task.task
+                print(f"🎯 Processing task completion for user {task.user_id}: {task_description}")
+                
+                # Create task completion notification
+                notification_result = NotificationService.notify_task_completion(task.user_id, task_description)
+                print(f"📬 Task completion notification result: {notification_result}")
+                
+                # Create achievement for task completion (5 stars each)
+                achievement = Achievement(
+                    user_id=task.user_id,
+                    badge_name=f"Task Completed: {task.subject or 'General'}",
+                    description=f"Completed task: {task_description}",
+                    date_awarded=datetime.utcnow()
+                )
+                db.session.add(achievement)
+                db.session.commit()
+                
+                # Create achievement notification
+                achievement_notification_result = NotificationService.notify_achievement(task.user_id, "Task Completed", 5)
+                print(f"🏆 Achievement notification result: {achievement_notification_result}")
+                print(f"✅ Task completion processing completed successfully for user {task.user_id}: {task_description}")
+
+            except Exception as notification_error:
+                # Don't fail the task update if notification fails
+                print(f"⚠️ Task completion processing failed: {notification_error}")
+                import traceback
+                traceback.print_exc()
         
         return jsonify({'success': True, 'message': f'Task status updated to {new_status}'}), 200
     except Exception as e:
@@ -1674,7 +1860,14 @@ def save_module_progress():
         is_completed = data.get('is_completed', False)
         progress_data = data.get('progress_data', {})
         
-        print(f"📝 SIMPLE: Saving progress for User {user_id}, Module '{module_type}', Progress: {progress_percentage}%")
+        # Check if completion data is nested inside progress_data
+        if progress_data and not is_completed:
+            is_completed = progress_data.get('isCompleted', False)
+        if progress_data and progress_percentage == 0 and is_completed:
+            progress_percentage = 100  # Set to 100% if marked as completed
+        
+        print(f"📝 SIMPLE: Saving progress for User {user_id}, Module '{module_type}', Progress: {progress_percentage}%, Completed: {is_completed}")
+        print(f"📋 Request data: {data}")
         
         # Simple validation
         if not user_id:
@@ -1754,6 +1947,40 @@ def save_module_progress():
             try:
                 db.session.commit()
                 print(f"✅ SIMPLE: Progress saved successfully for {module_type}")
+                
+                # Create notification for module completion
+                if is_completed and progress_percentage >= 100:
+                    try:
+                        # Convert module type to user-friendly name
+                        module_display_name = module_type.replace('_', ' ').title()
+                        if module_type == 'good_touch_bad_touch':
+                            module_display_name = 'Good Touch Bad Touch'
+                        
+                        NotificationService.notify_module_completion(user_id, module_display_name, progress_percentage)
+                        print(f"🔔 Module completion notification sent for {module_display_name} (user {user_id})")
+                        
+                        # Create achievement for module completion (20 stars)
+                        try:
+                            achievement = Achievement(
+                                user_id=user_id,
+                                badge_name=f"Module Completed: {module_display_name}",
+                                description=f"Successfully completed learning module: {module_display_name}",
+                                date_awarded=datetime.utcnow()
+                            )
+                            db.session.add(achievement)
+                            db.session.commit()
+                            
+                            # Create achievement notification
+                            NotificationService.notify_achievement(user_id, f"Module Completed: {module_display_name}", 20)
+                            print(f"✅ Module completion achievement created for user {user_id}: {module_display_name}")
+                        except Exception as achievement_error:
+                            print(f"⚠️ Module completion achievement creation failed: {achievement_error}")
+                            
+                    except Exception as notification_error:
+                        print(f"⚠️ Notification creation failed: {notification_error}")
+                        import traceback
+                        traceback.print_exc()
+                
                 return jsonify({
                     'success': True, 
                     'message': 'Progress saved successfully',
@@ -1869,7 +2096,11 @@ def get_notifications(user_id):
                 'id': n.id,
                 'content': n.content,
                 'is_read': n.is_read,
-                'timestamp': n.timestamp.isoformat()
+                'timestamp': n.timestamp.isoformat(),
+                'notification_type': n.notification_type,
+                'priority': n.priority,
+                'action_url': n.action_url,
+                'extra_data': n.extra_data
             } for n in notifications]
         }), 200
     except Exception as e:
@@ -1896,44 +2127,93 @@ def mark_notifications_read():
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/notifications/create-sample', methods=['POST'])
-def create_sample_notifications():
-    """Create sample notifications for testing (development only)"""
+@app.route('/api/notifications/clear/<int:user_id>', methods=['DELETE'])
+def clear_user_notifications(user_id):
+    """Clear all notifications for a user (for testing)"""
     try:
-        data = request.get_json()
-        user_id = data.get('user_id')
-        
-        if not user_id:
-            return jsonify({'success': False, 'error': 'user_id is required'}), 400
-        
-        sample_notifications = [
-            "🎉 Welcome to your magical adventure world!",
-            "⭐ You've earned 50 stars today! Keep up the great work!",
-            "📚 New reading quest available: 'The Dragon's Tale'",
-            "🏆 Achievement unlocked: Math Master Level 1!",
-            "💰 Your savings goal is 80% complete!",
-            "🎨 New drawing tools have been added to your art pad!"
-        ]
-        
-        created_notifications = []
-        for content in sample_notifications:
-            notification = Notification(
-                user_id=user_id,
-                content=content,
-                is_read=False
-            )
-            db.session.add(notification)
-            created_notifications.append(notification)
-        
+        deleted_count = Notification.query.filter_by(user_id=user_id).delete()
         db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f'{len(created_notifications)} sample notifications created'
-        }), 201
+        print(f"🗑️ Cleared {deleted_count} notifications for user {user_id}")
+        return jsonify({'success': True, 'message': f'Cleared {deleted_count} notifications'}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/test/task-completion-notification', methods=['POST'])
+def test_task_completion_notification():
+    """Test endpoint to manually trigger a task completion notification"""
+    try:
+        data = request.get_json()
+        user_id = data.get('user_id', 1)
+        task_name = data.get('task_name', 'Test Task: Math Homework')
+        
+        print(f"🧪 Testing task completion notification for user {user_id}")
+        
+        # Test task completion notification
+        task_result = NotificationService.notify_task_completion(user_id, task_name)
+        
+        # Test achievement notification
+        achievement_result = NotificationService.notify_achievement(user_id, "Task Completed", 5)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Test notifications sent',
+            'task_notification': {
+                'id': task_result.id if task_result else None,
+                'success': task_result is not None
+            },
+            'achievement_notification': {
+                'id': achievement_result.id if achievement_result else None,
+                'success': achievement_result is not None
+            }
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error in test endpoint: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+
+# ---------------------------
+# Debug Routes for User Stats (Development)
+# ---------------------------
+
+@app.route('/api/debug/user-stats/<int:user_id>', methods=['GET'])
+def debug_user_stats(user_id):
+    """Debug endpoint to check raw user data"""
+    try:
+        # Get raw counts
+        achievements_count = Achievement.query.filter_by(user_id=user_id).count()
+        login_streak_obj = LoginStreak.query.filter_by(user_id=user_id).first()
+        health_streak_obj = HealthStreak.query.filter_by(user_id=user_id).first()
+        
+        debug_info = {
+            'user_id': user_id,
+            'achievements_count': achievements_count,
+            'login_streak': login_streak_obj.current_streak if login_streak_obj else 0,
+            'health_streak': health_streak_obj.current_streak if health_streak_obj else 0,
+            'total_stars_calculated': calculate_total_stars(user_id),
+            'skills_mastered_calculated': calculate_skills_mastered(user_id),
+            'quests_completed': calculate_quests_completed(user_id),
+            'raw_achievements': [
+                {'id': a.id, 'badge_name': a.badge_name, 'description': a.description} 
+                for a in Achievement.query.filter_by(user_id=user_id).all()
+            ]
+        }
+        
+        return jsonify({
+            'success': True,
+            'debug_info': debug_info
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ---------------------------
+# Enhanced Notification Test Routes (Development)
+# ---------------------------
+
+
 
 # ---------------------------
 # Doodling/Drawing Routes
@@ -2374,6 +2654,24 @@ def complete_activity():
             stars_earned = 5  # Memory Game gives 5 stars
         
         print(f"Activity completed: {activity_name} by user {user_id}, earned {stars_earned} stars")
+        
+        # Create achievement notification
+        NotificationService.notify_achievement(user_id, f"{activity_name} Master", stars_earned)
+        
+        # Check if this achievement triggers a level up
+        from services.levelService import getLevelProgress
+        try:
+            # Get current stats for level calculation
+            total_achievements = Achievement.query.filter_by(user_id=user_id).count()
+            level_info = getLevelProgress({'starsEarned': total_achievements * 10, 'skillsMastered': 0})
+            
+            # Check if they just leveled up (simplified check)
+            if total_achievements > 1:  # Not first achievement
+                prev_level_info = getLevelProgress({'starsEarned': (total_achievements - 1) * 10, 'skillsMastered': 0})
+                if level_info['currentLevel'] > prev_level_info['currentLevel']:
+                    NotificationService.notify_level_up(user_id, level_info['currentLevel'], level_info['title'])
+        except Exception as e:
+            print(f"Level up check failed: {e}")
         
         return jsonify({
             'success': True,

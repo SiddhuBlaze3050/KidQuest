@@ -128,59 +128,59 @@ export const apiService = {
     }
   },
 
-  // Health Tracker 
+  // Health Tracker
 
   async getHealthTasks(userId) {
     try {
-      const res = await api.get(`/api/health/tasks/${userId}`);
-      return res.data.tasks;
+      const res = await api.get(`/api/health/tasks/${userId}`)
+      return res.data.tasks
     } catch (error) {
-      throw error;
+      throw error
     }
   },
 
   async toggleHealthTask(taskId) {
     try {
-      const res = await api.post(`/api/health/tasks/${taskId}/toggle`);
-      return res.data.completed;
+      const res = await api.post(`/api/health/tasks/${taskId}/toggle`)
+      return res.data.completed
     } catch (error) {
-      throw error;
+      throw error
     }
   },
 
   async getHealthStreak(userId) {
     try {
-      const res = await api.get(`/api/health/streak/${userId}`);
-      return res.data.streak;
+      const res = await api.get(`/api/health/streak/${userId}`)
+      return res.data.streak
     } catch (error) {
-      throw error;
+      throw error
     }
   },
 
   async getWaterCount(userId) {
     try {
-      const res = await api.get(`/api/health/water/${userId}`);
-      return res.data.count;
+      const res = await api.get(`/api/health/water/${userId}`)
+      return res.data.count
     } catch (error) {
-      throw error;
+      throw error
     }
   },
 
   async incrementWaterCount(userId) {
     try {
-      const res = await api.post(`/api/health/water/${userId}`);
-      return res.data.count;
+      const res = await api.post(`/api/health/water/${userId}`)
+      return res.data.count
     } catch (error) {
-      throw error;
+      throw error
     }
   },
 
   async getWaterLog(userId) {
     try {
-      const res = await api.get(`/api/health/water/log/${userId}`);
-      return res.data.log;
+      const res = await api.get(`/api/health/water/log/${userId}`)
+      return res.data.log
     } catch (error) {
-      throw error;
+      throw error
     }
   },
 
@@ -504,11 +504,33 @@ export const apiService = {
     }
   },
 
-  async createSampleNotifications(userId) {
+  // Test endpoint for debugging task completion notifications
+  async testTaskCompletionNotification(userId, taskName = 'Test Task: Math Homework') {
     try {
-      const response = await api.post('/api/notifications/create-sample', {
+      const response = await api.post('/api/test/task-completion-notification', {
         user_id: userId,
+        task_name: taskName,
       })
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // Debug user stats
+  async debugUserStats(userId) {
+    try {
+      const response = await api.get(`/api/debug/user-stats/${userId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // Clear notifications for testing
+  async clearNotifications(userId) {
+    try {
+      const response = await api.delete(`/api/notifications/clear/${userId}`)
       return response.data
     } catch (error) {
       throw error
