@@ -17,14 +17,6 @@
                             <span class="progress-icon">🏆</span>
                             <span class="progress-text">{{ completionPercentage }}% Adventure Complete!</span>
                         </div>
-                        <div class="progress-details">
-                            <div class="progress-stats">
-                                <span class="stat">{{ questsCompleted }}/{{ simulations.length }} Quests Complete</span>
-                                <span class="stat">{{ questsStarted }} Started</span>
-                                <span class="stat" v-if="totalEstimatedTime !== '0 min'">~{{ totalEstimatedTime }}
-                                    remaining</span>
-                            </div>
-                        </div>
                         <div class="progress-bar">
                             <div class="progress-fill" :style="{ width: `${completionPercentage}%` }"></div>
                             <div class="progress-sparkles">
@@ -136,6 +128,9 @@ const currentSimulation = ref(null)
 const isLoadingSimulation = ref(false)
 const completedSimulations = ref(new Set())
 
+// State for tracking progress
+const moduleProgress = ref(0)
+
 // PhET Simulations with adventure theme and proper progress weights
 const simulations = ref([
     {
@@ -149,8 +144,9 @@ const simulations = ref([
         timeSpent: 0,
         gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         difficulty: 'Explorer',
-        progressWeight: 15, // Easier quest, lower weight
-        estimatedTime: '10-15 min'
+        progressWeight: 20, // Matches backend submodule progress weight
+        estimatedTime: '10-15 min',
+        submodule_name: 'balance_master' // Updated to match backend
     },
     {
         id: 'forces-motion',
@@ -163,8 +159,9 @@ const simulations = ref([
         timeSpent: 0,
         gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
         difficulty: 'Detective',
-        progressWeight: 18, // Medium complexity
-        estimatedTime: '15-20 min'
+        progressWeight: 20, // Matches backend submodule progress weight
+        estimatedTime: '15-20 min',
+        submodule_name: 'force_detective' // Updated to match backend
     },
     {
         id: 'gravity-orbits',
@@ -177,8 +174,9 @@ const simulations = ref([
         timeSpent: 0,
         gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
         difficulty: 'Astronaut',
-        progressWeight: 20, // More complex, higher weight
-        estimatedTime: '20-25 min'
+        progressWeight: 20, // Matches backend submodule progress weight
+        estimatedTime: '20-25 min',
+        submodule_name: 'space_explorer' // Updated to match backend
     },
     {
         id: 'wave-string',
@@ -191,54 +189,45 @@ const simulations = ref([
         timeSpent: 0,
         gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
         difficulty: 'Wizard',
-        progressWeight: 17, // Medium complexity
-        estimatedTime: '15-20 min'
+        progressWeight: 20, // Matches backend submodule progress weight
+        estimatedTime: '15-20 min',
+        submodule_name: 'wave_wizard' // Updated to match backend
     },
     {
         id: 'states-matter',
         title: 'Matter Transformer',
         description: 'Transform between solids, liquids, and gases in this molecular adventure!',
-        icon: '🧊',
+        icon: '🧪',
         url: 'https://phet.colorado.edu/sims/html/states-of-matter/latest/states-of-matter_en.html',
         completed: false,
         started: false,
         timeSpent: 0,
         gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
         difficulty: 'Scientist',
-        progressWeight: 16, // Medium complexity
-        estimatedTime: '12-18 min'
+        progressWeight: 20, // Matches backend submodule progress weight
+        estimatedTime: '15-20 min',
+        submodule_name: 'matter_transformer' // Updated to match backend
     },
     {
-        id: 'circuit-construction',
-        title: 'Circuit Champion',
-        description: 'Build amazing electrical circuits and become an electronics champion!',
-        icon: '⚡',
-        url: 'https://phet.colorado.edu/sims/html/circuit-construction-kit-dc/latest/circuit-construction-kit-dc_en.html',
+        id: 'energy-skate-park',
+        title: 'Energy Master',
+        description: 'Master the laws of energy conservation in this thrilling skate park adventure!',
+        icon: '🛹',
+        url: 'https://phet.colorado.edu/sims/html/energy-skate-park/latest/energy-skate-park_en.html',
         completed: false,
         started: false,
         timeSpent: 0,
         gradient: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-        difficulty: 'Engineer',
-        progressWeight: 14, // Easier for kids, lower weight
-        estimatedTime: '10-15 min'
+        difficulty: 'Master',
+        progressWeight: 20, // Matches backend submodule progress weight
+        estimatedTime: '10-15 min',
+        submodule_name: 'energy_master' // Updated to match backend
     }
 ])
 
 // Computed properties with proper progress calculation
 const completionPercentage = computed(() => {
-    let totalProgress = 0
-    const totalWeight = simulations.value.reduce((sum, sim) => sum + sim.progressWeight, 0)
-
-    simulations.value.forEach(sim => {
-        if (sim.completed) {
-            totalProgress += sim.progressWeight
-        } else if (sim.started) {
-            // Give partial credit for started activities (25% of weight)
-            totalProgress += sim.progressWeight * 0.25
-        }
-    })
-
-    return Math.round((totalProgress / totalWeight) * 100)
+    return moduleProgress.value
 })
 
 const questsStarted = computed(() => {
@@ -318,6 +307,30 @@ const onIframeLoad = () => {
     }, 1000)
 }
 
+const saveSubmoduleProgress = async (simulation) => {
+    if (!user.value || !simulation.submodule_name) return
+
+    try {
+        // Save individual submodule progress
+        const response = await apiService.updateModuleProgress({
+            user_id: user.value.id,
+            module_type: 'science_explorer', // Ensure lowercase
+            submodule_name: simulation.submodule_name,
+            progress_percentage: 100, // Individual submodule is 100% complete
+            is_completed: true,
+            progress_data: {
+                simulation_id: simulation.id,
+                title: simulation.title,
+                completed_at: Date.now(),
+                progress_weight: simulation.progressWeight
+            }
+        })
+        console.log(`✅ Saved submodule progress for ${simulation.submodule_name}:`, response)
+    } catch (error) {
+        console.warn(`⚠️ Failed to save submodule progress for ${simulation.submodule_name}:`, error)
+    }
+}
+
 const markSimulationComplete = async () => {
     if (!currentSimulation.value || !user.value) return
 
@@ -327,15 +340,19 @@ const markSimulationComplete = async () => {
     }
 
     // Mark as completed
-    const previousProgress = completionPercentage.value
     currentSimulation.value.completed = true
     currentSimulation.value.started = true // Ensure it's marked as started too
     completedSimulations.value.add(currentSimulation.value.id)
-    const newProgress = completionPercentage.value
-    const progressGained = newProgress - previousProgress
+
+    // Recalculate progress - each submodule is exactly 20%
+    const completedSubmodules = simulations.value.filter(sim => sim.completed).length
+    moduleProgress.value = completedSubmodules * 20
 
     // Save progress locally first (most important)
     await saveProgress()
+
+    // Save individual submodule progress
+    await saveSubmoduleProgress(currentSimulation.value)
 
     // Try to create achievement (but don't fail if it doesn't work)
     try {
@@ -356,9 +373,10 @@ const markSimulationComplete = async () => {
     try {
         await apiService.updateModuleProgress({
             user_id: user.value.id,
-            module_type: 'Science Explorer',
-            progress_percentage: newProgress,
-            is_completed: newProgress === 100
+            module_type: 'science_explorer', // Use the correct module type
+            submodule_name: currentSimulation.value.submodule_name, // Send submodule name
+            progress_percentage: 20, // Each submodule is 20%
+            is_completed: true
         })
         console.log('✅ SIMPLE: Module progress updated successfully')
     } catch (moduleError) {
@@ -382,20 +400,20 @@ const markSimulationComplete = async () => {
                         🏅 Achievement: ${currentSimulation.value.title} Master
                     </p>
                     <p style="color: #17a2b8; font-size: 0.9rem; margin: 0.5rem 0;">
-                        ⚡ Progress Gained: +${progressGained}% (${currentSimulation.value.progressWeight}% weight)
+                        ⚡ Progress Gained: 20% (Submodule Complete)
                     </p>
                     <p style="color: #6f42c1; font-size: 0.9rem; margin: 0.5rem 0;">
                         ⏱️ Time Spent: ${currentSimulation.value.timeSpent || 'N/A'} minutes
                     </p>
                     <p style="color: #fd7e14; font-size: 0.9rem; margin: 0.5rem 0;">
-                        📊 Total Progress: ${newProgress}% Complete
+                        📊 Total Progress: ${moduleProgress.value}% Complete
                     </p>
                 </div>
                 <div style="font-size: 3rem; margin: 1rem 0;">🚀🔬🌟</div>
-                ${newProgress === 100 ? '<p style="color: #28a745; font-weight: 700; font-size: 1.2rem;">🎊 CONGRATULATIONS! You\'ve completed the entire Science Adventure! 🎊</p>' : ''}
+                ${moduleProgress.value === 100 ? '<p style="color: #28a745; font-weight: 700; font-size: 1.2rem;">🎊 CONGRATULATIONS! You\'ve completed the entire Science Adventure! 🎊</p>' : ''}
             </div>
         `,
-        confirmButtonText: newProgress === 100 ? '🏆 Return as Science Master!' : '🎯 Continue Adventure!',
+        confirmButtonText: moduleProgress.value === 100 ? '🏆 Return as Science Master!' : '🎯 Continue Adventure!',
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         color: 'white',
         confirmButtonColor: '#28a745'
@@ -409,123 +427,100 @@ const saveProgress = async () => {
     }
 
     try {
+        // Prepare simulation progress data
+        const simulationProgressData = simulations.value.map(sim => ({
+            id: sim.id,
+            submodule_name: sim.submodule_name,
+            completed: sim.completed,
+            started: sim.started,
+            timeSpent: sim.timeSpent || 0,
+            startTime: sim.startTime,
+            progress_weight: sim.progressWeight
+        }))
+
+        // Track submodule progress
+        const submoduleProgress = {}
+        simulations.value.forEach(sim => {
+            if (sim.submodule_name) {
+                // Each completed submodule is exactly 20%
+                submoduleProgress[sim.submodule_name] = {
+                    progress_percentage: sim.completed ? 20 : 0,
+                    is_completed: sim.completed
+                }
+            }
+        })
+
+        // Calculate total module progress by summing submodule percentages
+        const totalProgress = Object.values(submoduleProgress).reduce((sum, submodule) =>
+            sum + submodule.progress_percentage, 0)
+
+        // Prepare full progress data
         const progressData = {
-            simulations: simulations.value.map(sim => ({
-                id: sim.id,
-                completed: sim.completed,
-                started: sim.started,
-                timeSpent: sim.timeSpent || 0,
-                startTime: sim.startTime
-            })),
-            completionPercentage: completionPercentage.value,
-            questsStarted: questsStarted.value,
-            questsCompleted: questsCompleted.value,
+            simulations: simulationProgressData,
+            completionPercentage: totalProgress,
+            submodule_progress: submoduleProgress,
             lastAccessed: Date.now()
         }
 
-        // Always save to localStorage first (most reliable)
-        try {
-            localStorage.setItem(`scienceExplorer_${user.value.id}`, JSON.stringify(progressData))
-            console.log('✅ SIMPLE: Saved progress to localStorage')
-        } catch (localError) {
-            console.warn('⚠️ LocalStorage save failed:', localError)
-        }
-
-        // Try to save to backend (with graceful failure)
+        // Save to backend
         try {
             const response = await apiService.updateModuleProgress({
                 user_id: user.value.id,
-                module_type: 'Science Explorer',
-                progress_percentage: completionPercentage.value,
-                is_completed: completionPercentage.value === 100,
-                progress_data: progressData
+                module_type: 'science_explorer',
+                progress_percentage: totalProgress,
+                is_completed: totalProgress === 100,
+                progress_data: progressData,
+                submodule_progress: submoduleProgress
             })
-            console.log('✅ SIMPLE: Saved progress to backend:', response)
+            console.log('✅ Saved progress to backend:', response)
         } catch (apiError) {
-            console.warn('⚠️ SIMPLE: Backend save failed, but progress is saved locally:', apiError)
-            // Don't throw error - localStorage save is sufficient
+            console.warn('⚠️ Backend save failed:', apiError)
         }
 
-        console.log('✅ SIMPLE: Progress save completed (local + backend attempt)')
+        console.log('✅ Progress save completed')
     } catch (error) {
-        console.error('⚠️ SIMPLE: Progress save had issues, but continuing:', error)
-        // Don't throw - the game should continue even if saving fails
+        console.error('❌ Progress save error:', error)
     }
 }
 
 const loadProgress = async () => {
-    if (!user.value) return
-
+    if (!user.value) return;
     try {
-        console.log('🔄 Loading Science Explorer progress...')
+        const response = await apiService.getModuleProgress(user.value.id, 'science_explorer');
+        let backendProgress = 0;
 
-        // Try loading from backend first
-        const response = await apiService.getModuleProgress(user.value.id, 'Science Explorer')
-        let progressData = null
-
-        console.log('📊 Module progress response:', response)
-
-        if (response.success && response.progress && response.progress.progress_data) {
-            progressData = response.progress.progress_data
-            console.log('✅ Found saved progress data:', progressData)
-        } else {
-            console.log('📝 No saved progress found, checking localStorage fallback...')
-            // Fallback to localStorage
-            const saved = localStorage.getItem(`scienceExplorer_${user.value.id}`)
-            if (saved) {
-                progressData = JSON.parse(saved)
-                console.log('💾 Loaded from localStorage:', progressData)
-            }
-        }
-
-        if (progressData && progressData.simulations) {
-            console.log('🔧 Restoring simulation states...')
-            // Restore simulation states
-            progressData.simulations.forEach(savedSim => {
-                const sim = simulations.value.find(s => s.id === savedSim.id)
+        // Use the correct structure: response.progress.submodule_progress (array)
+        if (response.success && response.progress && Array.isArray(response.progress.submodule_progress)) {
+            const submodules = response.progress.submodule_progress;
+            backendProgress = submodules.reduce(
+                (sum, sub) => sum + (sub.is_completed ? 20 : 0),
+                0
+            );
+            // Update simulation states
+            submodules.forEach(sub => {
+                const sim = simulations.value.find(s => s.submodule_name === sub.submodule_name);
                 if (sim) {
-                    sim.completed = savedSim.completed || false
-                    sim.started = savedSim.started || false
-                    sim.timeSpent = savedSim.timeSpent || 0
-                    sim.startTime = savedSim.startTime
-
-                    if (sim.completed) {
-                        completedSimulations.value.add(sim.id)
-                    }
-
-                    console.log(`🔬 Restored ${sim.title}: completed=${sim.completed}, started=${sim.started}`)
+                    sim.completed = !!sub.is_completed;
+                    sim.started = !!sub.is_completed;
                 }
-            })
+            });
         } else {
-            console.log('🏛️ No detailed progress data found, checking legacy achievements...')
-            // Legacy: Load from achievements if no detailed progress data
-            try {
-                const achievements = await apiService.getUserAchievements(user.value.id)
-                achievements.forEach(achievement => {
-                    if (achievement.badge_type === 'science_quest') {
-                        const sim = simulations.value.find(s =>
-                            achievement.badge_name.includes(s.title)
-                        )
-                        if (sim) {
-                            sim.completed = true
-                            sim.started = true
-                            completedSimulations.value.add(sim.id)
-                            console.log(`🏅 Legacy achievement found for ${sim.title}`)
-                        }
-                    }
-                })
-            } catch (achievementError) {
-                console.warn('⚠️ Could not load legacy achievements:', achievementError)
-            }
+            backendProgress = 0;
+            simulations.value.forEach(sim => {
+                sim.completed = false;
+                sim.started = false;
+            });
         }
 
-        console.log(`📊 Final progress loaded: ${completionPercentage.value}% complete (${questsCompleted.value}/${simulations.value.length} quests)`)
+        moduleProgress.value = backendProgress;
     } catch (error) {
-        console.error('❌ Error loading Science Explorer progress:', error)
-        // Don't throw error - just log it and continue with empty progress
-        console.log('🔄 Continuing with fresh progress state...')
+        moduleProgress.value = 0;
+        simulations.value.forEach(sim => {
+            sim.completed = false;
+            sim.started = false;
+        });
     }
-}
+};
 
 // Lifecycle
 onMounted(() => {

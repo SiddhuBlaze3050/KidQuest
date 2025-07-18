@@ -769,10 +769,27 @@ def calculate_total_stars(user_id):
         return 0
 
 def calculate_quests_completed(user_id):
-    """Calculate total quests/activities completed by a user - simplified using Achievement table"""
+    """Calculate total quests/activities completed by a user - includes modules, tasks, and achievements"""
     try:
-        # Simply count achievements - each represents a completed quest/activity
-        quests = Achievement.query.filter_by(user_id=user_id).count()
+        quests = 0
+        
+        # 1. Count completed module submodules from UserModuleProgress
+        module_progress = UserModuleProgress.query.filter_by(user_id=user_id, completed=True).all()
+        quests += len(module_progress)
+        
+        # 2. Count completed tasks from HomeworkSchedule (task tracker)
+        completed_tasks = HomeworkSchedule.query.filter_by(user_id=user_id, status='completed').all()
+        quests += len(completed_tasks)
+        
+        # 3. Count achievements (excluding module progress records)
+        achievements = Achievement.query.filter_by(user_id=user_id).all()
+        for achievement in achievements:
+            # Skip module progress records (they're stored as achievements but counted above)
+            if not achievement.badge_name or not achievement.badge_name.startswith('module_'):
+                quests += 1
+        
+        print(f"📊 Quests calculated for user {user_id}: {quests} total (modules: {len(module_progress)}, tasks: {len(completed_tasks)}, achievements: {len([a for a in achievements if not a.badge_name or not a.badge_name.startswith('module_')])})")
+        
         return quests
     except Exception as e:
         print(f"Error calculating quests completed: {e}")
@@ -791,19 +808,41 @@ def calculate_skills_mastered(user_id):
         return 0
 
 def calculate_todays_goals(user_id, today):
-    """Calculate goals completed today - simplified"""
+    """Calculate goals completed today - includes various goal sources"""
     try:
         goals = 0
         
-        # Achievements earned today
-        goals += Achievement.query.filter_by(user_id=user_id).filter(
+        # 1. Achievements earned today (excluding module progress)
+        today_achievements = Achievement.query.filter_by(user_id=user_id).filter(
             db.func.date(Achievement.date_awarded) == today
-        ).count()
+        ).all()
+        for achievement in today_achievements:
+            if not achievement.badge_name or not achievement.badge_name.startswith('module_'):
+                goals += 1
         
-        # Login streak (if logged in today)
+        # 2. Module progress completed today (simplified - count all completed modules)
+        today_module_progress = UserModuleProgress.query.filter_by(user_id=user_id, completed=True).count()
+        goals += today_module_progress
+        
+        # 3. Tasks completed today (from task tracker - simplified)
+        today_tasks = HomeworkSchedule.query.filter_by(user_id=user_id, status='completed').count()
+        goals += today_tasks
+        
+        # 4. Health tasks completed today
+        today_health_tasks = HealthTask.query.filter_by(user_id=user_id, completed=True, date=today).count()
+        goals += today_health_tasks
+        
+        # 5. Login streak (if logged in today)
         login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
         if login_streak and login_streak.last_login_date == today:
             goals += 1
+        
+        # 6. Water intake goal (if drank water today)
+        water_log = WaterLog.query.filter_by(user_id=user_id, date=today).first()
+        if water_log and water_log.count >= 8:  # 8 glasses goal
+            goals += 1
+        
+        print(f"📊 Today's goals for user {user_id}: {goals} total (achievements: {len([a for a in today_achievements if not a.badge_name or not a.badge_name.startswith('module_')])}, modules: {today_module_progress}, tasks: {today_tasks}, health: {today_health_tasks})")
         
         return goals
     except Exception as e:
@@ -1435,7 +1474,10 @@ def update_task_status(task_id):
             return jsonify({'success': False, 'error': 'Task not found'}), 404
 
         task.status = new_status
+        # Note: updated_at will be automatically set by SQLAlchemy if the column exists
         db.session.commit()
+        
+        print(f"✅ Task {task_id} status updated to '{new_status}'")
         
         return jsonify({'success': True, 'message': f'Task status updated to {new_status}'}), 200
     except Exception as e:
@@ -1661,141 +1703,79 @@ def log_screen_time():
 # ---------------------------
 # Module Progress Routes
 # ---------------------------
+
+# Module ID mapping for consistent module identification
+MODULE_MAPPING = {
+    'math_magic': {'id': 1, 'name': 'Math Magic', 'has_submodules': False},
+    'word_wizard': {'id': 2, 'name': 'Word Wizard', 'has_submodules': False},
+    'science_explorer': {'id': 3, 'name': 'Science Explorer', 'has_submodules': True},
+    'safety_measures': {'id': 4, 'name': 'Safety Measures', 'has_submodules': True},
+    'good_touch_bad_touch': {'id': 5, 'name': 'Good Touch Bad Touch', 'has_submodules': False},
+    'psychometric_assessment': {'id': 6, 'name': 'Psychometric Assessment', 'has_submodules': False}
+}
+
+# Submodule ID mapping - only for modules that have submodules
+SUBMODULE_MAPPING = {
+    'science_explorer': {
+        'balance_master': {'id': 1, 'name': 'Balance Master', 'progress_weight': 20},
+        'force_detective': {'id': 2, 'name': 'Force Detective', 'progress_weight': 20},
+        'space_explorer': {'id': 3, 'name': 'Space Explorer', 'progress_weight': 20},
+        'wave_wizard': {'id': 4, 'name': 'Wave Wizard', 'progress_weight': 20},
+        'matter_transformer': {'id': 5, 'name': 'Matter Transformer', 'progress_weight': 20},
+        'energy_master': {'id': 6, 'name': 'Energy Master', 'progress_weight': 20}
+    },
+    'safety_measures': {
+        'home_safety': {'id': 1, 'name': 'Home Safety', 'progress_weight': 20},
+        'road_safety': {'id': 2, 'name': 'Road Safety', 'progress_weight': 20},
+        'internet_safety': {'id': 3, 'name': 'Internet Safety', 'progress_weight': 20},
+        'fire_safety': {'id': 4, 'name': 'Fire Safety', 'progress_weight': 20},
+        'emergency_procedures': {'id': 5, 'name': 'Emergency Procedures', 'progress_weight': 20},
+        'personal_safety': {'id': 6, 'name': 'Personal Safety', 'progress_weight': 20}
+    }
+}
+
+def get_module_id(module_name):
+    """Get module ID from module name"""
+    module_info = MODULE_MAPPING.get(module_name)
+    return module_info['id'] if module_info else None
+
+def get_submodule_id(module_name, submodule_name):
+    """Get submodule ID from module name and submodule name"""
+    # Check if the module has submodules
+    module_info = MODULE_MAPPING.get(module_name)
+    if not module_info or not module_info.get('has_submodules', False):
+        return None  # Module doesn't have submodules
+    
+    module_submodules = SUBMODULE_MAPPING.get(module_name, {})
+    submodule_info = module_submodules.get(submodule_name)
+    return submodule_info['id'] if submodule_info else None
+
+def module_has_submodules(module_name):
+    """Check if a module has submodules"""
+    module_info = MODULE_MAPPING.get(module_name)
+    return module_info.get('has_submodules', False) if module_info else False
+
 @app.route('/api/module/progress', methods=['POST'])
 def save_module_progress():
-    """Save module progress for a user - simplified version"""
+    """Save module progress for a user using UserModuleProgress table"""
     try:
         data = request.get_json()
         
-        # Basic validation with defaults
+        # Extract data from request
         user_id = data.get('user_id')
         module_type = data.get('module_type', 'Unknown Module')
         progress_percentage = data.get('progress_percentage', 0)
         is_completed = data.get('is_completed', False)
         progress_data = data.get('progress_data', {})
+        submodule_name = data.get('submodule_name', '')
         
-        print(f"📝 SIMPLE: Saving progress for User {user_id}, Module '{module_type}', Progress: {progress_percentage}%")
+        print(f"📝 Saving progress for User {user_id}, Module '{module_type}', Progress: {progress_percentage}%")
+        print(f"🔍 Full request data: {data}")  # Log full request data
         
-        # Simple validation
+        # Validation
         if not user_id:
             print("❌ Missing user_id")
             return jsonify({'success': False, 'error': 'user_id is required'}), 400
-        
-        # Check if user exists (simplified)
-        try:
-            user = db.session.get(User, user_id)
-            if not user:
-                print(f"❌ User {user_id} not found")
-                return jsonify({'success': False, 'error': 'User not found'}), 404
-        except Exception as user_error:
-            print(f"⚠️ User check failed, continuing anyway: {user_error}")
-        
-        # Create simple progress record using Achievement table
-        try:
-            # Simple JSON conversion with fallback
-            try:
-                if progress_data:
-                    progress_json = json.dumps({
-                        'module_type': module_type,
-                        'progress_percentage': progress_percentage,
-                        'is_completed': is_completed,
-                        'progress_data': progress_data,
-                        'saved_at': datetime.utcnow().isoformat()
-                    })
-                else:
-                    progress_json = json.dumps({
-                        'module_type': module_type,
-                        'progress_percentage': progress_percentage,
-                        'is_completed': is_completed,
-                        'saved_at': datetime.utcnow().isoformat()
-                    })
-            except Exception as json_error:
-                print(f"⚠️ JSON serialization failed: {json_error}")
-                # Fallback to simple string
-                progress_json = f"Module: {module_type}, Progress: {progress_percentage}%, Completed: {is_completed}"
-            
-            # Simple database operation
-            module_key = f"module_{module_type.replace(' ', '_')}"
-            
-            # Try to find existing record
-            existing = None
-            try:
-                existing = Achievement.query.filter_by(user_id=user_id, badge_name=module_key).first()
-            except Exception as find_error:
-                print(f"⚠️ Find existing failed: {find_error}")
-            
-            if existing:
-                # Update existing
-                try:
-                    existing.description = progress_json
-                    existing.date_awarded = datetime.utcnow()
-                    print(f"✅ Updated existing progress record")
-                except Exception as update_error:
-                    print(f"⚠️ Update failed: {update_error}")
-                    # Create new record instead
-                    existing = None
-            
-            if not existing:
-                # Create new record
-                try:
-                    new_achievement = Achievement(
-                        user_id=user_id,
-                        badge_name=module_key,
-                        description=progress_json,
-                        date_awarded=datetime.utcnow()
-                    )
-                    db.session.add(new_achievement)
-                    print(f"✅ Created new progress record")
-                except Exception as create_error:
-                    print(f"⚠️ Create failed: {create_error}")
-                    # Still try to commit what we have
-            
-            # Simple commit with fallback
-            try:
-                db.session.commit()
-                print(f"✅ SIMPLE: Progress saved successfully for {module_type}")
-                return jsonify({
-                    'success': True, 
-                    'message': 'Progress saved successfully',
-                    'progress_percentage': progress_percentage
-                }), 200
-            except Exception as commit_error:
-                print(f"⚠️ Database commit failed: {commit_error}")
-                db.session.rollback()
-                # Return success anyway since we tried our best
-                return jsonify({
-                    'success': True, 
-                    'message': 'Progress partially saved (database issue)',
-                    'progress_percentage': progress_percentage
-                }), 200
-                
-        except Exception as db_error:
-            print(f"⚠️ Database operation failed: {db_error}")
-            # Don't fail completely, just log the error
-            return jsonify({
-                'success': True, 
-                'message': 'Progress saved to local storage only',
-                'progress_percentage': progress_percentage
-            }), 200
-        
-    except Exception as e:
-        print(f"💥 SIMPLE: General error in save_module_progress: {e}")
-        # Be very forgiving and return success even on errors
-        return jsonify({
-            'success': True, 
-            'message': 'Progress saved locally (server issue)',
-            'error': str(e)
-        }), 200
-
-@app.route('/api/module/progress/<int:user_id>/<module_type>', methods=['GET'])
-def get_module_progress(user_id, module_type):
-    """Get module progress for a user"""
-    try:
-        # URL decode the module type to handle spaces and special characters
-        from urllib.parse import unquote
-        decoded_module_type = unquote(module_type)
-        
-        print(f"🔍 Getting module progress for user {user_id}, module: '{decoded_module_type}' (original: '{module_type}')")
         
         # Check if user exists
         user = db.session.get(User, user_id)
@@ -1803,52 +1783,377 @@ def get_module_progress(user_id, module_type):
             print(f"❌ User {user_id} not found")
             return jsonify({'success': False, 'error': 'User not found'}), 404
         
-        # Find achievement record for this module
-        module_key = f"module_{decoded_module_type}"
-        achievement = Achievement.query.filter_by(user_id=user_id, badge_name=module_key).first()
+        # Get module and submodule IDs
+        module_id = get_module_id(module_type)
         
-        print(f"🔎 Looking for achievement with badge_name: '{module_key}'")
+        # Handle submodules based on module type
+        if module_has_submodules(module_type):
+            # Module has submodules, so submodule_name is required
+            if not submodule_name:
+                print(f"❌ Submodule name required for module '{module_type}'")
+                return jsonify({'success': False, 'error': f'Submodule name required for module: {module_type}'}), 400
+            submodule_id = get_submodule_id(module_type, submodule_name)
+            if not submodule_id:
+                print(f"❌ Invalid submodule '{submodule_name}' for module '{module_type}'")
+                return jsonify({'success': False, 'error': f'Invalid submodule: {submodule_name}'}), 400
+        else:
+            # Module doesn't have submodules, so clear submodule fields
+            submodule_name = None
+            submodule_id = None
         
-        if achievement:
-            try:
-                # Try to parse the progress data as JSON
-                import json
-                progress_data = json.loads(achievement.description)
+        print(f"🔍 Module ID: {module_id}, Submodule ID: {submodule_id} for '{module_type}'/'{submodule_name}'")
+        
+        # Find existing progress record for this module/submodule combination
+        if module_has_submodules(module_type):
+            # For modules with submodules, find by both module and submodule
+            existing_progress = UserModuleProgress.query.filter_by(
+                user_id=user_id, 
+                module_name=module_type,
+                submodule_name=submodule_name
+            ).first()
+        else:
+            # For modules without submodules, find by module only
+            existing_progress = UserModuleProgress.query.filter_by(
+                user_id=user_id, 
+                module_name=module_type
+            ).first()
+        
+        if existing_progress:
+            # Update existing progress
+            existing_progress.progress = progress_percentage
+            existing_progress.completed = is_completed
+            existing_progress.submodule_name = submodule_name
+            existing_progress.module_id = module_id
+            existing_progress.submodule_id = submodule_id
+            print(f"✅ Updated existing progress record for {module_type}")
+        else:
+            # Create new progress record
+            new_progress = UserModuleProgress(
+                user_id=user_id,
+                module_name=module_type,
+                submodule_name=submodule_name,
+                module_id=module_id,
+                submodule_id=submodule_id,
+                progress=progress_percentage,
+                completed=is_completed
+            )
+            db.session.add(new_progress)
+            print(f"✅ Created new progress record for {module_type}")
+        
+        # Commit changes
+        db.session.commit()
+        
+        print(f"✅ Progress saved successfully for {module_type}")
+        return jsonify({
+            'success': True, 
+            'message': 'Progress saved successfully',
+            'progress_percentage': progress_percentage,
+            'is_completed': is_completed
+        }), 200
+        
+    except Exception as e:
+        print(f"💥 Error in save_module_progress: {e}")
+        import traceback
+        traceback.print_exc()  # Print full traceback
+        db.session.rollback()
+        return jsonify({
+            'success': False, 
+            'error': str(e)
+        }), 500
+
+@app.route('/api/module/progress/<int:user_id>/<module_type>', methods=['GET'])
+def get_module_progress(user_id, module_type):
+    """Get module progress for a user using UserModuleProgress table"""
+    try:
+        # URL decode the module type to handle spaces and special characters
+        from urllib.parse import unquote
+        decoded_module_type = unquote(module_type)
+        
+        print(f"🔍 Getting module progress for user {user_id}, module: '{decoded_module_type}'")
+        
+        # Check if user exists
+        user = db.session.get(User, user_id)
+        if not user:
+            print(f"❌ User {user_id} not found")
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        # Check if module exists
+        module_info = MODULE_MAPPING.get(decoded_module_type)
+        if not module_info:
+            print(f"❌ Module '{decoded_module_type}' not found")
+            return jsonify({'success': False, 'error': f'Module not found: {decoded_module_type}'}), 404
+        
+        # Find progress record for this module using UserModuleProgress table
+        if module_has_submodules(decoded_module_type):
+            # For modules with submodules, get all submodule progress
+            progress_records = UserModuleProgress.query.filter_by(
+                user_id=user_id, 
+                module_name=decoded_module_type
+            ).all()
+            
+            if progress_records:
+                # Calculate overall progress for the module
+                total_progress = sum(record.progress for record in progress_records)
+                total_completed = sum(1 for record in progress_records if record.completed)
+                avg_progress = total_progress / len(progress_records) if progress_records else 0
+                all_completed = all(record.completed for record in progress_records)
+                
+                # Format submodule progress
+                submodule_progress = []
+                for record in progress_records:
+                    submodule_progress.append({
+                        'submodule_name': record.submodule_name,
+                        'progress_percentage': record.progress,
+                        'is_completed': record.completed,
+                        'submodule_id': record.submodule_id
+                    })
+                
+                progress_data = {
+                    'module_name': decoded_module_type,
+                    'progress_percentage': avg_progress,
+                    'is_completed': all_completed,
+                    'module_id': module_info['id'],
+                    'submodule_progress': submodule_progress,
+                    'total_submodules': len(progress_records),
+                    'completed_submodules': total_completed
+                }
+                
                 print(f"✅ Retrieved module progress for user {user_id}, module {decoded_module_type}: {progress_data}")
                 return jsonify({
                     'success': True,
-                    'progress': {
-                        'progress_data': progress_data,
-                        'last_updated': achievement.date_awarded.isoformat()
-                    }
+                    'progress': progress_data
                 }), 200
-            except json.JSONDecodeError as e:
-                print(f"⚠️ Failed to parse progress data as JSON for user {user_id}, module {decoded_module_type}: {e}")
-                # If JSON parsing fails, try legacy format
-                try:
-                    import ast
-                    progress_data = ast.literal_eval(achievement.description)
-                    print(f"✅ Retrieved legacy format progress for user {user_id}, module {decoded_module_type}: {progress_data}")
-                    return jsonify({
-                        'success': True,
-                        'progress': {
-                            'progress_data': progress_data,
-                            'last_updated': achievement.date_awarded.isoformat()
-                        }
-                    }), 200
-                except Exception as legacy_error:
-                    print(f"❌ Failed to parse legacy format: {legacy_error}")
-                    return jsonify({'success': False, 'error': 'No valid progress data found'}), 404
         else:
-            print(f"📝 No progress found for user {user_id}, module {decoded_module_type}")
-            # Return success with null progress instead of 404 for better UX
-            return jsonify({
-                'success': True, 
-                'progress': None,
-                'message': f'No progress found for module: {decoded_module_type}'
-            }), 200
+            # For modules without submodules, get single progress record
+            progress_record = UserModuleProgress.query.filter_by(
+                user_id=user_id, 
+                module_name=decoded_module_type
+            ).first()
+            
+            if progress_record:
+                progress_data = {
+                    'module_name': progress_record.module_name,
+                    'submodule_name': None,
+                    'progress_percentage': progress_record.progress,
+                    'is_completed': progress_record.completed,
+                    'module_id': progress_record.module_id,
+                    'submodule_id': None
+                }
+                
+                print(f"✅ Retrieved module progress for user {user_id}, module {decoded_module_type}: {progress_data}")
+                return jsonify({
+                    'success': True,
+                    'progress': progress_data
+                }), 200
+        
+        print(f"📝 No progress found for user {user_id}, module {decoded_module_type}")
+        # Return success with null progress instead of 404 for better UX
+        return jsonify({
+            'success': True, 
+            'progress': None,
+            'message': f'No progress found for module: {decoded_module_type}'
+        }), 200
+        
     except Exception as e:
         print(f"💥 Error retrieving module progress: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/module/progress/<int:user_id>', methods=['GET'])
+def get_all_module_progress(user_id):
+    """Get all module progress for a user"""
+    try:
+        print(f"🔍 Getting all module progress for user {user_id}")
+        
+        # Check if user exists
+        user = db.session.get(User, user_id)
+        if not user:
+            print(f"❌ User {user_id} not found")
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        # Get all progress records for this user
+        progress_records = UserModuleProgress.query.filter_by(user_id=user_id).all()
+        
+        # Group progress by module
+        module_progress = {}
+        for record in progress_records:
+            module_name = record.module_name
+            if module_name not in module_progress:
+                module_progress[module_name] = {
+                    'module_name': module_name,
+                    'module_id': record.module_id,
+                    'has_submodules': module_has_submodules(module_name),
+                    'submodules': [],
+                    'overall_progress': 0,
+                    'overall_completed': False
+                }
+            
+            if module_has_submodules(module_name):
+                # Add submodule progress
+                module_progress[module_name]['submodules'].append({
+                    'submodule_name': record.submodule_name,
+                    'progress_percentage': record.progress,
+                    'is_completed': record.completed,
+                    'submodule_id': record.submodule_id
+                })
+            else:
+                # Single module progress
+                module_progress[module_name]['overall_progress'] = record.progress
+                module_progress[module_name]['overall_completed'] = record.completed
+        
+        # Calculate overall progress for modules with submodules
+        for module_name, progress_data in module_progress.items():
+            if progress_data['has_submodules'] and progress_data['submodules']:
+                total_progress = sum(sub['progress_percentage'] for sub in progress_data['submodules'])
+                avg_progress = total_progress / len(progress_data['submodules'])
+                all_completed = all(sub['is_completed'] for sub in progress_data['submodules'])
+                
+                progress_data['overall_progress'] = avg_progress
+                progress_data['overall_completed'] = all_completed
+                progress_data['total_submodules'] = len(progress_data['submodules'])
+                progress_data['completed_submodules'] = sum(1 for sub in progress_data['submodules'] if sub['is_completed'])
+        
+        # Convert to list
+        progress_list = list(module_progress.values())
+        
+        print(f"✅ Retrieved {len(progress_list)} module progress records for user {user_id}")
+        return jsonify({
+            'success': True,
+            'progress_list': progress_list,
+            'total_modules': len(progress_list),
+            'completed_modules': sum(1 for p in progress_list if p['overall_completed']),
+            'modules_with_submodules': [p['module_name'] for p in progress_list if p['has_submodules']],
+            'modules_without_submodules': [p['module_name'] for p in progress_list if not p['has_submodules']]
+        }), 200
+        
+    except Exception as e:
+        print(f"💥 Error retrieving all module progress: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/modules/info', methods=['GET'])
+def get_modules_info():
+    """Get information about all available modules and their submodules"""
+    try:
+        # Create enhanced module info
+        enhanced_modules = {}
+        for module_key, module_info in MODULE_MAPPING.items():
+            enhanced_modules[module_key] = {
+                'id': module_info['id'],
+                'name': module_info['name'],
+                'has_submodules': module_info.get('has_submodules', False),
+                'submodules': SUBMODULE_MAPPING.get(module_key, {}) if module_info.get('has_submodules', False) else {}
+            }
+        
+        return jsonify({
+            'success': True,
+            'modules': enhanced_modules,
+            'modules_with_submodules': [key for key, info in MODULE_MAPPING.items() if info.get('has_submodules', False)],
+            'modules_without_submodules': [key for key, info in MODULE_MAPPING.items() if not info.get('has_submodules', False)]
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/child/quest-stats/<int:user_id>', methods=['GET'])
+def get_quest_statistics(user_id):
+    """Get detailed quest statistics for debugging and monitoring"""
+    try:
+        print(f"🔍 Getting detailed quest statistics for user {user_id}")
+        
+        # Check if user exists
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        # Get module progress statistics
+        module_progress = UserModuleProgress.query.filter_by(user_id=user_id).all()
+        completed_modules = [m for m in module_progress if m.completed]
+        
+        # Get task statistics
+        tasks = HomeworkSchedule.query.filter_by(user_id=user_id).all()
+        completed_tasks = [t for t in tasks if t.status == 'completed']
+        
+        # Get achievement statistics
+        achievements = Achievement.query.filter_by(user_id=user_id).all()
+        non_module_achievements = [a for a in achievements if not a.badge_name or not a.badge_name.startswith('module_')]
+        
+        # Get today's statistics
+        today = date.today()
+        # Use date_awarded from Achievement for today's achievements
+        today_achievements = [a for a in non_module_achievements if a.date_awarded and a.date_awarded.date() == today]
+        
+        # For module progress and tasks, we'll use a simpler approach
+        # Count all completed modules and tasks (not just today's)
+        today_module_progress = len(completed_modules)
+        today_tasks = len(completed_tasks)
+        
+        # Get health task statistics
+        today_health_tasks = HealthTask.query.filter_by(user_id=user_id, completed=True, date=today).count()
+        
+        # Get water intake
+        water_log = WaterLog.query.filter_by(user_id=user_id, date=today).first()
+        water_goal_met = water_log and water_log.count >= 8
+        
+        # Get login streak
+        login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
+        logged_in_today = login_streak and login_streak.last_login_date == today
+        
+        stats = {
+            'total_quests': {
+                'modules': len(completed_modules),
+                'tasks': len(completed_tasks),
+                'achievements': len(non_module_achievements),
+                'total': len(completed_modules) + len(completed_tasks) + len(non_module_achievements)
+            },
+            'todays_goals': {
+                'modules': today_module_progress,
+                'tasks': today_tasks,
+                'achievements': len(today_achievements),
+                'health_tasks': today_health_tasks,
+                'water_goal': 1 if water_goal_met else 0,
+                'login_streak': 1 if logged_in_today else 0,
+                'total': today_module_progress + today_tasks + len(today_achievements) + today_health_tasks + (1 if water_goal_met else 0) + (1 if logged_in_today else 0)
+            },
+            'detailed_breakdown': {
+                'module_progress': [
+                    {
+                        'module_name': m.module_name,
+                        'submodule_name': m.submodule_name,
+                        'progress': m.progress,
+                        'completed': m.completed,
+                        'module_id': m.module_id,
+                        'submodule_id': m.submodule_id
+                    } for m in module_progress
+                ],
+                'tasks': [
+                    {
+                        'subject': t.subject,
+                        'task': t.task,
+                        'status': t.status,
+                        'created_at': t.created_at.isoformat() if t.created_at else None
+                    } for t in tasks
+                ],
+                'achievements': [
+                    {
+                        'badge_name': a.badge_name,
+                        'description': a.description,
+                        'date_awarded': a.date_awarded.isoformat() if a.date_awarded else None
+                    } for a in non_module_achievements
+                ]
+            }
+        }
+        
+        print(f"📊 Detailed quest stats for user {user_id}: {stats}")
+        
+        return jsonify({
+            'success': True,
+            'quest_statistics': stats
+        }), 200
+        
+    except Exception as e:
+        print(f"💥 Error getting quest statistics: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -2325,9 +2630,10 @@ def initialize_database():
             os.makedirs(instance_dir, exist_ok=True)
             
         with app.app_context():
-            # Create all database tables
+            # Create all database tables (won't recreate if they exist)
+            print("🔄 Creating database tables...")
             db.create_all()
-            # print("Database created successfully")
+            print("✅ Database tables created successfully!")
             
             # Create default admin user
             create_default_admin()
@@ -2488,6 +2794,36 @@ def create_achievement():
     except Exception as e:
         db.session.rollback()
         print(f"💥 Error creating achievement: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/admin/recreate-database', methods=['POST'])
+def recreate_database():
+    """Recreate database tables (development only)"""
+    try:
+        print("🔄 Recreating database tables...")
+        
+        with app.app_context():
+            # Drop all tables
+            db.drop_all()
+            print("✅ Dropped all tables")
+            
+            # Create all tables with updated schema
+            db.create_all()
+            print("✅ Created all tables with updated schema")
+            
+            # Create default admin user
+            create_default_admin()
+            print("✅ Created default admin user")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Database recreated successfully'
+        }), 200
+        
+    except Exception as e:
+        print(f"❌ Error recreating database: {e}")
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500

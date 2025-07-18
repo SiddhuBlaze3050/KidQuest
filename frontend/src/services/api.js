@@ -31,7 +31,11 @@ api.interceptors.response.use(
   (error) => {
     console.error('API Error:', error.response?.data || error.message)
     if (error.response?.status === 401) {
-      // Handle unauthorized access - clear user data
+      // Don't redirect for login endpoint - let the login function handle it
+      if (error.config.url === '/api/auth/login') {
+        return Promise.reject(error)
+      }
+      // Handle unauthorized access for other endpoints - clear user data
       localStorage.removeItem('user')
       window.location.href = '/login'
     }
@@ -54,8 +58,13 @@ export const apiService = {
         localStorage.setItem('user', JSON.stringify(response.data.user))
         return response.data
       }
-      throw new Error(response.data.error || 'Login failed')
+      // Return the response data even if success is false, so the component can handle it
+      return response.data
     } catch (error) {
+      // If it's a 401 error, return the error data instead of throwing
+      if (error.response?.status === 401) {
+        return error.response.data
+      }
       throw error
     }
   },
@@ -128,59 +137,59 @@ export const apiService = {
     }
   },
 
-  // Health Tracker 
+  // Health Tracker
 
   async getHealthTasks(userId) {
     try {
-      const res = await api.get(`/api/health/tasks/${userId}`);
-      return res.data.tasks;
+      const res = await api.get(`/api/health/tasks/${userId}`)
+      return res.data.tasks
     } catch (error) {
-      throw error;
+      throw error
     }
   },
 
   async toggleHealthTask(taskId) {
     try {
-      const res = await api.post(`/api/health/tasks/${taskId}/toggle`);
-      return res.data.completed;
+      const res = await api.post(`/api/health/tasks/${taskId}/toggle`)
+      return res.data.completed
     } catch (error) {
-      throw error;
+      throw error
     }
   },
 
   async getHealthStreak(userId) {
     try {
-      const res = await api.get(`/api/health/streak/${userId}`);
-      return res.data.streak;
+      const res = await api.get(`/api/health/streak/${userId}`)
+      return res.data.streak
     } catch (error) {
-      throw error;
+      throw error
     }
   },
 
   async getWaterCount(userId) {
     try {
-      const res = await api.get(`/api/health/water/${userId}`);
-      return res.data.count;
+      const res = await api.get(`/api/health/water/${userId}`)
+      return res.data.count
     } catch (error) {
-      throw error;
+      throw error
     }
   },
 
   async incrementWaterCount(userId) {
     try {
-      const res = await api.post(`/api/health/water/${userId}`);
-      return res.data.count;
+      const res = await api.post(`/api/health/water/${userId}`)
+      return res.data.count
     } catch (error) {
-      throw error;
+      throw error
     }
   },
 
   async getWaterLog(userId) {
     try {
-      const res = await api.get(`/api/health/water/log/${userId}`);
-      return res.data.log;
+      const res = await api.get(`/api/health/water/log/${userId}`)
+      return res.data.log
     } catch (error) {
-      throw error;
+      throw error
     }
   },
 
@@ -391,9 +400,19 @@ export const apiService = {
   async saveModuleProgress(userId, moduleType, progressData) {
     try {
       console.log(`🔄 Saving module progress: User ${userId}, Module ${moduleType}`, progressData)
+
+      // Extract progress percentage and completion status from progressData
+      const progress_percentage =
+        progressData.progress_percentage || progressData.completionPercentage || 0
+      const is_completed = progressData.is_completed || progressData.completed || false
+      const submodule_name = progressData.submodule_name || ''
+
       const response = await api.post('/api/module/progress', {
         user_id: userId,
         module_type: moduleType,
+        progress_percentage: progress_percentage,
+        is_completed: is_completed,
+        submodule_name: submodule_name,
         progress_data: progressData,
       })
       console.log('✅ Module progress save response:', response.data)
@@ -411,17 +430,40 @@ export const apiService = {
       const encodedModuleType = encodeURIComponent(moduleType)
       const response = await api.get(`/api/module/progress/${userId}/${encodedModuleType}`)
       console.log('✅ Module progress load response:', response.data)
-      return response.data
+
+      // Return the full backend progress object for science_explorer
+      if (response.data.success && response.data.progress) {
+        return {
+          success: true,
+          progress: response.data.progress,
+        }
+      }
+      // If backend returns no progress, return null.
+      return {
+        success: true,
+        progress: null,
+      }
     } catch (error) {
       console.error('❌ Module progress load failed:', error.response?.data || error.message)
-      // If no progress found, return empty progress instead of throwing error
+      // If no progress found, return empty progress (do NOT use localStorage)
       if (error.response?.status === 404) {
-        console.log(`📝 No existing progress found for ${moduleType}, returning empty progress`)
         return {
           success: true,
           progress: null,
         }
       }
+      throw error
+    }
+  },
+
+  async getAllModuleProgress(userId) {
+    try {
+      console.log(`🔄 Loading all module progress for user ${userId}`)
+      const response = await api.get(`/api/module/progress/${userId}`)
+      console.log('✅ All module progress load response:', response.data)
+      return response.data
+    } catch (error) {
+      console.error('❌ All module progress load failed:', error.response?.data || error.message)
       throw error
     }
   },
@@ -455,14 +497,20 @@ export const apiService = {
     try {
       console.log('📝 SIMPLE: Updating module progress:', progressData)
 
+      // Ensure module type is lowercase
+      const moduleType = (progressData.module_type || 'Unknown Module').toLowerCase()
+
       // Add fallback values to prevent errors
       const safeProgressData = {
         user_id: progressData.user_id,
-        module_type: progressData.module_type || 'Unknown Module',
+        module_type: moduleType,
         progress_percentage: progressData.progress_percentage || 0,
         is_completed: progressData.is_completed || false,
+        submodule_name: progressData.submodule_name || '',
         progress_data: progressData.progress_data || {},
       }
+
+      console.log('📝 SIMPLE: Safe progress data:', safeProgressData)
 
       const response = await api.post('/api/module/progress', safeProgressData)
       console.log('✅ SIMPLE: Module progress updated:', response.data)
@@ -472,6 +520,9 @@ export const apiService = {
         '⚠️ SIMPLE: Module progress update failed, but continuing:',
         error.response?.data || error.message,
       )
+
+      // Log full error details for debugging
+      console.error('Full error details:', JSON.stringify(error.response || error))
 
       // Be very forgiving - return success even on API errors
       // The progress is still saved locally anyway

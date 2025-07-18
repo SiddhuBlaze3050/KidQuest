@@ -100,43 +100,7 @@ export const checkForLevelUp = async (oldStats, newStats) => {
   const newLevel = calculateSimpleLevel(newStats)
 
   if (newLevel > oldLevel) {
-    const newTitle = getLevelTitle(newLevel)
-    const reward = LEVEL_REWARDS[newLevel]
-
-    await Swal.fire({
-      title: '🎉 LEVEL UP! 🎉',
-      html: `
-        <div style="text-align: center; line-height: 1.8;">
-          <div style="font-size: 3rem; margin: 1rem 0; color: #FFD700;">
-            Level ${oldLevel} → Level ${newLevel}
-          </div>
-          <h3 style="color: #4a5568; margin: 1rem 0; font-size: 1.3rem;">
-            ${newTitle}
-          </h3>
-          <p style="color: #718096; font-size: 1.1rem;">
-            Amazing progress! Keep collecting those stars! ⭐
-          </p>
-          ${
-            reward
-              ? `
-            <div style="background: rgba(255, 215, 0, 0.1); padding: 1rem; border-radius: 10px; margin: 1rem 0;">
-              <h4 style="color: #FFD700; margin: 0.5rem 0;">🎁 New Reward!</h4>
-              <p style="color: #4a5568; margin: 0;">${reward}</p>
-            </div>
-          `
-              : ''
-          }
-          <div style="font-size: 2rem; margin: 1rem 0;">🌟✨🌟</div>
-        </div>
-      `,
-      background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
-      color: 'white',
-      timer: 5000,
-      timerProgressBar: true,
-      showConfirmButton: true,
-      confirmButtonText: '🚀 Continue Adventure!',
-    })
-
+    // Popup removed: do not show Swal.fire
     return true
   }
   return false

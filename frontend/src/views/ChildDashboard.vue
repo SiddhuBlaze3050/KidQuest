@@ -1248,128 +1248,75 @@ export default {
             }
         }
 
-        // Load progress from localStorage for Safety Measures
+        // Replace loadSafetyMeasuresProgress with backend-driven logic
         const loadSafetyMeasuresProgress = async () => {
             try {
-                // First try to load from the new module progress format
-                const moduleProgress = localStorage.getItem(`safetyMeasuresProgress_${user.value?.id || 'guest'}`)
-                if (moduleProgress) {
-                    const progressData = JSON.parse(moduleProgress)
-                    let progress = 0
-
-                    if (progressData.isCompleted) {
-                        progress = 100
-                    } else if (progressData.exploredCards && progressData.exploredCards.length > 0) {
-                        const totalCards = 6 // Total number of safety categories
-                        progress = Math.round((progressData.exploredCards.length / totalCards) * 100)
-                    }
-
-                    const safetySkill = skillAreas.value.find(skill => skill.name === 'Safety Measures')
-                    if (safetySkill) {
-                        safetySkill.progress = progress
-
-                        // Update skills mastered count if this module was completed
-                        if (progress === 100) {
-                            calculateSkillsMastered()
-                        }
-                    }
-                    return
+                if (!user.value) return;
+                const response = await apiService.getModuleProgress(user.value.id, 'safety_measures');
+                let completed = 0;
+                if (response.success && response.progress && Array.isArray(response.progress.submodule_progress)) {
+                    const submodules = response.progress.submodule_progress;
+                    completed = submodules.filter(sub => sub.is_completed).length;
+                    console.log(`📊 Backend: Safety Measures ${completed}/6 complete`);
+                } else {
+                    completed = 0;
+                    console.log('📉 No backend progress for Safety Measures');
                 }
-
-                // Try backend if available
-                if (user.value?.id) {
-                    try {
-                        const backendProgress = await apiService.getModuleProgress(user.value.id, 'safety_measures')
-                        if (backendProgress.success && backendProgress.data) {
-                            const progressData = backendProgress.data.progress_data
-                            let progress = 0
-
-                            if (progressData.isCompleted) {
-                                progress = 100
-                            } else if (progressData.exploredCards && progressData.exploredCards.length > 0) {
-                                const totalCards = 6
-                                progress = Math.round((progressData.exploredCards.length / totalCards) * 100)
-                            }
-
-                            const safetySkill = skillAreas.value.find(skill => skill.name === 'Safety Measures')
-                            if (safetySkill) {
-                                safetySkill.progress = progress
-
-                                // Update skills mastered count if this module was completed
-                                if (progress === 100) {
-                                    calculateSkillsMastered()
-                                }
-                            }
-                        }
-                    } catch (error) {
-                        console.log('❌ Backend Safety Measures progress load failed:', error.message)
+                // Update the skill area progress (as percent)
+                const safetySkill = skillAreas.value.find(skill => skill.name === 'Safety Measures');
+                if (safetySkill) {
+                    safetySkill.progress = (completed / 6) * 100;
+                    console.log(`✅ Updated Safety Measures dashboard progress to ${completed}/6 (${safetySkill.progress}%)`);
+                    if (safetySkill.progress === 100) {
+                        calculateSkillsMastered();
                     }
                 }
             } catch (error) {
-                console.error('Error loading Safety Measures progress:', error)
+                console.error('❌ Error loading Safety Measures progress:', error);
+                const safetySkill = skillAreas.value.find(skill => skill.name === 'Safety Measures');
+                if (safetySkill) {
+                    safetySkill.progress = 0;
+                    console.log('🔄 Fallback: Reset Safety Measures progress to 0%');
+                }
             }
-        }
+        };
 
         // Load progress from backend and localStorage for Science Explorer
         const loadScienceExplorerProgress = async () => {
             try {
-                if (!user.value) return
-
-                console.log('🔬 Loading Science Explorer progress for dashboard...')
-
-                // Try loading from backend first
-                const response = await apiService.getModuleProgress(user.value.id, 'Science Explorer')
-                let progress = 0
-
-                if (response.success && response.progress && response.progress.progress_data) {
-                    const progressData = response.progress.progress_data
-                    progress = progressData.completionPercentage || 0
-                    console.log(`📊 Backend: Science Explorer ${progress}% complete`)
+                if (!user.value) return;
+                console.log('🔬 Loading Science Explorer progress for dashboard...');
+                const response = await apiService.getModuleProgress(user.value.id, 'science_explorer');
+                let progress = 0;
+                if (response.success && response.progress && Array.isArray(response.progress.submodule_progress)) {
+                    const submodules = response.progress.submodule_progress;
+                    progress = submodules.reduce(
+                        (sum, sub) => sum + (sub.is_completed ? 20 : 0),
+                        0
+                    );
+                    console.log(`📊 Backend: Science Explorer ${progress}% complete`);
                 } else {
-                    // Fallback to localStorage
-                    const saved = localStorage.getItem(`scienceExplorer_${user.value.id}`)
-                    if (saved) {
-                        const progressData = JSON.parse(saved)
-                        progress = progressData.completionPercentage || 0
-                        console.log(`💾 LocalStorage: Science Explorer ${progress}% complete`)
-                    }
+                    progress = 0;
+                    console.log('📉 No backend progress for Science Explorer');
                 }
-
                 // Update the skill area progress
-                const scienceSkill = skillAreas.value.find(skill => skill.name === 'Science Explorer')
+                const scienceSkill = skillAreas.value.find(skill => skill.name === 'Science Explorer');
                 if (scienceSkill) {
-                    scienceSkill.progress = progress
-                    console.log(`✅ Updated Science Explorer dashboard progress to ${progress}%`)
-
-                    // Update skills mastered count if this module was completed
+                    scienceSkill.progress = progress;
+                    console.log(`✅ Updated Science Explorer dashboard progress to ${progress}%`);
                     if (progress === 100) {
-                        calculateSkillsMastered()
+                        calculateSkillsMastered();
                     }
                 }
             } catch (error) {
-                console.error('❌ Error loading Science Explorer progress:', error)
-                // Try localStorage fallback on error
-                try {
-                    const saved = localStorage.getItem(`scienceExplorer_${user.value?.id}`)
-                    if (saved) {
-                        const progressData = JSON.parse(saved)
-                        const progress = progressData.completionPercentage || 0
-                        const scienceSkill = skillAreas.value.find(skill => skill.name === 'Science Explorer')
-                        if (scienceSkill) {
-                            scienceSkill.progress = progress
-                            console.log(`🔄 Fallback: Updated Science Explorer progress to ${progress}%`)
-
-                            // Update skills mastered count if this module was completed
-                            if (progress === 100) {
-                                calculateSkillsMastered()
-                            }
-                        }
-                    }
-                } catch (fallbackError) {
-                    console.error('⚠️ Fallback also failed:', fallbackError)
+                console.error('❌ Error loading Science Explorer progress:', error);
+                const scienceSkill = skillAreas.value.find(skill => skill.name === 'Science Explorer');
+                if (scienceSkill) {
+                    scienceSkill.progress = 0;
+                    console.log('🔄 Fallback: Reset Science Explorer progress to 0%');
                 }
             }
-        }
+        };
 
         // Load progress from backend and localStorage for Word Wizard
         const loadWordWizardProgress = async () => {
@@ -1450,84 +1397,33 @@ export default {
             }
         }
 
-        // Load progress from backend and localStorage for Math Magic
+        // Load progress from backend for Math Magic
         const loadMathMagicProgress = async () => {
             try {
-                if (!user.value) return
-
-                console.log('🔢 Loading Math Magic progress for dashboard...')
-                console.log('🔢 User ID:', user.value?.id)
-
-                let progress = 0
-                let dataSource = 'none'
-
-                // Always check localStorage first (most reliable)
-                const storageKey = `mathMagic_${user.value?.id}`
-                const saved = localStorage.getItem(storageKey)
-                console.log(`🔢 Checking localStorage key: ${storageKey}`)
-                console.log(`🔢 Saved data:`, saved)
-
-                if (saved) {
-                    const progressData = JSON.parse(saved)
-                    progress = progressData.completed ? 100 : 0
-                    dataSource = 'localStorage'
-                    console.log(`💾 LocalStorage: Math Magic ${progress}% complete`)
-                    console.log(`💾 Progress data:`, progressData)
+                if (!user.value) return;
+                console.log('🔢 Loading Math Magic progress for dashboard...');
+                const response = await apiService.getModuleProgress(user.value.id, 'math_magic');
+                let progress = 0;
+                if (response.success && response.progress) {
+                    // Use is_completed from backend
+                    progress = response.progress.is_completed ? 100 : 0;
+                    console.log(`📈 Backend: Math Magic is_completed=${response.progress.is_completed}, progress=${progress}%`);
+                } else {
+                    progress = 0;
+                    console.log('📉 No backend progress for Math Magic, showing 0%');
                 }
-
-                // Try backend as secondary check
-                try {
-                    const response = await apiService.getModuleProgress(user.value.id, 'math_magic')
-                    if (response.success && response.progress && response.progress.progress_data) {
-                        const backendData = response.progress.progress_data
-                        const backendProgress = backendData.completed ? 100 : 0
-                        console.log(`📊 Backend: Math Magic ${backendProgress}% complete`)
-
-                        // Use backend data if it shows higher progress
-                        if (backendProgress > progress) {
-                            progress = backendProgress
-                            dataSource = 'backend'
-                        }
-                    }
-                } catch (backendError) {
-                    console.log(`📊 Backend call failed, using localStorage data:`, backendError.message)
-                }
-
-                // Update the skill area progress
-                const mathMagicSkill = skillAreas.value.find(skill => skill.name === 'Math Magic')
+                const mathMagicSkill = skillAreas.value.find(skill => skill.name === 'Math Magic');
                 if (mathMagicSkill) {
-                    mathMagicSkill.progress = progress
-                    console.log(`✅ Updated Math Magic dashboard progress to ${progress}% (source: ${dataSource})`)
-
-                    // Update skills mastered count if this module was completed
-                    if (progress === 100) {
-                        calculateSkillsMastered()
-                    }
+                    mathMagicSkill.progress = progress;
                 }
             } catch (error) {
-                console.error('❌ Error loading Math Magic progress:', error)
-                // Try localStorage fallback on error
-                try {
-                    const saved = localStorage.getItem(`mathMagic_${user.value?.id}`)
-                    if (saved) {
-                        const progressData = JSON.parse(saved)
-                        const progress = progressData.completed ? 100 : 0
-                        const mathMagicSkill = skillAreas.value.find(skill => skill.name === 'Math Magic')
-                        if (mathMagicSkill) {
-                            mathMagicSkill.progress = progress
-                            console.log(`🔄 Fallback: Updated Math Magic progress to ${progress}%`)
-
-                            // Update skills mastered count if this module was completed
-                            if (progress === 100) {
-                                calculateSkillsMastered()
-                            }
-                        }
-                    }
-                } catch (fallbackError) {
-                    console.error('⚠️ Math Magic fallback also failed:', fallbackError)
+                console.error('❌ Error loading Math Magic progress:', error);
+                const mathMagicSkill = skillAreas.value.find(skill => skill.name === 'Math Magic');
+                if (mathMagicSkill) {
+                    mathMagicSkill.progress = 0;
                 }
             }
-        }
+        };
 
         // Handle visibility change to refresh progress when returning to dashboard
         const handleVisibilityChange = async () => {

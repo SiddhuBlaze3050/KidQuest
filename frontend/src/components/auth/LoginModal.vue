@@ -125,10 +125,17 @@ export default {
                 console.error('Login failed:', error)
                 isLoading.value = false
 
+                let errorMessage = 'Invalid credentials. Try again, brave adventurer!'
+                if (error.response?.data?.error) {
+                    errorMessage = error.response.data.error
+                } else if (error.message) {
+                    errorMessage = error.message
+                }
+
                 await Swal.fire({
                     icon: 'error',
                     title: 'Oops! Adventure Blocked 🚫',
-                    text: 'Invalid credentials. Try again, brave adventurer!',
+                    text: errorMessage,
                     timer: 3000,
                     showConfirmButton: false,
                     background: 'linear-gradient(135deg, #ff6b6b, #ffa726)',

@@ -166,7 +166,7 @@
                                                 <span class="equals-sign">=</span>
                                                 <div class="result-display">
                                                     {{ ingredient1 === ingredient2 ? ingredient1 : '🍰' }} {{
-                                                    parseInt(num1) + parseInt(num2) }}
+                                                        parseInt(num1) + parseInt(num2) }}
                                                 </div>
                                             </div>
                                         </div>
@@ -376,35 +376,19 @@ const loadProgress = async () => {
     try {
         const response = await apiService.getModuleProgress(user.value?.id, 'math_magic')
         console.log('🔢 Math Magic progress response:', response)
-
         if (response.success && response.progress) {
             const progressData = response.progress.progress_data || response.progress
             isCompleted.value = progressData.completed || false
             console.log('✅ Math Magic progress loaded:', isCompleted.value)
         } else {
-            console.log('🔢 No backend progress found, trying localStorage...')
-            // Try localStorage fallback
-            const saved = localStorage.getItem(`mathMagic_${user.value?.id}`)
-            if (saved) {
-                const progressData = JSON.parse(saved)
-                isCompleted.value = progressData.completed || false
-                console.log('💾 Math Magic progress loaded from localStorage:', isCompleted.value)
-            }
+            // No backend progress, show not completed
+            isCompleted.value = false
+            console.log('📉 No backend progress for Math Magic, showing not completed')
         }
     } catch (error) {
         console.error('Error loading Math Magic progress:', error)
-
-        // Try localStorage fallback on error
-        try {
-            const saved = localStorage.getItem(`mathMagic_${user.value?.id}`)
-            if (saved) {
-                const progressData = JSON.parse(saved)
-                isCompleted.value = progressData.completed || false
-                console.log('🔄 Math Magic fallback progress:', isCompleted.value)
-            }
-        } catch (fallbackError) {
-            console.error('⚠️ Math Magic fallback also failed:', fallbackError)
-        }
+        // On error, show not completed
+        isCompleted.value = false
     }
 }
 

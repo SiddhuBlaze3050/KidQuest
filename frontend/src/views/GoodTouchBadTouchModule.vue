@@ -149,8 +149,8 @@ export default {
                         const backendProgress = await apiService.getModuleProgress(user.value.id, 'good_touch_bad_touch')
                         console.log('Backend response:', backendProgress)
 
-                        if (backendProgress.success && backendProgress.data) {
-                            const progressData = backendProgress.data.progress_data
+                        if (backendProgress.success && backendProgress.progress && backendProgress.progress.progress_data) {
+                            const progressData = backendProgress.progress.progress_data
                             console.log('Backend progress data:', progressData)
 
                             isCompleted.value = progressData.isCompleted || false

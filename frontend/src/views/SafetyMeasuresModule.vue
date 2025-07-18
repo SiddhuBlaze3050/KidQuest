@@ -13,7 +13,7 @@
                         <p class="safety-subtitle">Learn Essential Safety Skills Through Interactive Visual Cards!</p>
                     </div>
                     <div class="progress-display">
-                        <span class="progress-text">{{ Math.round(overallProgress) }}% Complete</span>
+                        <span class="progress-text">{{ progressFraction }} Complete</span>
                         <div class="progress-bar">
                             <div class="progress-fill" :style="{ width: `${overallProgress}%` }"></div>
                         </div>
@@ -140,7 +140,7 @@
                                     </div>
                                     <div class="stat">
                                         <span class="stat-number">{{ Object.values(discoveredTips).flat().length
-                                            }}</span>
+                                        }}</span>
                                         <span class="stat-label">Safety Tips Learned</span>
                                     </div>
                                 </div>
@@ -177,6 +177,8 @@ const discoveredTips = ref({})
 const selectedCard = ref(null)
 const activeCard = ref(null)
 const isCompleted = ref(false)
+const backendCompletedCount = ref(0);
+const progressFraction = computed(() => `${backendCompletedCount.value}/6`);
 
 // Safety Categories Data
 const safetyCategories = ref([
@@ -433,8 +435,8 @@ const discoverTip = async (cardId, tipIndex) => {
     if (!discoveredTips.value[cardId].includes(tipIndex)) {
         discoveredTips.value[cardId].push(tipIndex)
 
-        // Save progress immediately when tip is discovered
-        await saveProgress()
+        // Removed automatic progress saving
+        // Removed progress save on tip discovery
 
         // Show discovery animation
         Swal.fire({
@@ -458,8 +460,53 @@ const isCardFullyExplored = (cardId) => {
 }
 
 const markCardComplete = async (cardId) => {
-    if (!exploredCards.value.includes(cardId)) {
+    // Only proceed if the card is fully explored and not already explored
+    if (isCardFullyExplored(cardId) && !exploredCards.value.includes(cardId)) {
         exploredCards.value.push(cardId)
+
+        // Map card IDs to correct submodule names
+        const submoduleMap = {
+            'home_safety': 'home_safety',
+            'road_safety': 'road_safety',
+            'internet_safety': 'internet_safety',
+            'fire_safety': 'fire_safety'
+        }
+
+        const submoduleName = submoduleMap[cardId]
+        if (!submoduleName) {
+            console.error(`❌ Invalid submodule: ${cardId}`)
+            return
+        }
+
+        // Calculate progress percentage based on discovered tips
+        const card = safetyCategories.value.find(c => c.id === cardId)
+        const discoveredCount = discoveredTips.value[cardId]?.length || 0
+        const progressPercentage = Math.round((discoveredCount / card.tips.length) * 100)
+
+        // Verify the submodule name
+        console.log(`🔍 Attempting to save progress for submodule: ${submoduleName}, Progress: ${progressPercentage}%`)
+
+        // Save individual submodule progress
+        if (user.value?.id) {
+            try {
+                const progressResponse = await apiService.updateModuleProgress({
+                    user_id: user.value.id,
+                    module_type: 'safety_measures', // Lowercase module type
+                    submodule_name: submoduleName, // Correct submodule name
+                    progress_percentage: progressPercentage, // Actual progress percentage
+                    is_completed: progressPercentage === 100,
+                    progress_data: {
+                        exploredCards: exploredCards.value,
+                        discoveredTips: discoveredTips.value
+                    }
+                })
+                console.log(`✅ Saved submodule progress for ${submoduleName}:`, progressResponse)
+            } catch (error) {
+                console.warn(`❌ Failed to save submodule progress for ${submoduleName}:`, error)
+                // Log the full error details for debugging
+                console.error('Full error details:', JSON.stringify(error.response?.data || error))
+            }
+        }
 
         Swal.fire({
             icon: 'success',
@@ -606,46 +653,36 @@ const saveProgress = async () => {
 
 const loadProgress = async () => {
     try {
-        console.log('Loading Safety Measures progress for user:', user.value?.id)
-
+        console.log('🦺 Loading Safety Measures progress for user:', user.value?.id)
         // First try to load from backend if user is logged in
         if (user.value?.id) {
             try {
                 console.log('Attempting to load from backend...')
                 const backendProgress = await apiService.getModuleProgress(user.value.id, 'safety_measures')
                 console.log('Backend response:', backendProgress)
-
-                if (backendProgress.success && backendProgress.data) {
-                    const progressData = backendProgress.data.progress_data
-                    console.log('Backend progress data:', progressData)
-
-                    isCompleted.value = progressData.isCompleted || false
-                    exploredCards.value = progressData.exploredCards || []
-                    discoveredTips.value = progressData.discoveredTips || {}
-
-                    await saveProgress() // Update localStorage with backend data
-                    console.log(`✅ Safety Measures progress loaded from backend`)
-                    return
+                if (backendProgress.success && backendProgress.progress && Array.isArray(backendProgress.progress.submodule_progress)) {
+                    const submodules = backendProgress.progress.submodule_progress;
+                    backendCompletedCount.value = submodules.filter(sub => sub.is_completed).length;
+                    // Optionally update exploredCards to match backend
+                    exploredCards.value = submodules.filter(sub => sub.is_completed).map(sub => sub.submodule_name);
+                } else {
+                    backendCompletedCount.value = 0;
                 }
             } catch (error) {
                 console.log('❌ Backend progress load failed:', error.message)
             }
         }
-
-        // Fallback to localStorage
-        console.log('Attempting to load from localStorage...')
-        const savedProgress = localStorage.getItem(`safetyMeasuresProgress_${user.value?.id || 'guest'}`)
-        if (savedProgress) {
-            const progressData = JSON.parse(savedProgress)
-            isCompleted.value = progressData.isCompleted || false
-            exploredCards.value = progressData.exploredCards || []
-            discoveredTips.value = progressData.discoveredTips || {}
-            console.log(`✅ Safety Measures progress loaded from localStorage`)
-        } else {
-            console.log('📝 No saved progress found - starting fresh')
-        }
+        // No backend progress, show not completed
+        isCompleted.value = false
+        exploredCards.value = []
+        discoveredTips.value = {}
+        console.log('📉 No backend progress for Safety Measures, showing not completed')
     } catch (error) {
-        console.error('❌ Error loading Safety Measures progress:', error)
+        console.error('Error loading Safety Measures progress:', error)
+        // On error, show not completed
+        isCompleted.value = false
+        exploredCards.value = []
+        discoveredTips.value = {}
     }
 }
 

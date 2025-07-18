@@ -29,7 +29,7 @@
                     <iframe v-if="!iframeError" ref="vocabularyIframe" :src="gameUrl" class="vocabulary-iframe"
                         title="Word Wizard Vocabulary Game" width="100%" height="600" frameborder="0"
                         @load="onIframeLoad" @error="onIframeError"></iframe>
-                    
+
                     <!-- Fallback content when iframe fails -->
                     <div v-if="iframeError" class="iframe-fallback">
                         <div class="fallback-content">
@@ -37,7 +37,7 @@
                             <h3>Oops! Magical Spell Book Blocked</h3>
                             <p>The spell book cannot be displayed here due to security restrictions.</p>
                             <p>But don't worry! You can still access your vocabulary adventure:</p>
-                            
+
                             <div class="fallback-options">
                                 <button @click="openInNewTab" class="open-new-tab-btn">
                                     🌟 Open in New Magic Portal
@@ -46,13 +46,14 @@
                                     🎯 Try Alternative Activities
                                 </button>
                             </div>
-                            
+
                             <div class="fallback-instructions">
-                                <p><strong>💡 Tip:</strong> After completing activities in the new tab, come back here and click "Master This Spell Book!" to track your progress.</p>
+                                <p><strong>💡 Tip:</strong> After completing activities in the new tab, come back here
+                                    and click "Master This Spell Book!" to track your progress.</p>
                             </div>
                         </div>
                     </div>
-                    
+
                     <div v-if="isLoading && !iframeError" class="loading-spell">
                         <div class="loading-animation">
                             <div class="loading-wand">🪄</div>
@@ -106,7 +107,7 @@ const onIframeError = () => {
 
 const openInNewTab = () => {
     window.open(gameUrl, '_blank', 'noopener,noreferrer')
-    
+
     // Show success message
     Swal.fire({
         title: '🌟 Magic Portal Opened!',
@@ -133,7 +134,7 @@ const tryAlternativeContent = () => {
         { name: 'Fast Vocab Game', url: 'https://www.gamestolearnenglish.com/fast-vocab/' },
         { name: 'English Vocabulary Games', url: 'https://www.gamestolearnenglish.com/vocab-game/' }
     ]
-    
+
     Swal.fire({
         title: '🎯 Choose Your Alternative Adventure!',
         html: `
@@ -188,7 +189,7 @@ const markComplete = async () => {
         if (result.isConfirmed) {
             isCompleted.value = true
             await saveProgress()
-            
+
             // Success message
             await Swal.fire({
                 title: 'Word Wizard Level Up!',
@@ -219,13 +220,13 @@ const saveProgress = async () => {
             completionPercentage: isCompleted.value ? 100 : 0,
             lastAccessed: new Date().toISOString()
         }
-        
+
         // Save to localStorage as backup
         localStorage.setItem(`wordWizard_${user.value?.id}`, JSON.stringify(progressData))
-        
+
         // Save to backend
         await apiService.saveModuleProgress(user.value?.id, 'word_wizard', progressData)
-        
+
     } catch (error) {
         console.error('Error saving Word Wizard progress:', error)
     }
@@ -235,41 +236,25 @@ const loadProgress = async () => {
     try {
         const response = await apiService.getModuleProgress(user.value?.id, 'word_wizard')
         console.log('📚 Word Wizard progress response:', response)
-        
         if (response.success && response.progress) {
             const progressData = response.progress.progress_data || response.progress
             isCompleted.value = progressData.completed || false
             console.log('✅ Word Wizard progress loaded:', isCompleted.value)
         } else {
-            console.log('📚 No backend progress found, trying localStorage...')
-            // Try localStorage fallback
-            const saved = localStorage.getItem(`wordWizard_${user.value?.id}`)
-            if (saved) {
-                const progressData = JSON.parse(saved)
-                isCompleted.value = progressData.completed || false
-                console.log('💾 Word Wizard progress loaded from localStorage:', isCompleted.value)
-            }
+            // No backend progress, show not completed
+            isCompleted.value = false
+            console.log('📉 No backend progress for Word Wizard, showing not completed')
         }
     } catch (error) {
         console.error('Error loading Word Wizard progress:', error)
-        
-        // Try localStorage fallback on error
-        try {
-            const saved = localStorage.getItem(`wordWizard_${user.value?.id}`)
-            if (saved) {
-                const progressData = JSON.parse(saved)
-                isCompleted.value = progressData.completed || false
-                console.log('🔄 Word Wizard fallback progress:', isCompleted.value)
-            }
-        } catch (fallbackError) {
-            console.error('⚠️ Word Wizard fallback also failed:', fallbackError)
-        }
+        // On error, show not completed
+        isCompleted.value = false
     }
 }
 
 onMounted(() => {
     loadProgress()
-    
+
     // Set a timeout to detect if iframe fails to load
     setTimeout(() => {
         if (isLoading.value) {
@@ -419,15 +404,43 @@ onMounted(() => {
     animation: sparkle 2s ease-in-out infinite;
 }
 
-.sparkle:nth-child(1) { left: 10%; animation-delay: 0s; }
-.sparkle:nth-child(2) { left: 30%; animation-delay: 0.4s; }
-.sparkle:nth-child(3) { left: 50%; animation-delay: 0.8s; }
-.sparkle:nth-child(4) { left: 70%; animation-delay: 1.2s; }
-.sparkle:nth-child(5) { left: 90%; animation-delay: 1.6s; }
+.sparkle:nth-child(1) {
+    left: 10%;
+    animation-delay: 0s;
+}
+
+.sparkle:nth-child(2) {
+    left: 30%;
+    animation-delay: 0.4s;
+}
+
+.sparkle:nth-child(3) {
+    left: 50%;
+    animation-delay: 0.8s;
+}
+
+.sparkle:nth-child(4) {
+    left: 70%;
+    animation-delay: 1.2s;
+}
+
+.sparkle:nth-child(5) {
+    left: 90%;
+    animation-delay: 1.6s;
+}
 
 @keyframes sparkle {
-    0%, 100% { opacity: 0; transform: scale(0); }
-    50% { opacity: 1; transform: scale(1); }
+
+    0%,
+    100% {
+        opacity: 0;
+        transform: scale(0);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
 /* Main Content */
@@ -467,8 +480,15 @@ onMounted(() => {
 }
 
 @keyframes pulse {
-    0%, 100% { transform: scale(1); }
-    50% { transform: scale(1.05); }
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.05);
+    }
 }
 
 /* Vocabulary Playground */
@@ -514,8 +534,15 @@ onMounted(() => {
 }
 
 @keyframes float {
-    0%, 100% { transform: translateY(0px); }
-    50% { transform: translateY(-10px); }
+
+    0%,
+    100% {
+        transform: translateY(0px);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
 }
 
 .loading-stars {
@@ -528,14 +555,34 @@ onMounted(() => {
     animation: twinkle 1s ease-in-out infinite;
 }
 
-.loading-stars span:nth-child(1) { animation-delay: 0s; }
-.loading-stars span:nth-child(2) { animation-delay: 0.2s; }
-.loading-stars span:nth-child(3) { animation-delay: 0.4s; }
-.loading-stars span:nth-child(4) { animation-delay: 0.6s; }
+.loading-stars span:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.loading-stars span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.loading-stars span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+.loading-stars span:nth-child(4) {
+    animation-delay: 0.6s;
+}
 
 @keyframes twinkle {
-    0%, 100% { opacity: 0.3; transform: scale(0.8); }
-    50% { opacity: 1; transform: scale(1.2); }
+
+    0%,
+    100% {
+        opacity: 0.3;
+        transform: scale(0.8);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1.2);
+    }
 }
 
 .loading-spell h3 {
@@ -595,7 +642,8 @@ onMounted(() => {
     flex-wrap: wrap;
 }
 
-.open-new-tab-btn, .try-alternative-btn {
+.open-new-tab-btn,
+.try-alternative-btn {
     background: rgba(255, 255, 255, 0.2);
     color: white;
     border: 2px solid rgba(255, 255, 255, 0.3);
@@ -607,7 +655,8 @@ onMounted(() => {
     backdrop-filter: blur(10px);
 }
 
-.open-new-tab-btn:hover, .try-alternative-btn:hover {
+.open-new-tab-btn:hover,
+.try-alternative-btn:hover {
     background: rgba(255, 255, 255, 0.3);
     border-color: rgba(255, 255, 255, 0.5);
     transform: translateY(-2px);
@@ -639,20 +688,21 @@ onMounted(() => {
         text-align: center;
         gap: 1rem;
     }
-    
+
     .wizard-title h1 {
         font-size: 2rem;
     }
-    
+
     .wizard-main {
         padding: 1rem;
     }
-    
+
     .vocabulary-iframe {
         height: 500px;
     }
-    
-    .complete-spell-btn, .completed-badge {
+
+    .complete-spell-btn,
+    .completed-badge {
         padding: 0.75rem 1.5rem;
         font-size: 1rem;
     }
@@ -680,4 +730,4 @@ onMounted(() => {
     font-weight: 600 !important;
     margin: 0 10px !important;
 }
-</style> 
+</style>
