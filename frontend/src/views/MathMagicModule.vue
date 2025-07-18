@@ -166,7 +166,7 @@
                                                 <span class="equals-sign">=</span>
                                                 <div class="result-display">
                                                     {{ ingredient1 === ingredient2 ? ingredient1 : '🍰' }} {{
-                                                    parseInt(num1) + parseInt(num2) }}
+                                                        parseInt(num1) + parseInt(num2) }}
                                                 </div>
                                             </div>
                                         </div>
@@ -364,9 +364,15 @@ const saveProgress = async () => {
         // Save to localStorage as backup
         localStorage.setItem(`mathMagic_${user.value?.id}`, JSON.stringify(progressData))
 
-        // Save to backend
-        await apiService.saveModuleProgress(user.value?.id, 'math_magic', progressData)
-
+        // Save to backend with correct top-level params
+        await apiService.saveModuleProgress(
+            user.value?.id,
+            'math_magic',
+            {
+                ...progressData,
+                isCompleted: isCompleted.value // for redundancy
+            }
+        )
     } catch (error) {
         console.error('Error saving Math Magic progress:', error)
     }

@@ -7,6 +7,7 @@ import os
 import random
 import glob
 import base64
+import time
 from config import Config
 from datetime import datetime, date, timedelta
 import json
@@ -182,9 +183,9 @@ def api_register():
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/auth/login', methods=['POST'])
-def api_login():
-    """API endpoint for user login"""
+@app.route('/api/auth/session/login', methods=['POST'])
+def api_session_login():
+    """API endpoint for session-based user login (legacy)"""
     try:
         data = request.get_json()
         username = data.get('username')
@@ -496,34 +497,48 @@ def get_login_streak(user_id):
 # ---------------------------
 
 def calculate_total_stars(user_id):
-    """Calculate total stars earned by a user - simplified using Achievement table"""
+    """Calculate total stars earned by a user - properly accounting for skills mastered"""
     try:
         stars = 0
         
-        # Stars per achievement based on activity type
+        # Get all achievements for the user
         achievements = Achievement.query.filter_by(user_id=user_id).all()
+        
+        # Count module completion achievements (these represent skills mastered)
+        module_completions = 0
+        other_achievements = 0
+        
         for achievement in achievements:
             # Skip module progress records (they're stored as achievements but aren't star-earning)
             if achievement.badge_name and achievement.badge_name.startswith('module_'):
                 continue
                 
-            # Calculate stars based on activity type
-            if 'Memory Game' in achievement.badge_name:
-                stars += 5  # Memory Game gives 5 stars
-            elif 'Task Completed' in achievement.badge_name:
-                stars += 5  # Task completion gives 5 stars
-            elif 'Health Task' in achievement.badge_name:
-                stars += 3  # Health task gives 3 stars
-            elif 'Finance:' in achievement.badge_name:
-                stars += 2  # Finance transaction gives 2 stars
-            elif 'Psychometric Test' in achievement.badge_name:
-                stars += 15  # Psychometric test gives 15 stars
-            elif 'Module Completed' in achievement.badge_name:
-                stars += 20  # Module completion gives 20 stars
-            elif 'Master' in achievement.badge_name:
-                stars += 10  # Activity masters give 10 stars
+            # Count module completions separately
+            if 'Module Completed' in achievement.badge_name:
+                module_completions += 1
             else:
-                stars += 8  # Other activities give 8 stars
+                other_achievements += 1
+                
+                # Calculate stars for non-module achievements
+                if 'Memory Game' in achievement.badge_name:
+                    stars += 5  # Memory Game gives 5 stars
+                elif 'Task Completed' in achievement.badge_name:
+                    stars += 5  # Task completion gives 5 stars
+                elif 'Health Task' in achievement.badge_name:
+                    stars += 3  # Health task gives 3 stars
+                elif 'Finance:' in achievement.badge_name:
+                    stars += 2  # Finance transaction gives 2 stars
+                elif 'Psychometric Test' in achievement.badge_name:
+                    stars += 15  # Psychometric test gives 15 stars
+                elif 'Master' in achievement.badge_name:
+                    stars += 10  # Activity masters give 10 stars
+                else:
+                    stars += 8  # Other activities give 8 stars
+        
+        # Add stars for skills mastered (each completed module = 1 skill = 18 stars)
+        # This matches the frontend calculation where 1 skill = 18 XP
+        skills_stars = module_completions * 18
+        stars += skills_stars
         
         # 1 star per login streak day
         login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
@@ -534,6 +549,15 @@ def calculate_total_stars(user_id):
         health_streak = HealthStreak.query.filter_by(user_id=user_id).first()
         if health_streak:
             stars += health_streak.current_streak * 2
+        
+        print(f"📊 Stars calculation for user {user_id}:")
+        print(f"   - Module completions: {module_completions} (skills mastered)")
+        print(f"   - Skills stars: {skills_stars} (18 per skill)")
+        print(f"   - Other achievements: {other_achievements}")
+        print(f"   - Other achievement stars: {stars - skills_stars}")
+        print(f"   - Login streak stars: {login_streak.current_streak if login_streak else 0}")
+        print(f"   - Health streak stars: {health_streak.current_streak * 2 if health_streak else 0}")
+        print(f"   - Total stars: {stars}")
         
         return stars
     except Exception as e:
@@ -551,21 +575,16 @@ def calculate_quests_completed(user_id):
         return 0
 
 def calculate_skills_mastered(user_id):
-    """Calculate number of skills mastered by a user - Note: Frontend handles real calculation based on module completion"""
+    """Calculate number of skills mastered by a user - based on actual module completions"""
     try:
-        # For new users, return 0. Frontend will calculate based on actual module progress
-        # This ensures new users start with 0 skills mastered
-        achievements_count = Achievement.query.filter_by(user_id=user_id).count()
+        # Count actual module completion achievements
+        module_completions = Achievement.query.filter_by(user_id=user_id).filter(
+            Achievement.badge_name.like('%Module Completed%')
+        ).count()
         
-        # If user has no achievements, definitely 0 skills mastered
-        if achievements_count == 0:
-            return 0
-            
-        # Simple fallback calculation: every 3 achievements = 1 skill mastered
-        # But frontend overrides this with actual module completion data
-        skills = achievements_count // 3  # Integer division
+        print(f"📚 Skills mastered calculation for user {user_id}: {module_completions} modules completed")
         
-        return skills
+        return module_completions
     except Exception as e:
         print(f"Error calculating skills mastered: {e}")
         return 0
@@ -657,52 +676,13 @@ def api_child_stats(user_id):
             'error': str(e)
         }), 500
 
-@app.route('/api/achievement/test', methods=['POST'])
-def create_test_achievement():
-    """Create a test achievement for testing dashboard stats"""
-    try:
-        data = request.get_json()
-        user_id = data.get('user_id')
-        
-        if not user_id:
-            return jsonify({'success': False, 'error': 'user_id is required'}), 400
-        
-        # Create a test achievement
-        achievement = Achievement(
-            user_id=user_id,
-            badge_name=data.get('badge_name', f"Test Achievement {datetime.utcnow().timestamp()}"),
-            description=data.get('description', 'Test achievement for dashboard stats'),
-            date_awarded=datetime.utcnow()
-        )
-        
-        db.session.add(achievement)
-        db.session.commit()
-        
-        print(f"✅ Created test achievement for user {user_id}: {achievement.badge_name}")
-        
-        return jsonify({
-            'success': True,
-            'message': 'Test achievement created successfully',
-            'achievement': {
-                'id': achievement.id,
-                'badge_name': achievement.badge_name,
-                'description': achievement.description
-            }
-        }), 201
-        
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error creating test achievement: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
+
 
 @app.route('/api/child/quests/<int:user_id>', methods=['GET'])
 def api_child_quests(user_id):
     """Get today's quests for child"""
     try:
-        # Mock data for now
+        # Mock data for now - all quests start as incomplete for new users
         quests = [
             {
                 'id': 1,
@@ -718,7 +698,7 @@ def api_child_quests(user_id):
                 'description': 'Read for 20 minutes',
                 'icon': '📖',
                 'stars': 8,
-                'completed': True
+                'completed': False  # Changed from True to False
             },
             {
                 'id': 3,
@@ -1581,19 +1561,28 @@ def save_module_progress():
         print(f"📝 SIMPLE: Saving progress for User {user_id}, Module '{module_type}', Progress: {progress_percentage}%, Completed: {is_completed}")
         print(f"📋 Request data: {data}")
         
-        # Simple validation
+        # Strict validation
         if not user_id:
             print("❌ Missing user_id")
             return jsonify({'success': False, 'error': 'user_id is required'}), 400
         
-        # Check if user exists (simplified)
+        # Validate user_id is a positive integer
         try:
-            user = db.session.get(User, user_id)
-            if not user:
-                print(f"❌ User {user_id} not found")
-                return jsonify({'success': False, 'error': 'User not found'}), 404
-        except Exception as user_error:
-            print(f"⚠️ User check failed, continuing anyway: {user_error}")
+            user_id = int(user_id)
+            if user_id <= 0:
+                print(f"❌ Invalid user_id: {user_id}")
+                return jsonify({'success': False, 'error': 'user_id must be a positive integer'}), 400
+        except (ValueError, TypeError):
+            print(f"❌ Invalid user_id format: {user_id}")
+            return jsonify({'success': False, 'error': 'user_id must be a valid integer'}), 400
+        
+        # Check if user exists - STRICT CHECK
+        user = db.session.get(User, user_id)
+        if not user:
+            print(f"❌ User {user_id} not found in database")
+            return jsonify({'success': False, 'error': f'User {user_id} not found'}), 404
+        
+        print(f"✅ User validation passed: {user.username} (ID: {user_id})")
         
         # Create simple progress record using Achievement table
         try:
@@ -1619,41 +1608,31 @@ def save_module_progress():
                 # Fallback to simple string
                 progress_json = f"Module: {module_type}, Progress: {progress_percentage}%, Completed: {is_completed}"
             
-            # Simple database operation
-            module_key = f"module_{module_type.replace(' ', '_')}"
+            # Create consistent module key
+            module_key = f"module_{module_type.lower().replace(' ', '_').replace('-', '_')}"
             
-            # Try to find existing record
-            existing = None
-            try:
-                existing = Achievement.query.filter_by(user_id=user_id, badge_name=module_key).first()
-            except Exception as find_error:
-                print(f"⚠️ Find existing failed: {find_error}")
+            print(f"🔑 Module key for user {user_id}: '{module_key}'")
+            
+            # Look for existing record with proper error handling
+            existing = Achievement.query.filter_by(user_id=user_id, badge_name=module_key).first()
             
             if existing:
-                # Update existing
-                try:
-                    existing.description = progress_json
-                    existing.date_awarded = datetime.utcnow()
-                    print(f"✅ Updated existing progress record")
-                except Exception as update_error:
-                    print(f"⚠️ Update failed: {update_error}")
-                    # Create new record instead
-                    existing = None
-            
-            if not existing:
+                # Update existing record
+                print(f"📝 Updating existing progress record for user {user_id}, module {module_key}")
+                existing.description = progress_json
+                existing.date_awarded = datetime.utcnow()
+                print(f"✅ Updated existing progress record for user {user_id}")
+            else:
                 # Create new record
-                try:
-                    new_achievement = Achievement(
-                        user_id=user_id,
-                        badge_name=module_key,
-                        description=progress_json,
-                        date_awarded=datetime.utcnow()
-                    )
-                    db.session.add(new_achievement)
-                    print(f"✅ Created new progress record")
-                except Exception as create_error:
-                    print(f"⚠️ Create failed: {create_error}")
-                    # Still try to commit what we have
+                print(f"🆕 Creating new progress record for user {user_id}, module {module_key}")
+                new_achievement = Achievement(
+                    user_id=user_id,
+                    badge_name=module_key,
+                    description=progress_json,
+                    date_awarded=datetime.utcnow()
+                )
+                db.session.add(new_achievement)
+                print(f"✅ Created new progress record for user {user_id}")
             
             # Simple commit with fallback
             try:
@@ -1683,7 +1662,7 @@ def save_module_progress():
                             db.session.commit()
                             
                             # Create achievement notification
-                            NotificationService.notify_achievement(user_id, f"Module Completed: {module_display_name}", 20)
+                            NotificationService.notify_achievement(user_id, f"Module Completed: {module_display_name}", 18)
                             print(f"✅ Module completion achievement created for user {user_id}: {module_display_name}")
                         except Exception as achievement_error:
                             print(f"⚠️ Module completion achievement creation failed: {achievement_error}")
@@ -1699,32 +1678,31 @@ def save_module_progress():
                     'progress_percentage': progress_percentage
                 }), 200
             except Exception as commit_error:
-                print(f"⚠️ Database commit failed: {commit_error}")
+                print(f"❌ Database commit failed: {commit_error}")
                 db.session.rollback()
-                # Return success anyway since we tried our best
                 return jsonify({
-                    'success': True, 
-                    'message': 'Progress partially saved (database issue)',
+                    'success': False, 
+                    'error': f'Database commit failed: {str(commit_error)}',
                     'progress_percentage': progress_percentage
-                }), 200
+                }), 500
                 
         except Exception as db_error:
-            print(f"⚠️ Database operation failed: {db_error}")
-            # Don't fail completely, just log the error
+            print(f"❌ Database operation failed: {db_error}")
+            db.session.rollback()
             return jsonify({
-                'success': True, 
-                'message': 'Progress saved to local storage only',
+                'success': False, 
+                'error': f'Database operation failed: {str(db_error)}',
                 'progress_percentage': progress_percentage
-            }), 200
+            }), 500
         
     except Exception as e:
-        print(f"💥 SIMPLE: General error in save_module_progress: {e}")
-        # Be very forgiving and return success even on errors
+        print(f"❌ General error in save_module_progress: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
-            'success': True, 
-            'message': 'Progress saved locally (server issue)',
+            'success': False, 
             'error': str(e)
-        }), 200
+        }), 500
 
 @app.route('/api/module/progress/<int:user_id>/<module_type>', methods=['GET'])
 def get_module_progress(user_id, module_type):
@@ -1742,11 +1720,17 @@ def get_module_progress(user_id, module_type):
             print(f"❌ User {user_id} not found")
             return jsonify({'success': False, 'error': 'User not found'}), 404
         
-        # Find achievement record for this module
-        module_key = f"module_{decoded_module_type}"
+        # Find achievement record for this module using consistent key format
+        module_key = f"module_{decoded_module_type.lower().replace(' ', '_').replace('-', '_')}"
         achievement = Achievement.query.filter_by(user_id=user_id, badge_name=module_key).first()
         
-        print(f"🔎 Looking for achievement with badge_name: '{module_key}'")
+        print(f"🔎 Looking for achievement with badge_name: '{module_key}' for user {user_id}")
+        
+        # Debug: Show all module progress records for this user
+        all_modules = Achievement.query.filter_by(user_id=user_id).filter(
+            Achievement.badge_name.like('module_%')
+        ).all()
+        print(f"🗂️ All module records for user {user_id}: {[a.badge_name for a in all_modules]}")
         
         if achievement:
             try:
@@ -1851,38 +1835,11 @@ def clear_user_notifications(user_id):
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/test/task-completion-notification', methods=['POST'])
-def test_task_completion_notification():
-    """Test endpoint to manually trigger a task completion notification"""
-    try:
-        data = request.get_json()
-        user_id = data.get('user_id', 1)
-        task_name = data.get('task_name', 'Test Task: Math Homework')
-        
-        print(f"🧪 Testing task completion notification for user {user_id}")
-        
-        # Test task completion notification
-        task_result = NotificationService.notify_task_completion(user_id, task_name)
-        
-        # Test achievement notification
-        achievement_result = NotificationService.notify_achievement(user_id, "Task Completed", 5)
-        
-        return jsonify({
-            'success': True,
-            'message': 'Test notifications sent',
-            'task_notification': {
-                'id': task_result.id if task_result else None,
-                'success': task_result is not None
-            },
-            'achievement_notification': {
-                'id': achievement_result.id if achievement_result else None,
-                'success': achievement_result is not None
-            }
-        }), 200
-        
-    except Exception as e:
-        print(f"❌ Error in test endpoint: {e}")
-        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+
+
+
 
 
 
@@ -1890,40 +1847,7 @@ def test_task_completion_notification():
 # Debug Routes for User Stats (Development)
 # ---------------------------
 
-@app.route('/api/debug/user-stats/<int:user_id>', methods=['GET'])
-def debug_user_stats(user_id):
-    """Debug endpoint to check raw user data"""
-    try:
-        # Get raw counts
-        achievements_count = Achievement.query.filter_by(user_id=user_id).count()
-        login_streak_obj = LoginStreak.query.filter_by(user_id=user_id).first()
-        health_streak_obj = HealthStreak.query.filter_by(user_id=user_id).first()
-        
-        debug_info = {
-            'user_id': user_id,
-            'achievements_count': achievements_count,
-            'login_streak': login_streak_obj.current_streak if login_streak_obj else 0,
-            'health_streak': health_streak_obj.current_streak if health_streak_obj else 0,
-            'total_stars_calculated': calculate_total_stars(user_id),
-            'skills_mastered_calculated': calculate_skills_mastered(user_id),
-            'quests_completed': calculate_quests_completed(user_id),
-            'raw_achievements': [
-                {'id': a.id, 'badge_name': a.badge_name, 'description': a.description} 
-                for a in Achievement.query.filter_by(user_id=user_id).all()
-            ]
-        }
-        
-        return jsonify({
-            'success': True,
-            'debug_info': debug_info
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
 
-# ---------------------------
-# Enhanced Notification Test Routes (Development)
-# ---------------------------
 
 
 
@@ -2501,6 +2425,8 @@ def create_achievement():
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
 
 if __name__ == '__main__':
     # Initialize database when running directly

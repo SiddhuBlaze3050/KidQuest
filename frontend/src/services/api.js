@@ -30,7 +30,13 @@ api.interceptors.response.use(
   },
   (error) => {
     console.error('API Error:', error.response?.data || error.message)
-    if (error.response?.status === 401) {
+
+    // Don't auto-redirect on 401 for login/register endpoints
+    const isAuthEndpoint =
+      error.config?.url?.includes('/api/auth/login') ||
+      error.config?.url?.includes('/api/auth/register')
+
+    if (error.response?.status === 401 && !isAuthEndpoint) {
       // Handle unauthorized access - clear user data
       localStorage.removeItem('user')
       window.location.href = '/login'
@@ -391,9 +397,16 @@ export const apiService = {
   async saveModuleProgress(userId, moduleType, progressData) {
     try {
       console.log(`🔄 Saving module progress: User ${userId}, Module ${moduleType}`, progressData)
+
+      // Extract completion status from progressData
+      const isCompleted = progressData.isCompleted || progressData.completed || false
+      const progressPercentage = progressData.completionPercentage || (isCompleted ? 100 : 0)
+
       const response = await api.post('/api/module/progress', {
         user_id: userId,
         module_type: moduleType,
+        progress_percentage: progressPercentage,
+        is_completed: isCompleted,
         progress_data: progressData,
       })
       console.log('✅ Module progress save response:', response.data)
@@ -453,7 +466,12 @@ export const apiService = {
 
   async updateModuleProgress(progressData) {
     try {
-      console.log('📝 SIMPLE: Updating module progress:', progressData)
+      console.log('📝 Updating module progress:', progressData)
+
+      // Validate required fields
+      if (!progressData.user_id) {
+        throw new Error('user_id is required for module progress')
+      }
 
       // Add fallback values to prevent errors
       const safeProgressData = {
@@ -464,22 +482,16 @@ export const apiService = {
         progress_data: progressData.progress_data || {},
       }
 
+      console.log('📤 Sending to backend:', safeProgressData)
+
       const response = await api.post('/api/module/progress', safeProgressData)
-      console.log('✅ SIMPLE: Module progress updated:', response.data)
+      console.log('✅ Module progress updated successfully:', response.data)
       return response.data
     } catch (error) {
-      console.error(
-        '⚠️ SIMPLE: Module progress update failed, but continuing:',
-        error.response?.data || error.message,
-      )
+      console.error('❌ Module progress update failed:', error.response?.data || error.message)
 
-      // Be very forgiving - return success even on API errors
-      // The progress is still saved locally anyway
-      return {
-        success: true,
-        message: 'Progress saved locally (API issue)',
-        progress_percentage: progressData.progress_percentage || 0,
-      }
+      // Don't mask the error - let the caller handle it
+      throw error
     }
   },
 
@@ -511,16 +523,6 @@ export const apiService = {
         user_id: userId,
         task_name: taskName,
       })
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
-
-  // Debug user stats
-  async debugUserStats(userId) {
-    try {
-      const response = await api.get(`/api/debug/user-stats/${userId}`)
       return response.data
     } catch (error) {
       throw error
@@ -573,6 +575,22 @@ export const userUtils = {
 
   isLoggedIn() {
     return this.getCurrentUser() !== null
+  },
+
+  async verifyUserExists() {
+    const user = this.getCurrentUser()
+    if (!user) return false
+
+    try {
+      // Check if user still exists on backend
+      const response = await api.get(`/api/user/profile/${user.id}`)
+      return response.data.success
+    } catch (error) {
+      // If backend is down, database deleted, or user doesn't exist, clear cached data
+      console.log('User verification failed:', error.response?.status || 'Network error')
+      this.logout()
+      return false
+    }
   },
 
   logout() {

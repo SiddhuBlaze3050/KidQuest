@@ -131,8 +131,10 @@ export default {
                 lastAccessed: Date.now()
             }
 
-            // Store with new key for module-specific progress
-            localStorage.setItem(`safetyModuleProgress_${user.value?.id || 'guest'}`, JSON.stringify(progressData))
+            // Save to localStorage
+            if (user.value?.id) {
+                localStorage.setItem(`safetyModuleProgress_${user.value.id}`, JSON.stringify(progressData))
+            }
 
             // Also update the dashboard-compatible format
             updateDashboardProgress()
@@ -167,7 +169,8 @@ export default {
 
                 // Fallback to localStorage
                 console.log('Attempting to load from localStorage...')
-                const savedProgress = localStorage.getItem(`safetyModuleProgress_${user.value?.id || 'guest'}`)
+                const storageKey = user.value?.id ? `safetyModuleProgress_${user.value.id}` : null
+                const savedProgress = storageKey ? localStorage.getItem(storageKey) : null
                 if (savedProgress) {
                     const progressData = JSON.parse(savedProgress)
                     isCompleted.value = progressData.isCompleted || false
@@ -190,7 +193,9 @@ export default {
                 lastAccessed: Date.now()
             }
 
-            localStorage.setItem(`safetyProgress_${user.value?.id || 'guest'}`, JSON.stringify(dashboardData))
+            if (user.value?.id) {
+                localStorage.setItem(`safetyProgress_${user.value.id}`, JSON.stringify(dashboardData))
+            }
         }
 
 

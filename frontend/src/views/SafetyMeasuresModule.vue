@@ -586,8 +586,10 @@ const saveProgress = async () => {
         lastAccessed: Date.now()
     }
 
-    // Store with module-specific key
-    localStorage.setItem(`safetyMeasuresProgress_${user.value?.id || 'guest'}`, JSON.stringify(progressData))
+    // Save to localStorage
+    if (user.value?.id) {
+        localStorage.setItem(`safetyMeasuresProgress_${user.value.id}`, JSON.stringify(progressData))
+    }
 
     console.log('✅ Safety Measures progress saved locally:', progressData)
 
@@ -633,8 +635,8 @@ const loadProgress = async () => {
         }
 
         // Fallback to localStorage
-        console.log('Attempting to load from localStorage...')
-        const savedProgress = localStorage.getItem(`safetyMeasuresProgress_${user.value?.id || 'guest'}`)
+        const storageKey = user.value?.id ? `safetyMeasuresProgress_${user.value.id}` : null
+        const savedProgress = storageKey ? localStorage.getItem(storageKey) : null
         if (savedProgress) {
             const progressData = JSON.parse(savedProgress)
             isCompleted.value = progressData.isCompleted || false

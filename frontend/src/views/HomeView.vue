@@ -79,8 +79,21 @@ export default {
 
     const magicElements = ['⭐', '✨', '🌟', '💫', '🔮', '🪄']
 
-    const checkUserLogin = () => {
+    const checkUserLogin = async () => {
       user.value = userUtils.getCurrentUser()
+
+      // If we have cached user data, verify it's still valid on backend
+      if (user.value) {
+        console.log('Found cached user:', user.value)
+        
+        // Verify user still exists on backend
+        const isValid = await userUtils.verifyUserExists()
+        if (!isValid) {
+          console.log('Cached user is invalid, clearing cached data')
+          user.value = null
+          return
+        }
+      }
 
       // Redirect users based on their role
       if (user.value) {
@@ -149,8 +162,8 @@ export default {
       return magicElements[Math.floor(Math.random() * magicElements.length)]
     }
 
-    onMounted(() => {
-      checkUserLogin()
+    onMounted(async () => {
+      await checkUserLogin()
     })
 
     return {

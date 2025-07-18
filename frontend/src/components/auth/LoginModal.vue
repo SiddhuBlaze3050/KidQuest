@@ -125,11 +125,39 @@ export default {
                 console.error('Login failed:', error)
                 isLoading.value = false
 
+                // Get specific error message from backend or use default
+                let errorMessage = 'Invalid credentials. Try again, brave adventurer!'
+                let errorTitle = 'Oops! Adventure Blocked 🚫'
+
+                if (error.response?.data?.error) {
+                    const backendError = error.response.data.error
+
+                    // Provide more helpful messages based on backend response
+                    if (backendError.includes('Missing username or password')) {
+                        errorMessage = 'Please enter both username and password to continue your adventure!'
+                        errorTitle = 'Missing Information 📝'
+                    } else if (backendError.includes('Account temporarily locked')) {
+                        errorMessage = backendError
+                        errorTitle = 'Account Locked 🔒'
+                    } else if (backendError.includes('Invalid credentials')) {
+                        // For invalid credentials, provide helpful guidance
+                        errorMessage = 'Username or password is incorrect. Please check your credentials and try again!'
+                        errorTitle = 'Login Failed 🔐'
+
+                        // Add helpful suggestion for new users
+                        errorMessage += '\n\n💡 New to KidQuest? Click "Sign Up" to create your account!'
+                    } else {
+                        errorMessage = backendError
+                    }
+                } else if (error.message) {
+                    errorMessage = error.message
+                }
+
                 await Swal.fire({
                     icon: 'error',
-                    title: 'Oops! Adventure Blocked 🚫',
-                    text: 'Invalid credentials. Try again, brave adventurer!',
-                    timer: 3000,
+                    title: errorTitle,
+                    text: errorMessage,
+                    timer: 4000,
                     showConfirmButton: false,
                     background: 'linear-gradient(135deg, #ff6b6b, #ffa726)',
                     color: 'white'

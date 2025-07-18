@@ -22,7 +22,7 @@
                                 <div class="xp-breakdown" title="Experience Points Breakdown">
                                     <span class="xp-stars">{{ levelInfo.xpFromStars }}⭐</span>
                                     <span v-if="levelInfo.xpFromSkills > 0" class="xp-skills">+{{ levelInfo.xpFromSkills
-                                        }}🧠</span>
+                                    }}🧠</span>
                                 </div>
                             </div>
                         </div>
@@ -69,8 +69,11 @@
                             </button>
 
                             <!-- Debug button for development -->
-                            <button @click="debugUserStats" class="refresh-btn" style="margin-left: 0.5rem">
-                                🐛 Debug Stats
+
+                            <!-- Clear cache button for development -->
+                            <button @click="clearAllCachedData" class="refresh-btn"
+                                style="margin-left: 0.5rem; background: #ff6b6b;">
+                                🗑️ Clear Cache
                             </button>
 
                             <!-- Backdrop overlay when scroll is expanded -->
@@ -419,7 +422,7 @@
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { userUtils, apiService } from '@/services/api'
-import { calculateSimpleLevel, getLevelTitle, getLevelProgress, checkForLevelUp } from '@/services/levelService'
+import { calculateSimpleLevel, getLevelTitle, getLevelProgress } from '@/services/levelService'
 import EnhancedChatBot from '@/components/chat/EnhancedChatBot.vue'
 import Swal from 'sweetalert2'
 import MemoryGame from '@/components/activities/MemoryGame.vue'
@@ -576,11 +579,7 @@ export default {
                     // Update streak
                     streakDays.value = data.stats.streakDays
 
-                    // Check for level up
-                    checkForLevelUp(
-                        { starsEarned: oldStats.totalStars || 0, skillsMastered: oldStats.skillsLearned || 0 },
-                        { starsEarned: userStats.value.totalStars || 0, skillsMastered: userStats.value.skillsLearned || 0 }
-                    )
+
 
                     // Update statsCards with real values
                     statsCards.value = [
@@ -620,50 +619,7 @@ export default {
             }
         }
 
-        // Test function to add sample achievement
-        const addTestAchievement = async () => {
-            try {
-                const userId = user.value?.id
-                if (!userId) return
 
-                // Create a sample achievement via API
-                const achievementData = {
-                    user_id: userId,
-                    badge_name: `Test Achievement ${Date.now()}`,
-                    description: `Test achievement created at ${new Date().toLocaleTimeString()}`
-                }
-
-                console.log('🎯 Adding test achievement:', achievementData)
-
-                // Call the API to create the achievement
-                const { data } = await axios.post('/api/achievement/test', achievementData)
-
-                if (data.success) {
-                    // Show success message
-                    await Swal.fire({
-                        icon: 'success',
-                        title: 'Test Achievement Added! 🎉',
-                        text: `Created: ${data.achievement.badge_name}`,
-                        timer: 2000,
-                        showConfirmButton: false,
-                        background: 'linear-gradient(135deg, #667eea, #764ba2)',
-                        color: 'white'
-                    })
-
-                    // Refresh stats to show the change
-                    await fetchDashboardStats()
-                } else {
-                    throw new Error(data.error || 'Failed to create achievement')
-                }
-            } catch (error) {
-                console.error('Error adding test achievement:', error)
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error',
-                    text: error.response?.data?.error || 'Failed to add test achievement',
-                })
-            }
-        }
 
         // Initialize empty statsCards - will be populated by fetchDashboardStats
         const statsCards = ref([]);
@@ -1606,100 +1562,157 @@ export default {
             }
 
             // Check for level up due to skills mastery
-            checkForLevelUp(
-                { starsEarned: oldStats.totalStars || 0, skillsMastered: oldStats.skillsLearned || 0 },
-                { starsEarned: userStats.value.totalStars || 0, skillsMastered: userStats.value.skillsLearned || 0 }
-            )
+
 
             return skillsMastered
         }
 
         // Force refresh all module progress
-        const refreshAllProgress = async () => {
+        const forceRefreshProgress = async () => {
             console.log('🔄 Force refreshing all module progress...')
 
-            // Show loading message
+            // Clear all cached progress data
+            const keysToClear = [
+                `safetyModuleProgress_${user.value?.id}`,
+                `safetyMeasuresProgress_${user.value?.id}`,
+                `scienceExplorer_${user.value?.id}`,
+                `wordWizard_${user.value?.id}`,
+                `mathMagic_${user.value?.id}`,
+                `safetyProgress_${user.value?.id}`
+            ]
+
+            keysToClear.forEach(key => {
+                if (localStorage.getItem(key)) {
+                    localStorage.removeItem(key)
+                    console.log(`🗑️ Cleared cached data: ${key}`)
+                }
+            })
+
+            // Reload all progress
+            await loadGoodTouchBadTouchProgress()
+            await loadSafetyMeasuresProgress()
+            await loadScienceExplorerProgress()
+            await loadWordWizardProgress()
+            await loadMathMagicProgress()
+
+            // Recalculate skills mastered
+            calculateSkillsMastered()
+
+            console.log('✅ All progress refreshed')
+        }
+
+        // Clear all cached data function
+        const clearAllCachedData = async () => {
+            console.log('🧹 Clearing ALL cached data...')
+
+            // Clear all possible cached progress data
+            const keysToClear = [
+                // User-specific keys
+                `safetyModuleProgress_${user.value?.id}`,
+                `safetyMeasuresProgress_${user.value?.id}`,
+                `scienceExplorer_${user.value?.id}`,
+                `wordWizard_${user.value?.id}`,
+                `mathMagic_${user.value?.id}`,
+                `safetyProgress_${user.value?.id}`,
+                `goodTouchBadTouch_${user.value?.id}`,
+                `module_progress_${user.value?.id}`,
+                // Guest keys that might interfere
+                'safetyModuleProgress_guest',
+                'safetyMeasuresProgress_guest',
+                'scienceExplorer_guest',
+                'wordWizard_guest',
+                'mathMagic_guest',
+                'safetyProgress_guest',
+                'goodTouchBadTouch_guest',
+                // Any other potential keys
+                'user_progress',
+                'module_progress',
+                'skill_progress'
+            ]
+
+            let clearedCount = 0
+            keysToClear.forEach(key => {
+                if (localStorage.getItem(key)) {
+                    localStorage.removeItem(key)
+                    console.log(`🗑️ Cleared: ${key}`)
+                    clearedCount++
+                }
+            })
+
+            console.log(`🧹 Cleared ${clearedCount} cached items`)
+
+            // Show confirmation
             Swal.fire({
-                title: '🔄 Refreshing Progress...',
-                text: 'Updating your learning achievements!',
-                timer: 1000,
-                timerProgressBar: true,
+                icon: 'success',
+                title: 'Cache Cleared! 🗑️',
+                text: `Cleared ${clearedCount} cached items. Refreshing page...`,
+                timer: 2000,
                 showConfirmButton: false,
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                background: 'linear-gradient(135deg, #ff6b6b, #ffa726)',
                 color: 'white'
             })
 
-            await Promise.all([
-                loadGoodTouchBadTouchProgress(),
-                loadSafetyMeasuresProgress(),
-                loadScienceExplorerProgress(),
-                loadWordWizardProgress(),
-                loadMathMagicProgress()
-            ])
-
-            // Calculate and update skills mastered after loading all progress
-            calculateSkillsMastered()
-
-            // Show success message
+            // Reload the page to ensure fresh start
             setTimeout(() => {
-                Swal.fire({
-                    icon: 'success',
-                    title: '✅ Progress Updated!',
-                    text: 'All your learning progress has been refreshed!',
-                    timer: 2000,
-                    showConfirmButton: false,
-                    background: 'linear-gradient(135deg, #28a745, #20c997)',
-                    color: 'white'
-                })
-            }, 1100)
+                window.location.reload()
+            }, 2000)
         }
 
-        // Debug user stats (development only)
-        const debugUserStats = async () => {
-            if (!user.value?.id) {
-                Swal.fire('Error', 'No user ID found', 'error')
-                return
-            }
 
-            try {
-                const response = await apiService.debugUserStats(user.value.id)
-                if (response.success) {
-                    const debug = response.debug_info
-
-                    console.log('🐛 Debug Info:', debug)
-
-                    const debugText = `
-                        <div style="text-align: left; font-family: monospace; font-size: 0.9rem;">
-                            <strong>User ID:</strong> ${debug.user_id}<br>
-                            <strong>Achievements:</strong> ${debug.achievements_count}<br>
-                            <strong>Total Stars:</strong> ${debug.total_stars_calculated}<br>
-                            <strong>Skills Mastered:</strong> ${debug.skills_mastered_calculated}<br>
-                            <strong>Login Streak:</strong> ${debug.login_streak}<br>
-                            <strong>Health Streak:</strong> ${debug.health_streak}<br>
-                            <strong>Quests Completed:</strong> ${debug.quests_completed}<br><br>
-                            <strong>Raw Achievements:</strong><br>
-                            ${debug.raw_achievements.length === 0 ? 'None' :
-                            debug.raw_achievements.map(a => `• ${a.badge_name}`).join('<br>')
-                        }
-                        </div>
-                    `
-
-                    Swal.fire({
-                        title: '🐛 Debug User Stats',
-                        html: debugText,
-                        width: '600px',
-                        confirmButtonText: 'Close'
-                    })
-                }
-            } catch (error) {
-                console.error('Debug error:', error)
-                Swal.fire('Error', 'Failed to fetch debug info', 'error')
-            }
-        }
 
         onMounted(async () => {
             checkChildAccess()
             console.log('👶 Child Dashboard mounted for user:', user.value?.id || 'undefined')
+
+            // For debugging: Clear cached data for new users
+            if (user.value?.id) {
+                console.log('🧹 Checking for cached data that might affect new users...')
+                const hasCachedData = [
+                    `safetyModuleProgress_${user.value.id}`,
+                    `safetyMeasuresProgress_${user.value.id}`,
+                    `scienceExplorer_${user.value.id}`,
+                    `wordWizard_${user.value.id}`,
+                    `mathMagic_${user.value.id}`
+                ].some(key => localStorage.getItem(key))
+
+                if (hasCachedData) {
+                    console.log('⚠️ Found cached progress data - this might be from previous sessions')
+                }
+
+                // Clear ALL cached progress data for this user to ensure fresh start
+                const keysToClear = [
+                    `safetyModuleProgress_${user.value.id}`,
+                    `safetyMeasuresProgress_${user.value.id}`,
+                    `scienceExplorer_${user.value.id}`,
+                    `wordWizard_${user.value.id}`,
+                    `mathMagic_${user.value.id}`,
+                    `safetyProgress_${user.value.id}`,
+                    `goodTouchBadTouch_${user.value.id}`,
+                    `module_progress_${user.value.id}`,
+                    // Also clear any guest data that might interfere
+                    'safetyModuleProgress_guest',
+                    'safetyMeasuresProgress_guest',
+                    'scienceExplorer_guest',
+                    'wordWizard_guest',
+                    'mathMagic_guest',
+                    'safetyProgress_guest',
+                    'goodTouchBadTouch_guest'
+                ]
+
+                keysToClear.forEach(key => {
+                    if (localStorage.getItem(key)) {
+                        localStorage.removeItem(key)
+                        console.log(`🗑️ Cleared cached data: ${key}`)
+                    }
+                })
+
+                console.log('🧹 Cache clearing completed for fresh user start')
+            }
+
+            // Add console instructions for manual cache clearing
+            console.log('💡 To manually clear all cached data, run in browser console:')
+            console.log('localStorage.clear(); location.reload();')
+            console.log('Or click the "🗑️ Clear Cache" button in the dashboard header')
 
             startScreenTimeSession()
             fetchQuote()
@@ -1772,16 +1785,17 @@ export default {
             loadWordWizardProgress,
             loadMathMagicProgress,
             handleVisibilityChange,
-            refreshAllProgress,
+            forceRefreshProgress,
+            clearAllCachedData,
             calculateSkillsMastered,
             fetchDashboardStats,  // Export for use in template/other functions
-            addTestAchievement,
+
             isScrollExpanded,
             toggleScrollExpanded,
             levelInfo,
             dynamicUserLevel,
             dynamicLevelTitle,
-            debugUserStats
+
         }
     }
 }
