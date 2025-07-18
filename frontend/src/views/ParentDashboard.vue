@@ -109,14 +109,22 @@
             <div class="card-content">
               <div class="health-grid">
                 <div class="health-item">
-                  <div class="health-emoji">🏃‍♂️</div>
-                  <div class="health-label">Running</div>
-                  <div class="health-value">{{ healthStats.running }}/5</div>
+                  <div class="health-emoji">✅</div>
+                  <div class="health-label">Tasks Done</div>
+                  <div class="health-value">{{ healthStats.tasks_completed }}/5</div>
                 </div>
                 <div class="health-item">
-                  <div class="health-emoji">🧘‍♀️</div>
-                  <div class="health-label">Yoga</div>
-                  <div class="health-value">{{ healthStats.yoga }}/3</div>
+                  <div class="health-emoji">💪</div>
+                  <div class="health-label">Completed Tasks</div>
+                  <div class="health-value stacked-tasks">
+                    <span
+                      v-for="(task, idx) in healthStats.completedTaskNames"
+                      :key="idx"
+                      class="completed-task-name"
+                    >
+                      {{ task }}
+                    </span>
+                  </div>
                 </div>
                 <div class="health-item">
                   <div class="health-emoji">💧</div>
@@ -131,8 +139,6 @@
               </div>
             </div>
           </div>
-
-          
 
           <!-- Psychometric Test -->
           <div class="feature-card psychometric-card" @click="showPsychometricModal">
@@ -303,62 +309,6 @@
         </div>
       </div>
     </div>  
-
-    <!-- Health Modal Component -->
-    <div v-if="modalComponent === 'health-modal'" class="health-modal">
-      <div class="health-detailed">
-        <div class="health-stats-grid">
-          <div class="health-stat-card">
-            <div class="stat-icon">🏃‍♂️</div>
-            <div class="stat-info">
-              <h4>Running Sessions</h4>
-              <div class="stat-value">{{ modalData.running }}/5 completed</div>
-              <div class="stat-progress">
-                <div class="progress-bar">
-                  <div class="progress-fill" :style="{ width: (modalData.running/5)*100 + '%' }"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="health-stat-card">
-            <div class="stat-icon">🧘‍♀️</div>
-            <div class="stat-info">
-              <h4>Yoga Sessions</h4>
-              <div class="stat-value">{{ modalData.yoga }}/3 completed</div>
-              <div class="stat-progress">
-                <div class="progress-bar">
-                  <div class="progress-fill" :style="{ width: (modalData.yoga/3)*100 + '%' }"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="health-stat-card">
-            <div class="stat-icon">💧</div>
-            <div class="stat-info">
-              <h4>Water Intake</h4>
-              <div class="stat-value">{{ modalData.water_today }}/8 glasses</div>
-              <div class="water-glasses">
-                <div v-for="n in 8" :key="n" class="water-glass" :class="{ 'filled': n <= modalData.water_today }">
-                  💧
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="health-stat-card">
-            <div class="stat-icon">🔥</div>
-            <div class="stat-info">
-              <h4>Current Streak</h4>
-              <div class="stat-value streak-big">{{ modalData.streak }} days</div>
-              <div class="streak-calendar">
-                <div v-for="day in getStreakDays()" :key="day" class="streak-day" :class="{ 'active': day <= modalData.streak }">
-                  {{ day }}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- Psychometric Modal Component -->
     <div v-if="modalComponent === 'psychometric-modal'" class="psychometric-modal">
@@ -659,15 +609,33 @@ onMounted(async () => {
   await fetchChildId()
   if (childId.value) {
     await fetchFinanceStats()
+    await fetchHealthStats()
   }
 })
 
 const healthStats = ref({
-  streak: 5,
-  water_today: 6,
-  running: 3,
-  yoga: 1
+  streak: 0,
+  water_today: 0,
+  tasks_completed: 0,
+  completedTaskNames: [],
 })
+
+const fetchHealthStats = async () => {
+  if (!childId.value) return;
+
+  try {
+    const tasks = await apiService.getHealthTasks(childId.value);
+    const completed = tasks.filter(t => t.completed);
+    healthStats.value.tasks_completed = completed.length;
+    healthStats.value.completedTaskNames = completed.map(t => t.name);
+
+    healthStats.value.water_today = await apiService.getWaterCount(childId.value);
+    healthStats.value.streak = await apiService.getHealthStreak(childId.value);
+  } catch (e) {
+    console.error('Failed to fetch health stats', e);
+  }
+};
+
 
 const doodleStats = ref({
   doodles: [
@@ -716,7 +684,7 @@ const showProgressModal = () => openModal('Overall Progress', 'progress-modal', 
 const showScreenTimeModal = () => openModal('Screen Time', 'screentime-modal', screenTimeData.value)
 const showAchievementModal = () => openModal('Achievement', 'achievement-modal', todayAchievement.value)
 const showFinanceModal = () => openModal('Recent Transactions', 'transactions-modal', financeStats.value)
-const showHealthModal = () => openModal('Health', 'health-modal', healthStats.value)
+const showHealthModal = () => openModal('Health', 'health-modal', {...healthStats.value, completedTaskNames: healthStats.value.completedTaskNames});
 const showPsychometricModal = () => openModal('Psychometric', 'psychometric-modal', psychometricData.value)
 const showDoodlingModal = () => openModal('Doodling', 'doodling-modal', doodleStats.value)
 const showTaskModal = () => openModal('Tasks', 'task-modal', taskStats.value)
@@ -1174,6 +1142,25 @@ const exportData = () => {
   font-size: 1.8rem;
   color: white;
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.completed-task-name {
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #2c2c2c;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin: 2px 4px 0 0;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.stacked-tasks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-width: 100%;
 }
 
 /* Psychometric Card */

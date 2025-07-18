@@ -504,7 +504,7 @@ def get_health_tasks(user_id):
 
         if not tasks:
             # Default tasks if none exist for today
-            default_tasks = ['Running', 'Yoga', 'Meditation', 'Helping in household chores']
+            default_tasks = ['Running', 'Yoga', 'Meditation', 'Eat Fruits','Helping in household chores']
             for name in default_tasks:
                 db.session.add(HealthTask(user_id=user_id, task_name=name, date=today))
             db.session.commit()
@@ -592,7 +592,7 @@ def get_today_water_count(user_id):
 @app.route('/api/health/water/log/<int:user_id>', methods=['GET'])
 def get_water_log(user_id):
     try:
-        logs = WaterLog.query.filter_by(user_id=user_id).order_by(WaterLog.date.desc()).limit(7).all()
+        logs = WaterLog.query.filter_by(user_id=user_id).order_by(WaterLog.date.desc()).limit(8).all()
         log_data = [
             {
                 'date': log.date.strftime('%a'),  # "Mon", "Tue", etc.
