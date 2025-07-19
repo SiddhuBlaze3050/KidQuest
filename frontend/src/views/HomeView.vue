@@ -1,6 +1,6 @@
 <script>
 import { ref, onMounted } from 'vue'
-import { userUtils } from '@/services/api'
+import authService from '@/services/authService'
 import LoginModal from '@/components/auth/LoginModal.vue'
 import RegisterModal from '@/components/auth/RegisterModal.vue'
 import EnhancedChatBot from '@/components/chat/EnhancedChatBot.vue'
@@ -80,17 +80,27 @@ export default {
     const magicElements = ['⭐', '✨', '🌟', '💫', '🔮', '🪄']
 
     const checkUserLogin = () => {
-      user.value = userUtils.getCurrentUser()
-
-      // Redirect users based on their role
-      if (user.value) {
-        if (user.value.role === 'admin') {
-          window.location.href = '/admin'
-        } else if (user.value.role === 'child') {
-          window.location.href = '/child-dashboard'
-        } else if (user.value.role === 'parent') {
-          window.location.href = '/parent-dashboard'
+      // Check if user is properly authenticated with valid JWT
+      if (authService.isAuthenticated() && !authService.isTokenExpired()) {
+        user.value = authService.getCurrentUser()
+        
+        // Only redirect if we have a valid user
+        if (user.value) {
+          console.log('User authenticated, redirecting to dashboard...')
+          if (user.value.role === 'admin') {
+            window.location.href = '/admin'
+          } else if (user.value.role === 'child') {
+            window.location.href = '/child-dashboard'
+          } else if (user.value.role === 'parent') {
+            window.location.href = '/parent-dashboard'
+          }
         }
+      } else {
+        // Clear any invalid/cached data
+        console.log('No valid authentication found, staying on home page')
+        user.value = null
+        authService.removeToken()
+        authService.removeUser()
       }
     }
 
@@ -126,7 +136,7 @@ export default {
     }
 
     const logout = () => {
-      userUtils.logout()
+      authService.logout()
       user.value = null
     }
 

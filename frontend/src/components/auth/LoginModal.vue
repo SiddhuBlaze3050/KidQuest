@@ -72,7 +72,7 @@
 
 <script>
 import { ref } from 'vue'
-import { apiService } from '@/services/api'
+import authService from '@/services/authService'
 import Swal from 'sweetalert2'
 
 export default {
@@ -89,7 +89,7 @@ export default {
             isLoading.value = true
 
             try {
-                const response = await apiService.login(username.value, password.value)
+                const response = await authService.login(username.value, password.value)
 
                 if (response.success) {
                     // Emit success immediately without waiting for alert
@@ -101,7 +101,7 @@ export default {
                         Swal.fire({
                             icon: 'success',
                             title: 'Welcome Back, Adventurer! 🎉',
-                            text: 'Your quest continues...',
+                            text: 'Your quest continues with JWT security!',
                             timer: 2000,
                             showConfirmButton: false,
                             background: 'linear-gradient(135deg, #667eea, #764ba2)',

@@ -16,6 +16,9 @@ import traceback
 from datetime import datetime, date
 import json
 
+# NEW: JWT imports
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+
 # Import our psychometry module
 from services.psychometry import PsychometryService
 
@@ -36,6 +39,31 @@ CORS(app,
      allow_headers=["Content-Type", "Authorization", "Accept"])
 
 db.init_app(app)
+
+# NEW: Initialize JWT
+jwt = JWTManager(app)
+
+# NEW: JWT error handlers
+@jwt.expired_token_loader
+def expired_token_callback(jwt_header, jwt_payload):
+    return jsonify({
+        'success': False,
+        'error': 'Token has expired'
+    }), 401
+
+@jwt.invalid_token_loader
+def invalid_token_callback(error):
+    return jsonify({
+        'success': False,
+        'error': 'Invalid token'
+    }), 401
+
+@jwt.unauthorized_loader
+def missing_token_callback(error):
+    return jsonify({
+        'success': False,
+        'error': 'Missing authorization token'
+    }), 401
 
 EMAIL_REGEX = re.compile(r"[^@]+@[^@]+\.[^@]+") 
 
@@ -369,7 +397,7 @@ def api_register():
 
 @app.route('/api/auth/login', methods=['POST'])
 def api_login():
-    """API endpoint for user login"""
+    """API endpoint for user login with JWT token"""
     try:
         data = request.get_json()
         username = data.get('username')
@@ -380,12 +408,16 @@ def api_login():
 
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password_hash, password):
+            # Generate JWT token
+            access_token = create_access_token(identity=user.id)
+            
             # Update login streak for successful login
             update_login_streak(user.id)
             
             return jsonify({
                 'success': True,
                 'message': 'Login successful', 
+                'access_token': access_token,
                 'user': {
                     'id': user.id,
                     'username': user.username,
@@ -491,6 +523,30 @@ def api_user_profile(user_id):
             'success': False,
             'error': str(e)
         }), 500
+
+# NEW: Protected endpoint using JWT
+@app.route('/api/user/profile', methods=['GET'])
+@jwt_required()
+def get_current_user_profile():
+    """Get current user's profile - requires JWT token"""
+    try:
+        user_id = get_jwt_identity()
+        user = User.query.get(user_id)
+        
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        return jsonify({
+            'success': True,
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'role': user.role
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # ---------------------------
 # Health Tracker
@@ -1114,8 +1170,18 @@ def get_parent_child_links():
         return jsonify({"error": str(e)}), 500
 
 @app.route('/api/finance/transactions/<int:user_id>', methods=['GET'])
+@jwt_required()
 def get_transactions(user_id):
+    """Get financial transactions for a user - requires JWT token"""
     try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        
+        # Authorization: users can only access their own transactions
+        # or parents can access their children's transactions
+        if current_user.id != user_id and current_user.role != 'parent':
+            return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
+        
         transactions = Transaction.query.filter_by(user_id=user_id)\
                                      .order_by(Transaction.date.desc()).all()
         
@@ -1133,9 +1199,17 @@ def get_transactions(user_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/finance/transaction', methods=['POST'])
+@jwt_required()
 def add_transaction():
+    """Add a new financial transaction - requires JWT token"""
     try:
+        current_user_id = get_jwt_identity()
         data = request.get_json()
+        
+        # Ensure user can only add transactions for themselves
+        if data.get('user_id') != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized: Can only add transactions for yourself'}), 403
+        
         transaction = Transaction(
             user_id=data['user_id'],
             amount=data['amount'],
@@ -1160,8 +1234,18 @@ def add_transaction():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/finance/goals/<int:user_id>', methods=['GET'])
+@jwt_required()
 def get_savings_goals(user_id):
+    """Get savings goals for a user - requires JWT token"""
     try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        
+        # Authorization: users can only access their own goals
+        # or parents can access their children's goals
+        if current_user.id != user_id and current_user.role != 'parent':
+            return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
+        
         goals = SavingGoal.query.filter_by(user_id=user_id).all()
         return jsonify({
             'success': True,
@@ -1176,9 +1260,17 @@ def get_savings_goals(user_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/finance/goal', methods=['POST'])
+@jwt_required()
 def add_savings_goal():
+    """Add a new savings goal - requires JWT token"""
     try:
+        current_user_id = get_jwt_identity()
         data = request.get_json()
+        
+        # Ensure user can only add goals for themselves
+        if data.get('user_id') != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized: Can only add goals for yourself'}), 403
+        
         goal = SavingGoal(
             user_id=data['user_id'],
             label=data['label'],
@@ -1383,9 +1475,18 @@ def complete_psychometry_assessment():
 # Task Tracker (Homework) Routes
 # ---------------------------
 @app.route('/api/tasks/<int:user_id>', methods=['GET'])
+@jwt_required()
 def get_tasks(user_id):
-    """Get all tasks for a specific user"""
+    """Get all tasks for a specific user - requires JWT token"""
     try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        
+        # Simple authorization: users can only access their own tasks
+        # or parents can access their children's tasks
+        if current_user.id != user_id and current_user.role != 'parent':
+            return jsonify({'error': 'Unauthorized access'}), 403
+        
         tasks = HomeworkSchedule.query.filter_by(user_id=user_id).order_by(HomeworkSchedule.due_date.asc()).all()
         
         tasks_data = []
@@ -1423,10 +1524,17 @@ def get_tasks(user_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/tasks', methods=['POST'])
+@jwt_required()
 def create_task():
-    """Create a new task"""
+    """Create a new task - requires JWT token"""
     try:
+        current_user_id = get_jwt_identity()
         data = request.get_json()
+        
+        # Ensure user can only create tasks for themselves
+        if data.get('user_id') != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized: Can only create tasks for yourself'}), 403
+        
         # Handle empty due_date string properly
         due_date_str = data.get('due_date')
         due_date = None
@@ -1463,15 +1571,22 @@ def create_task():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/tasks/<int:task_id>/status', methods=['PUT'])
+@jwt_required()
 def update_task_status(task_id):
-    """Update a task's status"""
+    """Update a task's status - requires JWT token"""
     try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
         data = request.get_json()
         new_status = data.get('status')
 
         task = db.session.get(HomeworkSchedule, task_id)
         if not task:
             return jsonify({'success': False, 'error': 'Task not found'}), 404
+
+        # Authorization: users can only update their own tasks or parents can update their children's tasks
+        if task.user_id != current_user_id and current_user.role != 'parent':
+            return jsonify({'success': False, 'error': 'Unauthorized: Can only update your own tasks'}), 403
 
         task.status = new_status
         # Note: updated_at will be automatically set by SQLAlchemy if the column exists
@@ -1488,11 +1603,17 @@ def update_task_status(task_id):
 # Pomodoro Session Routes
 # ---------------------------
 @app.route('/api/pomodoro/start', methods=['POST'])
+@jwt_required()
 def start_pomodoro():
-    """Start a new pomodoro session for a task"""
+    """Start a new pomodoro session for a task - requires JWT token"""
     try:
+        current_user_id = get_jwt_identity()
         data = request.get_json()
         print("📥 Received data:", data)
+
+        # Ensure user can only start sessions for themselves
+        if data.get('user_id') != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized: Can only start sessions for yourself'}), 403
 
         # Debug print to confirm presence of required keys
         if 'user_id' not in data:
@@ -1520,15 +1641,21 @@ def start_pomodoro():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/pomodoro/complete/<int:session_id>', methods=['PUT'])
+@jwt_required()
 def complete_pomodoro(session_id):
-    """Complete a pomodoro session"""
+    """Complete a pomodoro session - requires JWT token"""
     try:
+        current_user_id = get_jwt_identity()
         data = request.get_json()
         duration = data.get('duration') # in minutes
 
         session = db.session.get(PomodoroSession, session_id)
         if not session:
             return jsonify({'success': False, 'error': 'Session not found'}), 404
+
+        # Authorization: users can only complete their own sessions
+        if session.user_id != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized: Can only complete your own sessions'}), 403
 
         # Get work and break duration from request
         work_duration = data.get('work_duration', 0)

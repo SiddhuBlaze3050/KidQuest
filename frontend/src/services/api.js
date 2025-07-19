@@ -1,5 +1,6 @@
 import axios from 'axios'
 import Swal from 'sweetalert2'
+import authService from './authService'
 
 // Configure axios base URL
 const api = axios.create({
@@ -10,10 +11,17 @@ const api = axios.create({
   withCredentials: true,
 })
 
-// Request interceptor
+// Request interceptor - add JWT token automatically
 api.interceptors.request.use(
   (config) => {
     console.log('Making API request:', config.method?.toUpperCase(), config.url)
+
+    // Add JWT token to all requests (except login/register)
+    const token = authService.getToken()
+    if (token && !config.url.includes('/api/auth/')) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
+
     return config
   },
   (error) => {
@@ -22,7 +30,7 @@ api.interceptors.request.use(
   },
 )
 
-// Response interceptor
+// Response interceptor - handle JWT errors
 api.interceptors.response.use(
   (response) => {
     console.log('API response:', response.status, response.config.url)
@@ -30,44 +38,26 @@ api.interceptors.response.use(
   },
   (error) => {
     console.error('API Error:', error.response?.data || error.message)
+
+    // Handle JWT authentication errors
     if (error.response?.status === 401) {
       // Don't redirect for login endpoint - let the login function handle it
       if (error.config.url === '/api/auth/login') {
         return Promise.reject(error)
       }
-      // Handle unauthorized access for other endpoints - clear user data
-      localStorage.removeItem('user')
-      window.location.href = '/login'
+
+      // Handle unauthorized access for other endpoints
+      authService.logout()
     }
+
     return Promise.reject(error)
   },
 )
 
 // API Service Functions
 export const apiService = {
-  // Authentication
-  async login(username, password) {
-    try {
-      const response = await api.post('/api/auth/login', {
-        username,
-        password,
-      })
-
-      if (response.data.success) {
-        // Store user data in localStorage
-        localStorage.setItem('user', JSON.stringify(response.data.user))
-        return response.data
-      }
-      // Return the response data even if success is false, so the component can handle it
-      return response.data
-    } catch (error) {
-      // If it's a 401 error, return the error data instead of throwing
-      if (error.response?.status === 401) {
-        return error.response.data
-      }
-      throw error
-    }
-  },
+  // Authentication - Now handled by authService
+  // login method removed - use authService.login() instead
 
   async register(payload) {
     try {
@@ -588,25 +578,18 @@ export const apiService = {
   },
 }
 
-// User utility functions
+// User utility functions - Now using authService
 export const userUtils = {
   getCurrentUser() {
-    try {
-      const userStr = localStorage.getItem('user')
-      return userStr ? JSON.parse(userStr) : null
-    } catch (error) {
-      console.error('Error parsing user data:', error)
-      return null
-    }
+    return authService.getCurrentUser()
   },
 
   isLoggedIn() {
-    return this.getCurrentUser() !== null
+    return authService.isAuthenticated()
   },
 
   logout() {
-    localStorage.removeItem('user')
-    window.location.href = '/'
+    authService.logout()
   },
 }
 

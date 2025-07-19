@@ -2,7 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import AdminDashboard from '../views/AdminDashboard.vue'
 import ChildDashboard from '../views/ChildDashboard.vue'
-import { userUtils } from '@/services/api'
 import TeacherDashboard from '../views/TeacherDashboard.vue'
 import ParentDashboard from '../views/ParentDashboard.vue'
 import PyschometricAssessment from '../views/PyschometricAssessment.vue'
@@ -11,6 +10,7 @@ import ScienceExplorerModule from '../views/ScienceExplorerModule.vue'
 import WordWizardModule from '../views/WordWizardModule.vue'
 import MathMagicModule from '../views/MathMagicModule.vue'
 import SafetyMeasuresModule from '../views/SafetyMeasuresModule.vue'
+import authService from '@/services/authService'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -25,8 +25,7 @@ const router = createRouter({
       name: 'admin',
       component: AdminDashboard,
       beforeEnter: (to, from, next) => {
-        const user = userUtils.getCurrentUser()
-        if (user && user.role === 'admin') {
+        if (authService.isAuthenticated() && authService.hasRole('admin')) {
           next()
         } else {
           next('/')
@@ -38,16 +37,11 @@ const router = createRouter({
       name: 'child-dashboard',
       component: ChildDashboard,
       beforeEnter: (to, from, next) => {
-        const user = userUtils.getCurrentUser()
-        if (user && user.role === 'child') {
+        if (authService.isAuthenticated() && authService.hasRole('child')) {
           next()
         } else {
-          // For demo purposes, allow any logged-in user to access child dashboard
-          if (user) {
-            next()
-          } else {
-            next('/')
-          }
+          console.log('❌ Access denied: User is not a child or not authenticated')
+          next('/')
         }
       },
     },
@@ -56,16 +50,11 @@ const router = createRouter({
       name: 'parent-dashboard',
       component: ParentDashboard,
       beforeEnter: (to, from, next) => {
-        const user = userUtils.getCurrentUser()
-        if (user && user.role === 'parent') {
+        if (authService.isAuthenticated() && authService.hasRole('parent')) {
           next()
         } else {
-          // For demo purposes, allow any logged-in user to access parent dashboard
-          if (user) {
-            next()
-          } else {
-            next('/')
-          }
+          console.log('❌ Access denied: User is not a parent or not authenticated')
+          next('/')
         }
       },
     },
@@ -74,16 +63,11 @@ const router = createRouter({
       name: 'teacher-dashboard',
       component: TeacherDashboard,
       beforeEnter: (to, from, next) => {
-        const user = userUtils.getCurrentUser()
-        if (user && user.role === 'teacher') {
+        if (authService.isAuthenticated() && authService.hasRole('teacher')) {
           next()
         } else {
-          // For demo purposes, allow any logged-in user to access teacher dashboard
-          if (user) {
-            next()
-          } else {
-            next('/')
-          }
+          console.log('❌ Access denied: User is not a teacher or not authenticated')
+          next('/')
         }
       },
     },
@@ -97,8 +81,7 @@ const router = createRouter({
       name: 'good-touch-bad-touch',
       component: GoodTouchBadTouchModule,
       beforeEnter: (to, from, next) => {
-        const user = userUtils.getCurrentUser()
-        if (user) {
+        if (authService.isAuthenticated()) {
           next()
         } else {
           next('/')
@@ -110,8 +93,7 @@ const router = createRouter({
       name: 'science-explorer',
       component: ScienceExplorerModule,
       beforeEnter: (to, from, next) => {
-        const user = userUtils.getCurrentUser()
-        if (user) {
+        if (authService.isAuthenticated()) {
           next()
         } else {
           next('/')
@@ -123,8 +105,7 @@ const router = createRouter({
       name: 'word-wizard',
       component: WordWizardModule,
       beforeEnter: (to, from, next) => {
-        const user = userUtils.getCurrentUser()
-        if (user) {
+        if (authService.isAuthenticated()) {
           next()
         } else {
           next('/')
@@ -136,8 +117,7 @@ const router = createRouter({
       name: 'math-magic',
       component: MathMagicModule,
       beforeEnter: (to, from, next) => {
-        const user = userUtils.getCurrentUser()
-        if (user) {
+        if (authService.isAuthenticated()) {
           next()
         } else {
           next('/')
@@ -149,8 +129,7 @@ const router = createRouter({
       name: 'safety-measures',
       component: SafetyMeasuresModule,
       beforeEnter: (to, from, next) => {
-        const user = userUtils.getCurrentUser()
-        if (user) {
+        if (authService.isAuthenticated()) {
           next()
         } else {
           next('/')

@@ -1318,81 +1318,37 @@ export default {
             }
         };
 
-        // Load progress from backend and localStorage for Word Wizard
+        // Load progress from backend for Word Wizard
         const loadWordWizardProgress = async () => {
             try {
-                if (!user.value) return
-
-                console.log('📚 Loading Word Wizard progress for dashboard...')
-                console.log('📚 User ID:', user.value?.id)
-
-                let progress = 0
-                let dataSource = 'none'
-
-                // Always check localStorage first (most reliable)
-                const storageKey = `wordWizard_${user.value?.id}`
-                const saved = localStorage.getItem(storageKey)
-                console.log(`📚 Checking localStorage key: ${storageKey}`)
-                console.log(`📚 Saved data:`, saved)
-
-                if (saved) {
-                    const progressData = JSON.parse(saved)
-                    progress = progressData.completed ? 100 : 0
-                    dataSource = 'localStorage'
-                    console.log(`💾 LocalStorage: Word Wizard ${progress}% complete`)
-                    console.log(`💾 Progress data:`, progressData)
+                if (!user.value) return;
+                console.log('📚 Loading Word Wizard progress for dashboard...');
+                const response = await apiService.getModuleProgress(user.value.id, 'word_wizard');
+                let progress = 0;
+                if (response.success && response.progress && response.progress.progress_data) {
+                    const progressData = response.progress.progress_data;
+                    progress = progressData.completed ? 100 : 0;
+                    console.log(`📊 Backend: Word Wizard completed=${progressData.completed}, progress=${progress}%`);
+                } else {
+                    progress = 0;
+                    console.log('📉 No backend progress for Word Wizard, showing 0%');
                 }
-
-                // Try backend as secondary check
-                try {
-                    const response = await apiService.getModuleProgress(user.value.id, 'word_wizard')
-                    if (response.success && response.progress && response.progress.progress_data) {
-                        const backendData = response.progress.progress_data
-                        const backendProgress = backendData.completed ? 100 : 0
-                        console.log(`📊 Backend: Word Wizard ${backendProgress}% complete`)
-
-                        // Use backend data if it shows higher progress
-                        if (backendProgress > progress) {
-                            progress = backendProgress
-                            dataSource = 'backend'
-                        }
-                    }
-                } catch (backendError) {
-                    console.log(`📊 Backend call failed, using localStorage data:`, backendError.message)
-                }
-
-                // Update the skill area progress
-                const wordWizardSkill = skillAreas.value.find(skill => skill.name === 'Word Wizard')
+                const wordWizardSkill = skillAreas.value.find(skill => skill.name === 'Word Wizard');
                 if (wordWizardSkill) {
-                    wordWizardSkill.progress = progress
-                    console.log(`✅ Updated Word Wizard dashboard progress to ${progress}% (source: ${dataSource})`)
-
+                    wordWizardSkill.progress = progress;
+                    console.log(`✅ Updated Word Wizard dashboard progress to ${progress}%`);
+                    
                     // Update skills mastered count if this module was completed
                     if (progress === 100) {
-                        calculateSkillsMastered()
+                        calculateSkillsMastered();
                     }
                 }
             } catch (error) {
-                console.error('❌ Error loading Word Wizard progress:', error)
-                // Try localStorage fallback on error
-                try {
-                    const saved = localStorage.getItem(`wordWizard_${user.value?.id}`)
-                    if (saved) {
-                        const progressData = JSON.parse(saved)
-                        const progress = progressData.completed ? 100 : 0
-                        const wordWizardSkill = skillAreas.value.find(skill => skill.name === 'Word Wizard')
-                        if (wordWizardSkill) {
-                            wordWizardSkill.progress = progress
-                            console.log(`🔄 Fallback: Updated Word Wizard progress to ${progress}%`)
-
-                            // Update skills mastered count if this module was completed
-                            if (progress === 100) {
-                                calculateSkillsMastered()
-                            }
-                        }
-                    }
-                } catch (fallbackError) {
-                    console.error('⚠️ Word Wizard fallback also failed:', fallbackError)
+                console.error('❌ Error loading Word Wizard progress:', error);
+                const wordWizardSkill = skillAreas.value.find(skill => skill.name === 'Word Wizard');
+                if (wordWizardSkill) {
+                    wordWizardSkill.progress = 0;
+                    console.log('🔄 Fallback: Reset Word Wizard progress to 0%');
                 }
             }
         }
