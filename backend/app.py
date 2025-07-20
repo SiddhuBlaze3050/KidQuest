@@ -549,6 +549,36 @@ def get_current_user_profile():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ---------------------------
+# Student Management Routes
+# ---------------------------
+
+@app.route('/api/students/available', methods=['GET'])
+def get_available_students():
+    """Get list of available students for teacher registration"""
+    try:
+        # Get all users with role 'child'
+        students = User.query.filter_by(role='child').all()
+        
+        student_list = []
+        for student in students:
+            student_list.append({
+                'id': student.id,
+                'username': student.username,
+                'email': student.email,
+                'avatar': '🎓'  # Default avatar for students
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': student_list
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# ---------------------------
 # Health Tracker
 # ---------------------------
 

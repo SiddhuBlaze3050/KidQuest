@@ -71,6 +71,16 @@ export const apiService = {
     }
   },
 
+  // Get available students for teacher registration
+  async getAvailableStudents() {
+    try {
+      const response = await api.get('/api/students/available')
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
   // User Profile
   async getUserProfile(userId) {
     try {
