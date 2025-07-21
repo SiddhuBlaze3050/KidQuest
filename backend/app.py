@@ -108,6 +108,7 @@ def load_chatbot_prompt():
 SYSTEM_PROMPT = load_chatbot_prompt()
 
 @app.route('/api/chat/sessions/<int:user_id>', methods=['GET'])
+@jwt_required()
 def api_chat_sessions(user_id):
     """Get all chat sessions for a user"""
     try:
@@ -236,6 +237,7 @@ def chatbot():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/chat/sessions/<int:user_id>', methods=['GET'])
+@jwt_required()
 def get_chat_sessions(user_id):
     """Get all chat sessions for a user with metadata"""
     try:
@@ -275,6 +277,7 @@ def get_chat_sessions(user_id):
         }), 500
     
 @app.route('/chat-history/<int:user_id>', methods=['GET'])
+@jwt_required()
 def get_chat_history(user_id):
     """Legacy route - updated for new model"""
     try:
@@ -309,6 +312,7 @@ def get_chat_history(user_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/clear-chat/<int:user_id>', methods=['DELETE'])
+@jwt_required()
 def clear_chat_history(user_id):
     """Legacy route - updated for new model"""
     try:
@@ -414,6 +418,9 @@ def api_login():
             # Update login streak for successful login
             update_login_streak(user.id)
             
+            # Generate notifications for the user
+            generate_notifications(user.id)
+            
             return jsonify({
                 'success': True,
                 'message': 'Login successful', 
@@ -458,6 +465,7 @@ def api_chat():
         }), 500
 
 @app.route('/api/chat/history/<int:user_id>', methods=['GET'])
+@jwt_required()
 def api_chat_history(user_id):
     """API endpoint to get chat history with new session-based model"""
     try:
@@ -502,6 +510,7 @@ def api_chat_history(user_id):
         }), 500
     
 @app.route('/api/user/profile/<int:user_id>', methods=['GET'])
+@jwt_required()
 def api_user_profile(user_id):
     """API endpoint to get user profile"""
     try:
@@ -553,7 +562,9 @@ def get_current_user_profile():
 # ---------------------------
 
 @app.route('/api/health/tasks/<int:user_id>', methods=['GET'])
+@jwt_required()
 def get_health_tasks(user_id):
+    """Get health tasks for a user"""
     try:
         today = date.today()
         tasks = HealthTask.query.filter_by(user_id=user_id, date=today).all()
@@ -599,7 +610,9 @@ def toggle_task_completion(task_id):
         }), 500
 
 @app.route('/api/health/streak/<int:user_id>', methods=['GET'])
+@jwt_required()
 def get_streak(user_id):
+    """Get health streak for a user"""
     try:
         streak = HealthStreak.query.filter_by(user_id=user_id).first()
         return jsonify({
@@ -613,7 +626,9 @@ def get_streak(user_id):
         }), 500        
 
 @app.route('/api/health/water/<int:user_id>', methods=['POST'])
+@jwt_required()
 def increment_water(user_id):
+    """Increment water intake for a user"""
     try:
         today = date.today()
         log = WaterLog.query.filter_by(user_id=user_id, date=today).first()
@@ -633,7 +648,9 @@ def increment_water(user_id):
         }), 500
 
 @app.route('/api/health/water/<int:user_id>', methods=['GET'])
+@jwt_required()
 def get_today_water_count(user_id):
+    """Get today's water intake count for a user"""
     try:
         today = date.today()
         entry = WaterLog.query.filter_by(user_id=user_id, date=today).first()
@@ -646,7 +663,9 @@ def get_today_water_count(user_id):
         }), 500
 
 @app.route('/api/health/water/log/<int:user_id>', methods=['GET'])
+@jwt_required()
 def get_water_log(user_id):
+    """Get water intake log for a user"""
     try:
         logs = WaterLog.query.filter_by(user_id=user_id).order_by(WaterLog.date.desc()).limit(8).all()
         log_data = [
@@ -742,7 +761,9 @@ def update_login_streak(user_id):
 # -----------------------        
 
 @app.route('/api/quote/<int:user_id>', methods=['GET'])
+@jwt_required()
 def get_motivational_quote(user_id):
+    """Get a motivational quote for a user"""
     try:
         response = requests.get('https://zenquotes.io/api/today')
         if response.status_code == 200:
@@ -757,8 +778,9 @@ def get_motivational_quote(user_id):
         return jsonify({'success': False, 'quote': fallback_quote}), 200
 
 @app.route('/api/login-streak/<int:user_id>', methods=['GET'])
+@jwt_required()
 def get_login_streak(user_id):
-    """Get current login streak for a user"""
+    """Get login streak for a user"""
     try:
         login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
         
@@ -910,8 +932,9 @@ def calculate_todays_goals(user_id, today):
 # ---------------------------
 
 @app.route('/api/child/stats/<int:user_id>', methods=['GET'])
+@jwt_required()
 def api_child_stats(user_id):
-    """Get child dashboard statistics calculated from real data"""
+    """Get child dashboard statistics"""
     try:
         today = date.today()
         
@@ -998,6 +1021,7 @@ def create_test_achievement():
         }), 500
 
 @app.route('/api/child/quests/<int:user_id>', methods=['GET'])
+@jwt_required()
 def api_child_quests(user_id):
     """Get today's quests for child"""
     try:
@@ -1477,7 +1501,7 @@ def complete_psychometry_assessment():
 @app.route('/api/tasks/<int:user_id>', methods=['GET'])
 @jwt_required()
 def get_tasks(user_id):
-    """Get all tasks for a specific user - requires JWT token"""
+    """Get all tasks for a specific user"""
     try:
         current_user_id = get_jwt_identity()
         current_user = User.query.get(current_user_id)
@@ -1747,6 +1771,7 @@ def abandon_pomodoro(session_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/task-time/analytics/<int:user_id>', methods=['GET'])
+@jwt_required()
 def get_task_time_analytics(user_id):
     """Get time analytics for a user"""
     try:
@@ -1989,8 +2014,9 @@ def save_module_progress():
         }), 500
 
 @app.route('/api/module/progress/<int:user_id>/<module_type>', methods=['GET'])
+@jwt_required()
 def get_module_progress(user_id, module_type):
-    """Get module progress for a user using UserModuleProgress table"""
+    """Get module progress for a user"""
     try:
         # URL decode the module type to handle spaces and special characters
         from urllib.parse import unquote
@@ -2088,6 +2114,7 @@ def get_module_progress(user_id, module_type):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/module/progress/<int:user_id>', methods=['GET'])
+@jwt_required()
 def get_all_module_progress(user_id):
     """Get all module progress for a user"""
     try:
@@ -2184,8 +2211,9 @@ def get_modules_info():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/child/quest-stats/<int:user_id>', methods=['GET'])
+@jwt_required()
 def get_quest_statistics(user_id):
-    """Get detailed quest statistics for debugging and monitoring"""
+    """Get detailed quest statistics"""
     try:
         print(f"🔍 Getting detailed quest statistics for user {user_id}")
         
@@ -2289,6 +2317,7 @@ def get_quest_statistics(user_id):
 # Notification Routes
 # ---------------------------
 @app.route('/api/notifications/<int:user_id>', methods=['GET'])
+@jwt_required()
 def get_notifications(user_id):
     """Get all notifications for a user"""
     try:
@@ -2306,6 +2335,7 @@ def get_notifications(user_id):
         }), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+    
 
 @app.route('/api/notifications/mark-read', methods=['POST'])
 def mark_notifications_read():
@@ -2328,44 +2358,109 @@ def mark_notifications_read():
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/notifications/create-sample', methods=['POST'])
-def create_sample_notifications():
-    """Create sample notifications for testing (development only)"""
+def generate_notifications(user_id):
+    """Generate notifications for a user based on various conditions"""
+    notifications = []
+    
     try:
-        data = request.get_json()
-        user_id = data.get('user_id')
+        today = date.today()
         
-        if not user_id:
-            return jsonify({'success': False, 'error': 'user_id is required'}), 400
+        # First, delete any existing old notifications for the user
+        Notification.query.filter(
+            Notification.user_id == user_id,
+            Notification.is_read == False,
+            Notification.timestamp < today
+        ).delete()
         
-        sample_notifications = [
-            "🎉 Welcome to your magical adventure world!",
-            "⭐ You've earned 50 stars today! Keep up the great work!",
-            "📚 New reading quest available: 'The Dragon's Tale'",
-            "🏆 Achievement unlocked: Math Master Level 1!",
-            "💰 Your savings goal is 80% complete!",
-            "🎨 New drawing tools have been added to your art pad!"
-        ]
+        # 1. Welcome/Login Notification with Streak
+        login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
+        if login_streak:
+            welcome_notif = f"Welcome back! You're on a {login_streak.current_streak}-day learning streak! 🔥"
+            notifications.append({
+                'content': welcome_notif,
+                'is_read': False
+            })
         
-        created_notifications = []
-        for content in sample_notifications:
+        # 2. Stars Earned Notification
+        child_stats = calculate_total_stars(user_id)
+        if child_stats > 0:
+            stars_notif = f"⭐ You've earned {child_stats} stars! Keep up the great work!"
+            notifications.append({
+                'content': stars_notif,
+                'is_read': False
+            })
+        
+        # 3. Pending Tasks Notification
+        pending_tasks = HomeworkSchedule.query.filter_by(
+            user_id=user_id, 
+            status='pending'
+        ).filter(HomeworkSchedule.due_date >= today).all()
+        
+        if pending_tasks:
+            # Create a separate notification for each pending task
+            for task in pending_tasks:
+                tasks_notif = f"🎯 Pending Task: '{task.task}' is due on {task.due_date.strftime('%b %d')}"
+                notifications.append({
+                    'content': tasks_notif,
+                    'is_read': False
+                })
+        
+        # Optional: Add a summary notification
+        if len(pending_tasks) > 1:
+            summary_notif = f"🎯 You have {len(pending_tasks)} pending tasks to complete!"
+            notifications.append({
+                'content': summary_notif,
+                'is_read': False
+            })
+        
+        # 4. Water Intake Reminder
+        water_log = WaterLog.query.filter_by(user_id=user_id, date=today).first()
+        
+        # Only create water reminder if NO water log exists or water intake is less than recommended
+        if not water_log or (water_log and water_log.count < 8):
+            # Check if user has logged ANY water today
+            if not water_log or water_log.count == 0:
+                water_notif = "💧 Don't forget to drink water today!"
+                notifications.append({
+                    'content': water_notif,
+                    'is_read': False
+                })
+            elif water_log.count < 8:
+                remaining_glasses = 8 - water_log.count
+                water_notif = f"💧 You've had {water_log.count} glasses. Drink {remaining_glasses} more to stay hydrated!"
+                notifications.append({
+                    'content': water_notif,
+                    'is_read': False
+                })
+        
+        # 5. Savings Goal Progress
+        savings_goals = SavingGoal.query.filter_by(user_id=user_id).all()
+        for goal in savings_goals:
+            # Ensure target amount is not zero and goal is not yet completed
+            if goal.target_amount > 0 and goal.current_amount < goal.target_amount:
+                goal_notif = f"💰 Remember your savings goal: '{goal.label}'"
+                notifications.append({
+                    'content': goal_notif,
+                    'is_read': False
+                })
+        
+        # Save notifications to database
+        for notif_data in notifications:
             notification = Notification(
                 user_id=user_id,
-                content=content,
-                is_read=False
+                content=notif_data['content'],
+                is_read=notif_data['is_read']
             )
             db.session.add(notification)
-            created_notifications.append(notification)
         
         db.session.commit()
         
-        return jsonify({
-            'success': True,
-            'message': f'{len(created_notifications)} sample notifications created'
-        }), 201
+        return len(notifications)
+    
     except Exception as e:
+        print(f"Error generating notifications: {e}")
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return 0
 
 # ---------------------------
 # Doodling/Drawing Routes
@@ -2460,6 +2555,7 @@ def save_drawing():
 
 # Update the existing get_user_drawings function:
 @app.route('/api/drawings/<int:user_id>', methods=['GET'])
+@jwt_required()
 def get_user_drawings(user_id):
     """Get all drawings for a specific user"""
     try:
@@ -2822,6 +2918,7 @@ def complete_activity():
 
 # Achievement Management Routes
 @app.route('/api/achievements/<int:user_id>', methods=['GET'])
+@jwt_required()
 def get_user_achievements(user_id):
     """Get all achievements for a user"""
     try:
@@ -2925,35 +3022,48 @@ def create_achievement():
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/admin/recreate-database', methods=['POST'])
-def recreate_database():
-    """Recreate database tables (development only)"""
+# Add this function near other notification-related routes
+
+# Add this method near other notification-related routes
+def clear_user_notifications(user_id):
+    """Clear all notifications for a specific user"""
     try:
-        print("🔄 Recreating database tables...")
+        # Delete all existing notifications for the user
+        Notification.query.filter_by(user_id=user_id).delete()
+        db.session.commit()
+        print(f"🗑️ Cleared all notifications for user {user_id}")
+        return True
+    except Exception as e:
+        db.session.rollback()
+        print(f"❌ Error clearing notifications for user {user_id}: {e}")
+        return False
+
+# Modify the logout route to clear notifications
+@app.route('/api/auth/logout', methods=['POST'])
+@jwt_required()
+def logout():
+    """Logout endpoint that clears user notifications"""
+    try:
+        current_user_id = get_jwt_identity()
         
-        with app.app_context():
-            # Drop all tables
-            db.drop_all()
-            print("✅ Dropped all tables")
-            
-            # Create all tables with updated schema
-            db.create_all()
-            print("✅ Created all tables with updated schema")
-            
-            # Create default admin user
-            create_default_admin()
-            print("✅ Created default admin user")
+        # Clear user notifications
+        clear_user_notifications(current_user_id)
+        
+        # Perform any additional logout logic
+        # For example, you might want to invalidate the token
         
         return jsonify({
             'success': True,
-            'message': 'Database recreated successfully'
+            'message': 'Logged out successfully'
         }), 200
-        
     except Exception as e:
-        print(f"❌ Error recreating database: {e}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+
 
 if __name__ == '__main__':
     # Initialize database when running directly

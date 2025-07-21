@@ -1337,7 +1337,7 @@ export default {
                 if (wordWizardSkill) {
                     wordWizardSkill.progress = progress;
                     console.log(`✅ Updated Word Wizard dashboard progress to ${progress}%`);
-                    
+
                     // Update skills mastered count if this module was completed
                     if (progress === 100) {
                         calculateSkillsMastered();

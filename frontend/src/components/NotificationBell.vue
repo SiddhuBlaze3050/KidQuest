@@ -73,6 +73,8 @@ export default {
             }
         }
 
+        // Removed manual notification generation method
+
         const markAsRead = async (notification) => {
             if (!notification.is_read) {
                 try {
@@ -114,6 +116,10 @@ export default {
 
         const toggleDropdown = () => {
             showDropdown.value = !showDropdown.value
+            // Simply fetch notifications when dropdown is opened
+            if (showDropdown.value) {
+                fetchNotifications()
+            }
         }
 
         const closeDropdown = (event) => {

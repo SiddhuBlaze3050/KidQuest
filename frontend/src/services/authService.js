@@ -70,14 +70,37 @@ class AuthService {
   }
 
   // Logout
-  logout() {
-    this.removeToken()
-    this.removeUser()
-    this.clearAllModuleProgress()
-    console.log('✅ Logout successful, tokens and module progress cleared')
+  async logout() {
+    try {
+      // Call backend logout endpoint to clear notifications
+      await axios.post(
+        'http://localhost:5000/api/auth/logout',
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${this.token}`,
+          },
+        },
+      )
 
-    // Redirect to home page
-    window.location.href = '/'
+      // Clear local data
+      this.removeToken()
+      this.removeUser()
+      this.clearAllModuleProgress()
+
+      console.log('✅ Logout successful, tokens, module progress, and notifications cleared')
+
+      // Redirect to home page
+      window.location.href = '/'
+    } catch (error) {
+      console.error('❌ Logout failed:', error)
+
+      // Fallback: even if backend call fails, still clear local data
+      this.removeToken()
+      this.removeUser()
+      this.clearAllModuleProgress()
+      window.location.href = '/'
+    }
   }
 
   // Clear all module progress data from localStorage
