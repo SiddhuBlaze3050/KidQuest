@@ -22,6 +22,9 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 # Import our psychometry module
 from services.psychometry import PsychometryService
 
+# Add these imports at the top of the file
+import math
+
 app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = secrets.token_hex(16)
@@ -818,113 +821,132 @@ def get_login_streak(user_id):
 # Dashboard Statistics Calculation Functions
 # ---------------------------
 
-def calculate_total_stars(user_id):
-    """Calculate total stars earned by a user - simplified using Achievement table"""
-    try:
-        stars = 0
-        
-        # Stars per achievement based on activity type
-        achievements = Achievement.query.filter_by(user_id=user_id).all()
-        for achievement in achievements:
-            if 'Memory Game' in achievement.badge_name:
-                stars += 5  # Memory Game gives 5 stars
-            else:
-                stars += 10  # Other activities give 10 stars
-        
-        # 1 star per login streak day
-        login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
-        if login_streak:
-            stars += login_streak.current_streak * 1
-        
-        # 2 stars per health streak day  
-        health_streak = HealthStreak.query.filter_by(user_id=user_id).first()
-        if health_streak:
-            stars += health_streak.current_streak * 2
-        
-        return stars
-    except Exception as e:
-        print(f"Error calculating total stars: {e}")
-        return 0
-
 def calculate_quests_completed(user_id):
-    """Calculate total quests/activities completed by a user - includes modules, tasks, and achievements"""
+    """Calculate total quests/tasks completed by a user - only from task tracker"""
     try:
-        quests = 0
+        # Count completed tasks from HomeworkSchedule
+        completed_tasks = HomeworkSchedule.query.filter_by(
+            user_id=user_id, 
+            status='completed'
+        ).count()
         
-        # 1. Count completed module submodules from UserModuleProgress
-        module_progress = UserModuleProgress.query.filter_by(user_id=user_id, completed=True).all()
-        quests += len(module_progress)
+        # Count savings goals
+        savings_goals_count = SavingGoal.query.filter_by(user_id=user_id).count()
         
-        # 2. Count completed tasks from HomeworkSchedule (task tracker)
-        completed_tasks = HomeworkSchedule.query.filter_by(user_id=user_id, status='completed').all()
-        quests += len(completed_tasks)
+        # Total quests is completed tasks plus 1 if any savings goal exists
+        total_quests = completed_tasks + (1 if savings_goals_count > 0 else 0)
         
-        # 3. Count achievements (excluding module progress records)
-        achievements = Achievement.query.filter_by(user_id=user_id).all()
-        for achievement in achievements:
-            # Skip module progress records (they're stored as achievements but counted above)
-            if not achievement.badge_name or not achievement.badge_name.startswith('module_'):
-                quests += 1
+        print(f"📊 Quests calculated for user {user_id}: {total_quests} total quests")
+        print(f"  - Completed Tasks: {completed_tasks}")
+        print(f"  - Savings Goals Exist: {savings_goals_count > 0}")
         
-        print(f"📊 Quests calculated for user {user_id}: {quests} total (modules: {len(module_progress)}, tasks: {len(completed_tasks)}, achievements: {len([a for a in achievements if not a.badge_name or not a.badge_name.startswith('module_')])})")
-        
-        return quests
+        return total_quests
     except Exception as e:
         print(f"Error calculating quests completed: {e}")
         return 0
 
 def calculate_skills_mastered(user_id):
-    """Calculate number of skills mastered by a user - simplified using Achievement table"""
+    """Calculate number of skills mastered by a user"""
     try:
-        # Simple calculation: every 3 achievements = 1 skill mastered
-        achievements_count = Achievement.query.filter_by(user_id=user_id).count()
-        skills = achievements_count // 3  # Integer division
+        # Get module progress records
+        module_progress = UserModuleProgress.query.filter_by(
+            user_id=user_id, 
+            completed=True
+        ).all()
         
-        return skills
+        # Count unique completed modules
+        completed_modules = set(
+            progress.module_name for progress in module_progress 
+            if progress.completed and not progress.module_name.startswith('module_')
+        )
+        
+        return len(completed_modules)
     except Exception as e:
         print(f"Error calculating skills mastered: {e}")
         return 0
 
 def calculate_todays_goals(user_id, today):
-    """Calculate goals completed today - includes various goal sources"""
+    """
+    Calculate goals completed today based on various activities.
+    
+    Note: This function is for display purposes only and provides 
+    a snapshot of daily achievements across various activities.
+    """
     try:
         goals = 0
         
-        # 1. Achievements earned today (excluding module progress)
-        today_achievements = Achievement.query.filter_by(user_id=user_id).filter(
-            db.func.date(Achievement.date_awarded) == today
-        ).all()
-        for achievement in today_achievements:
-            if not achievement.badge_name or not achievement.badge_name.startswith('module_'):
-                goals += 1
+        # 1. Water Log - add 1 if user has logged water that day
+        water_log = WaterLog.query.filter_by(user_id=user_id, date=today).first()
+        if water_log and water_log.count > 0:
+            goals += 1
         
-        # 2. Module progress completed today (simplified - count all completed modules)
-        today_module_progress = UserModuleProgress.query.filter_by(user_id=user_id, completed=True).count()
-        goals += today_module_progress
+        # 2. Transactions - add 1 if transaction on that day
+        transaction = Transaction.query.filter_by(user_id=user_id).filter(
+            Transaction.date == today
+        ).first()
+        if transaction:
+            goals += 1
         
-        # 3. Tasks completed today (from task tracker - simplified)
-        today_tasks = HomeworkSchedule.query.filter_by(user_id=user_id, status='completed').count()
-        goals += today_tasks
-        
-        # 4. Health tasks completed today
-        today_health_tasks = HealthTask.query.filter_by(user_id=user_id, completed=True, date=today).count()
-        goals += today_health_tasks
-        
-        # 5. Login streak (if logged in today)
+        # 3. Login Streak - add 1 if login streak record exists for today
         login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
         if login_streak and login_streak.last_login_date == today:
             goals += 1
         
-        # 6. Water intake goal (if drank water today)
-        water_log = WaterLog.query.filter_by(user_id=user_id, date=today).first()
-        if water_log and water_log.count >= 8:  # 8 glasses goal
+        # 4. Pomodoro Session - add 1 if start time is today
+        pomodoro_session = PomodoroSession.query.filter(
+            PomodoroSession.user_id == user_id,
+            db.func.date(PomodoroSession.start_time) == today
+        ).first()
+        if pomodoro_session:
             goals += 1
         
-        print(f"📊 Today's goals for user {user_id}: {goals} total (achievements: {len([a for a in today_achievements if not a.badge_name or not a.badge_name.startswith('module_')])}, modules: {today_module_progress}, tasks: {today_tasks}, health: {today_health_tasks})")
+        # 5. LLM Interaction - add 1 if interaction created today
+        llm_interaction = LLMInteractions.query.filter(
+            LLMInteractions.user_id == user_id,
+            db.func.date(LLMInteractions.user_timestamp) == today
+        ).first()
+        if llm_interaction:
+            goals += 1
+        
+        # 6. Task Creation - add 1 if task created today
+        task_created = HomeworkSchedule.query.filter(
+            HomeworkSchedule.user_id == user_id,
+            db.func.date(HomeworkSchedule.created_at) == today
+        ).first()
+        if task_created:
+            goals += 1
+        
+        # 7. Health Tasks - add 1 for each completed health task
+        completed_health_tasks = HealthTask.query.filter_by(
+            user_id=user_id, 
+            completed=True, 
+            date=today
+        ).count()
+        goals += completed_health_tasks
+        
+        # 8. Doodle Session - add 1 if doodle session on that day
+        doodle_session = DoodleSession.query.filter(
+            DoodleSession.user_id == user_id,
+            db.func.date(DoodleSession.timestamp) == today
+        ).first()
+        if doodle_session:
+            goals += 1
+        
+        print(f"📊 Today's goals for user {user_id}: {goals} total")
+        print(f"🚰 Water Log: {bool(water_log and water_log.count > 0)}")
+        print(f"💰 Transaction: {bool(transaction)}")
+        print(f"🔑 Login: {bool(login_streak and login_streak.last_login_date == today)}")
+        print(f"⏰ Pomodoro Session: {bool(pomodoro_session)}")
+        print(f"💬 LLM Interaction: {bool(llm_interaction)}")
+        print(f"📋 Task Created: {bool(task_created)}")
+        print(f"🏃 Health Tasks Completed: {completed_health_tasks}")
+        print(f"🎨 Doodle Session: {bool(doodle_session)}")
         
         return goals
     except Exception as e:
-        print(f"Error calculating today's goals: {e}")
+        print(f"❌ Error calculating today's goals: {e}")
+        import traceback
+        traceback.print_exc()
         return 0
 
 # ---------------------------
@@ -954,8 +976,8 @@ def api_child_stats(user_id):
         login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
         streak_days = login_streak.current_streak if login_streak else 0
         
-        # Calculate user level based on total stars
-        user_level = max(1, total_stars // 50)  # Level up every 50 stars
+        # Calculate user level based on login streak
+        user_level = max(1, streak_days // 7)
         
         stats = {
             'totalStars': total_stars,
@@ -3062,8 +3084,262 @@ def logout():
             'error': str(e)
         }), 500
 
+# Add these functions near other utility functions
 
+def calculate_user_level(total_stars):
+    """Calculate user level based on total stars"""
+    return max(1, total_stars // 50)  # Level up every 50 stars
 
+def generate_level_achievement(user_id):
+    """Generate level-based achievement"""
+    # Calculate total stars for level determination
+    total_stars = calculate_total_stars(user_id)
+    
+    # Count completed tasks
+    completed_tasks = HomeworkSchedule.query.filter_by(
+        user_id=user_id, 
+        status='completed'
+    ).count()
+    
+    # Count skills mastered
+    skills_mastered = UserModuleProgress.query.filter_by(
+        user_id=user_id, 
+        completed=True
+    ).count()
+    
+    # Frontend-like level calculation
+    # Base level from stars (every 10 stars = 1 level)
+    star_levels = max(1, completed_tasks // 10)
+    
+    # Bonus levels from skills mastered (each 100% module = +2 levels)
+    skill_bonus_levels = skills_mastered * 2
+    
+    # Total level calculation
+    level = max(1, star_levels + skill_bonus_levels)
+    
+    # Define level-based badges
+    level_badges = {
+        1: {'name': 'Novice Explorer', 'icon': '🌱', 'description': 'Just starting the adventure!'},
+        2: {'name': 'Curious Learner', 'icon': '🔍', 'description': 'Gaining knowledge and skills'},
+        3: {'name': 'Knowledge Seeker', 'icon': '📚', 'description': 'Diving deep into learning'},
+        4: {'name': 'Skill Master', 'icon': '🏆', 'description': 'Mastering new challenges'},
+        5: {'name': 'Wisdom Warrior', 'icon': '🌟', 'description': 'Becoming a true champion of learning'}
+    }
+    
+    # Use the highest available badge or the last one if level exceeds defined badges
+    badge_info = level_badges.get(level, list(level_badges.values())[-1])
+    
+    return {
+        'badge_name': f"Level {level} {badge_info['name']}",
+        'description': badge_info['description'],
+        'icon': badge_info['icon']
+    }
+
+def generate_skill_achievement(user_id):
+    """Generate skill-based achievement"""
+    skills_mastered = calculate_skills_mastered(user_id)
+    
+    # Define skill-based badges
+    skill_badges = {
+        0: {'name': 'Beginner', 'icon': '��', 'description': 'No skills mastered yet'},
+        1: {'name': 'Apprentice', 'icon': '🛠️', 'description': 'Mastered first skill'},
+        2: {'name': 'Practitioner', 'icon': '🧩', 'description': 'Developing multiple skills'},
+        3: {'name': 'Expert', 'icon': '🏅', 'description': 'Mastering diverse skills'},
+        4: {'name': 'Polymath', 'icon': '🌈', 'description': 'A true multi-skilled learner'}
+    }
+    
+    # Use the highest available badge or the last one if skills exceed defined badges
+    badge_level = min(skills_mastered, len(skill_badges) - 1)
+    badge_info = skill_badges[badge_level]
+    
+    return {
+        'badge_name': f"{badge_info['name']} ({skills_mastered} Skills)" if skills_mastered > 0 else badge_info['name'],
+        'description': badge_info['description'],
+        'icon': badge_info['icon']
+    }
+
+def generate_streak_achievement(user_id):
+    """Generate streak-based achievement"""
+    # Check both login and health streaks
+    login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
+    health_streak = HealthStreak.query.filter_by(user_id=user_id).first()
+    
+    # Combine streaks
+    total_streak = (login_streak.current_streak if login_streak else 0) + \
+                   (health_streak.current_streak if health_streak else 0)
+    
+    # Define military-themed streak badges
+    streak_badges = [
+        {'name': 'Recruit', 'icon': '🎖️', 'description': 'Just starting the journey', 'min_streak': 0},
+        {'name': 'Private', 'icon': '💪', 'description': 'Building consistent habits', 'min_streak': 5},
+        {'name': 'Corporal', 'icon': '🏋️', 'description': 'Developing strong discipline', 'min_streak': 10},
+        {'name': 'Sergeant', 'icon': '🌟', 'description': 'Mastering personal growth', 'min_streak': 15},
+        {'name': 'Lieutenant', 'icon': '��', 'description': 'Leading by example', 'min_streak': 20},
+        {'name': 'Captain', 'icon': '🏆', 'description': 'Exceptional consistency', 'min_streak': 25},
+        {'name': 'Major', 'icon': '🌈', 'description': 'Extraordinary commitment', 'min_streak': 30},
+        {'name': 'Colonel', 'icon': '💎', 'description': 'Legendary discipline', 'min_streak': 40},
+        {'name': 'General', 'icon': '✨', 'description': 'Ultimate achievement', 'min_streak': 50}
+    ]
+    
+    # Find the appropriate badge based on total streak
+    current_badge = streak_badges[0]
+    for badge in reversed(streak_badges):
+        if total_streak >= badge['min_streak']:
+            current_badge = badge
+            break
+    
+    return {
+        'badge_name': f"{current_badge['name']} (Streak: {total_streak})",
+        'description': current_badge['description'],
+        'icon': current_badge['icon']
+    }
+
+@app.route('/user/<int:user_id>/achievements', methods=['GET'])
+@jwt_required()
+def get_user_achievements_cards(user_id):
+    """Get achievement cards for a user"""
+    try:
+        # Calculate total stars for level-based achievement
+        total_stars = calculate_total_stars(user_id)
+        
+        # Generate achievement cards
+        achievements = {
+            'level_achievement': generate_level_achievement(user_id),
+            'skill_achievement': generate_skill_achievement(user_id),
+            'streak_achievement': generate_streak_achievement(user_id)
+        }
+        
+        return jsonify({
+            'success': True,
+            'achievements': achievements
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+def update_user_achievements(user_id):
+    """Compute and store achievements for a user with only three records"""
+    try:
+        # Calculate total stars for level determination
+        total_stars = calculate_total_stars(user_id)
+        
+        # Generate achievements
+        level_achievement = generate_level_achievement(user_id)
+        skill_achievement = generate_skill_achievement(user_id)
+        streak_achievement = generate_streak_achievement(user_id)
+        
+        # Define achievement types
+        achievement_types = [
+            {'type': 'level', 'data': level_achievement},
+            {'type': 'skill', 'data': skill_achievement},
+            {'type': 'streak', 'data': streak_achievement}
+        ]
+        
+        # Clear existing system-generated achievements
+        Achievement.query.filter(
+            Achievement.user_id == user_id,
+            Achievement.badge_name.in_([
+                'Level Achievement', 
+                'Skills Achievement', 
+                'Streak Achievement'
+            ])
+        ).delete()
+        
+        # Add new achievements
+        for achievement_type in achievement_types:
+            new_achievement = Achievement(
+                user_id=user_id,
+                badge_name=f"{achievement_type['type'].capitalize()} Achievement",
+                description=achievement_type['data']['description']
+            )
+            db.session.add(new_achievement)
+        
+        db.session.commit()
+        
+        return {
+            'level_achievement': level_achievement,
+            'skill_achievement': skill_achievement,
+            'streak_achievement': streak_achievement
+        }
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating user achievements: {e}")
+        return None
+
+@app.route('/user/<int:user_id>/achievements/update', methods=['POST'])
+@jwt_required()
+def update_user_achievements_route(user_id):
+    """Route to update user achievements"""
+    try:
+        # Verify the user is requesting their own achievements or is an admin
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        
+        if current_user_id != user_id and current_user.role != 'parent':
+            return jsonify({
+                'success': False, 
+                'error': 'Unauthorized to update achievements for this user'
+            }), 403
+        
+        # Update achievements
+        achievements = update_user_achievements(user_id)
+        
+        if achievements:
+            return jsonify({
+                'success': True,
+                'achievements': achievements
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to update achievements'
+            }), 500
+    except Exception as e:
+        print(f"Error in update_user_achievements_route: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/user/recalculate-stars/<int:user_id>', methods=['GET'])
+@jwt_required()
+def recalculate_user_stars(user_id):
+    """Manually recalculate and return user's total stars"""
+    try:
+        # Verify the user is requesting their own stars or is an admin
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        
+        if current_user_id != user_id and current_user.role != 'parent':
+            return jsonify({
+                'success': False, 
+                'error': 'Unauthorized to recalculate stars for this user'
+            }), 403
+        
+        # Calculate total stars
+        total_stars = calculate_total_stars(user_id)
+        
+        # Get login streak for additional context
+        login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
+        streak_days = login_streak.current_streak if login_streak else 0
+        
+        # Calculate level (same logic as in calculate_total_stars)
+        level = max(1, streak_days // 7)
+        
+        return jsonify({
+            'success': True,
+            'total_stars': total_stars,
+            'current_level': level,
+            'streak_days': streak_days
+        }), 200
+    except Exception as e:
+        print(f"Error recalculating stars for user {user_id}: {e}")
+        return jsonify({
+            'success': False, 
+            'error': str(e)
+        }), 500
 
 if __name__ == '__main__':
     # Initialize database when running directly

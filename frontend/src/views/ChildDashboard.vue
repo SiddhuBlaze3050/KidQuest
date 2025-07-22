@@ -405,6 +405,11 @@ import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { userUtils, apiService } from '@/services/api'
 import { calculateSimpleLevel, getLevelTitle, getLevelProgress, checkForLevelUp } from '@/services/levelService'
+import {
+    calculateStars,
+    getLevelTitle as getStarLevelTitle,
+    checkForLevelUp as checkStarLevelUp
+} from '@/services/starService'
 import EnhancedChatBot from '@/components/chat/EnhancedChatBot.vue'
 import Swal from 'sweetalert2'
 import MemoryGame from '@/components/activities/MemoryGame.vue'
@@ -537,42 +542,48 @@ export default {
             }
         }
 
-        // Dashboard stats
+        // Dashboard stats with local storage caching
         const fetchDashboardStats = async () => {
             try {
                 const userId = user.value?.id
                 if (!userId) return
 
                 console.log(`🔄 Fetching dashboard stats for user ${userId}`)
+
+                // Fetch fresh stats from backend
                 const { data } = await axios.get(`/api/child/stats/${userId}`)
+
+                console.log('🌟 Backend stats response:', data)
 
                 if (data.success) {
                     // Store old stats for level-up checking
                     const oldStats = { ...userStats.value }
 
-                    // Update userStats with real data
-                    userStats.value = {
+                    // Calculate stars using new star service
+                    const starCalculation = calculateStars({
                         totalStars: data.stats.totalStars,
+                        questsCompleted: data.stats.questsCompleted,
+                        skillsLearned: data.stats.skillsLearned
+                    })
+
+                    // Update userStats with real data
+                    const newStats = {
+                        totalStars: starCalculation.totalStars,
                         questsCompleted: data.stats.questsCompleted,
                         skillsLearned: data.stats.skillsLearned,
                         todayGoals: data.stats.todayGoals
                     }
 
-                    // Update streak
-                    streakDays.value = data.stats.streakDays
+                    console.log('🔍 New stats:', newStats)
 
-                    // Check for level up
-                    checkForLevelUp(
-                        { starsEarned: oldStats.totalStars || 0, skillsMastered: oldStats.skillsLearned || 0 },
-                        { starsEarned: userStats.value.totalStars || 0, skillsMastered: userStats.value.skillsLearned || 0 }
-                    )
+                    userStats.value = newStats
 
                     // Update statsCards with real values
                     statsCards.value = [
                         {
                             label: "✨ Stars Collected",
                             icon: "★",
-                            value: userStats.value.totalStars,
+                            value: starCalculation.totalStars,
                             theme: "stars-theme",
                         },
                         {
@@ -595,13 +606,19 @@ export default {
                         }
                     ];
 
+                    // Check for star level up
+                    checkStarLevelUp(
+                        { totalStars: oldStats.totalStars || 0, skillsLearned: oldStats.skillsLearned || 0 },
+                        { totalStars: userStats.value.totalStars || 0, skillsLearned: userStats.value.skillsLearned || 0 }
+                    )
+
                     console.log(`✅ Dashboard stats loaded:`, userStats.value)
+                    console.log(`🌟 Star Calculation:`, starCalculation)
                 } else {
                     console.error('Failed to fetch dashboard stats:', data.error)
                 }
             } catch (error) {
                 console.error('Error fetching dashboard stats:', error)
-                // Keep default values
             }
         }
 
@@ -861,30 +878,50 @@ export default {
         }
 
 
-        // Recent achievements
-        const recentAchievements = ref([
-            {
-                id: 1,
-                title: "Math Master",
-                description: "Solved 100 math problems!",
-                medal: "🥇",
-                earnedDate: new Date('2025-01-20')
-            },
-            {
-                id: 2,
-                title: "Reading Warrior",
-                description: "Read for 7 days straight!",
-                medal: "🥈",
-                earnedDate: new Date('2025-01-18')
-            },
-            {
-                id: 3,
-                title: "Helpful Hero",
-                description: "Completed all chores this week!",
-                medal: "🥉",
-                earnedDate: new Date('2025-01-15')
+        // Replace the existing recentAchievements ref with a dynamic fetch
+        const recentAchievements = ref([])
+
+        // Add a function to fetch achievements
+        const fetchAchievements = async () => {
+            try {
+                if (!user.value) return
+
+                // First, update achievements on the backend
+                await axios.post(`/user/${user.value.id}/achievements/update`)
+
+                // Then fetch the updated achievements
+                const { data } = await axios.get(`/user/${user.value.id}/achievements`)
+
+                if (data.success) {
+                    // Transform backend achievements into the format used in the template
+                    recentAchievements.value = [
+                        {
+                            id: 1,
+                            title: data.achievements.level_achievement.badge_name,
+                            description: data.achievements.level_achievement.description,
+                            medal: "🥇",
+                            earnedDate: new Date()
+                        },
+                        {
+                            id: 2,
+                            title: data.achievements.skill_achievement.badge_name,
+                            description: data.achievements.skill_achievement.description,
+                            medal: "🥈",
+                            earnedDate: new Date()
+                        },
+                        {
+                            id: 3,
+                            title: data.achievements.streak_achievement.badge_name,
+                            description: data.achievements.streak_achievement.description,
+                            medal: "🥉",
+                            earnedDate: new Date()
+                        }
+                    ]
+                }
+            } catch (error) {
+                console.error('Error fetching achievements:', error)
             }
-        ])
+        }
 
         // Check child access
         const checkChildAccess = () => {
@@ -1210,41 +1247,60 @@ export default {
         // Load progress from localStorage for Good Touch Bad Touch
         const loadGoodTouchBadTouchProgress = async () => {
             try {
-                // First try to load from the new module progress format
-                const moduleProgress = localStorage.getItem(`safetyModuleProgress_${user.value?.id || 'guest'}`)
-                if (moduleProgress) {
-                    const progressData = JSON.parse(moduleProgress)
-                    const progress = progressData.isCompleted ? 100 : 0
+                if (!user.value) return;
 
-                    const safetySkill = skillAreas.value.find(skill => skill.name === 'Good Touch Bad Touch')
-                    if (safetySkill) {
-                        safetySkill.progress = progress
+                // First, try to load from backend
+                const response = await apiService.getModuleProgress(user.value.id, 'good_touch_bad_touch');
+                console.log('🔍 Good Touch Bad Touch Backend Response:', response);
 
-                        // Update skills mastered count if this module was completed
-                        if (progress === 100) {
-                            calculateSkillsMastered()
-                        }
+                let progress = 0;
+                if (response.success && response.progress) {
+                    const progressData = response.progress.progress_data || response.progress;
+
+                    // Check multiple ways to determine 100% completion
+                    if (
+                        progressData.completed === true ||
+                        progressData.is_completed === true ||
+                        progressData.progress_percentage === 100
+                    ) {
+                        progress = 100;
+                        console.log(`📊 Backend: Good Touch Bad Touch confirmed 100% complete`)
+                    } else {
+                        progress = 0;
+                        console.log('📉 Good Touch Bad Touch not fully completed')
                     }
-                    return
                 }
 
-                // Fallback to old format for backward compatibility
-                const savedProgress = localStorage.getItem(`safetyProgress_${user.value?.id || 'guest'}`)
-                if (savedProgress) {
-                    const progressData = JSON.parse(savedProgress)
-                    if (progressData.lessons) {
-                        const completedLessons = progressData.lessons.filter(lesson => lesson.completed).length
-                        const totalLessons = 6 // Total number of lessons
-                        const progress = Math.round((completedLessons / totalLessons) * 100)
+                // Update skill area progress
+                const safetySkill = skillAreas.value.find(skill => skill.name === 'Good Touch Bad Touch')
+                if (safetySkill) {
+                    safetySkill.progress = progress;
+                    console.log(`✅ Updated Good Touch Bad Touch dashboard progress to ${progress}%`);
+
+                    // Recalculate skills mastered if module is completed
+                    if (progress === 100) {
+                        calculateSkillsMastered();
+                    }
+                }
+            } catch (error) {
+                console.error('❌ Error loading Good Touch Bad Touch progress:', error);
+
+                // Fallback to localStorage if backend fails
+                try {
+                    const moduleProgress = localStorage.getItem(`safetyModuleProgress_${user.value?.id || 'guest'}`)
+                    if (moduleProgress) {
+                        const progressData = JSON.parse(moduleProgress)
+                        const progress = progressData.isCompleted ? 100 : 0
 
                         const safetySkill = skillAreas.value.find(skill => skill.name === 'Good Touch Bad Touch')
                         if (safetySkill) {
                             safetySkill.progress = progress
+                            console.log(`🔄 Fallback: Loaded Good Touch Bad Touch progress from localStorage: ${progress}%`)
                         }
                     }
+                } catch (localStorageError) {
+                    console.error('❌ Error loading progress from localStorage:', localStorageError)
                 }
-            } catch (error) {
-                console.error('Error loading Good Touch Bad Touch progress:', error)
             }
         }
 
@@ -1325,14 +1381,28 @@ export default {
                 console.log('📚 Loading Word Wizard progress for dashboard...');
                 const response = await apiService.getModuleProgress(user.value.id, 'word_wizard');
                 let progress = 0;
-                if (response.success && response.progress && response.progress.progress_data) {
-                    const progressData = response.progress.progress_data;
-                    progress = progressData.completed ? 100 : 0;
-                    console.log(`📊 Backend: Word Wizard completed=${progressData.completed}, progress=${progress}%`);
+
+                // More robust progress checking
+                if (response.success && response.progress) {
+                    const progressData = response.progress;
+
+                    // Check for multiple completion indicators
+                    if (
+                        progressData.completed === true ||
+
+                        progressData.progress_percentage === 100
+                    ) {
+                        progress = 100;
+                        console.log(`📊 Backend: Word Wizard confirmed 100% complete`, progressData);
+                    } else {
+                        progress = 0;
+                        console.log('📉 Word Wizard not fully completed', progressData);
+                    }
                 } else {
                     progress = 0;
                     console.log('📉 No backend progress for Word Wizard, showing 0%');
                 }
+
                 const wordWizardSkill = skillAreas.value.find(skill => skill.name === 'Word Wizard');
                 if (wordWizardSkill) {
                     wordWizardSkill.progress = progress;
@@ -1445,29 +1515,48 @@ export default {
                 color: 'white'
             })
 
-            await Promise.all([
-                loadGoodTouchBadTouchProgress(),
-                loadSafetyMeasuresProgress(),
-                loadScienceExplorerProgress(),
-                loadWordWizardProgress(),
-                loadMathMagicProgress()
-            ])
+            try {
+                // First, update achievements which will recalculate stars
+                const achievementsResponse = await axios.post(`/user/${user.value.id}/achievements/update`)
 
-            // Calculate and update skills mastered after loading all progress
-            calculateSkillsMastered()
+                if (achievementsResponse.data.success) {
+                    // Fetch dashboard stats to update the UI with new stars
+                    await fetchDashboardStats()
+                }
 
-            // Show success message
-            setTimeout(() => {
+                await Promise.all([
+                    loadGoodTouchBadTouchProgress(),
+                    loadSafetyMeasuresProgress(),
+                    loadScienceExplorerProgress(),
+                    loadWordWizardProgress(),
+                    loadMathMagicProgress()
+                ])
+
+                // Calculate and update skills mastered after loading all progress
+                calculateSkillsMastered()
+
+                // Show success message
+                setTimeout(() => {
+                    Swal.fire({
+                        icon: 'success',
+                        title: '✅ Progress Updated!',
+                        text: 'All your learning progress has been refreshed!',
+                        timer: 2000,
+                        showConfirmButton: false,
+                        background: 'linear-gradient(135deg, #28a745, #20c997)',
+                        color: 'white'
+                    })
+                }, 1100)
+            } catch (error) {
+                console.error('Error refreshing progress:', error)
                 Swal.fire({
-                    icon: 'success',
-                    title: '✅ Progress Updated!',
-                    text: 'All your learning progress has been refreshed!',
+                    icon: 'error',
+                    title: 'Oops...',
+                    text: 'Failed to refresh progress. Please try again.',
                     timer: 2000,
-                    showConfirmButton: false,
-                    background: 'linear-gradient(135deg, #28a745, #20c997)',
-                    color: 'white'
+                    showConfirmButton: false
                 })
-            }, 1100)
+            }
         }
 
         onMounted(async () => {
@@ -1490,6 +1579,9 @@ export default {
 
             // Add visibility change listener to refresh progress when returning to dashboard
             document.addEventListener('visibilitychange', handleVisibilityChange)
+
+            // Call fetchAchievements
+            await fetchAchievements()
         })
 
         onBeforeUnmount(() => {
@@ -1550,7 +1642,8 @@ export default {
             toggleScrollExpanded,
             levelInfo,
             dynamicUserLevel,
-            dynamicLevelTitle
+            dynamicLevelTitle,
+            fetchAchievements  // Add this line
         }
     }
 }

@@ -101,7 +101,8 @@ export default {
                     const progressData = {
                         isCompleted: isCompleted.value,
                         completedAt: Date.now(),
-                        lastAccessed: Date.now()
+                        lastAccessed: Date.now(),
+                        progress_percentage: 100  // Explicitly set progress percentage
                     }
 
                     console.log('Saving completion to backend:', progressData)
