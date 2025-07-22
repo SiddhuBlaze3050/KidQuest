@@ -376,6 +376,25 @@ def api_register():
             )
             db.session.add(parent_relationship)
 
+        elif role == 'teacher':
+            relationship_type = data.get('relationship_type', 'teacher')
+            selected_students = data.get('selectedStudents', [])
+
+            if not selected_students:
+                return jsonify({'success': False, 'error': 'At least one student must be selected for teacher registration'}), 400
+
+            # Create teacher-student relationships for each selected student
+            for student_id in selected_students:
+                # Verify student exists and has 'child' role
+                student = User.query.filter_by(id=student_id, role='child').first()
+                if student:
+                    teacher_relationship = ParentChild(
+                        parent_id=user.id,
+                        child_id=student.id,
+                        relationship_type=relationship_type
+                    )
+                    db.session.add(teacher_relationship)
+
         db.session.commit()
 
         return jsonify({
@@ -1625,6 +1644,184 @@ def update_task_status(task_id):
         print(f"✅ Task {task_id} status updated to '{new_status}'")
         
         return jsonify({'success': True, 'message': f'Task status updated to {new_status}'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ---------------------------
+# Teacher Management Routes
+# ---------------------------
+@app.route('/api/teacher/students/<int:teacher_id>', methods=['GET'])
+@jwt_required()
+def get_teacher_students(teacher_id):
+    """Get all students assigned to a specific teacher - requires JWT token"""
+    try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        
+        # Authorization: only the teacher themselves can access their students
+        if current_user.id != teacher_id or current_user.role != 'teacher':
+            return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
+        
+        # Get students through ParentChild table where parent_id is the teacher
+        student_relationships = ParentChild.query.filter_by(parent_id=teacher_id).all()
+        students_data = []
+        
+        for relationship in student_relationships:
+            student = User.query.get(relationship.child_id)
+            if student:
+                students_data.append({
+                    'id': student.id,
+                    'username': student.username,
+                    'email': student.email,
+                    'role': student.role
+                })
+        
+        return jsonify({
+            'success': True,
+            'students': students_data
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/teacher/student-tasks/<int:teacher_id>', methods=['GET'])
+@jwt_required()
+def get_student_tasks_for_teacher(teacher_id):
+    """Get all tasks created by students under a specific teacher"""
+    try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        
+        # Authorization: only the teacher themselves can access their students' tasks
+        if current_user.id != teacher_id or current_user.role != 'teacher':
+            return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
+        
+        # Get students under this teacher
+        student_relationships = ParentChild.query.filter_by(parent_id=teacher_id).all()
+        student_ids = [rel.child_id for rel in student_relationships]
+        
+        # Get all tasks for these students
+        all_tasks = []
+        for student_id in student_ids:
+            tasks = HomeworkSchedule.query.filter_by(user_id=student_id).order_by(HomeworkSchedule.due_date.asc()).all()
+            
+            for task in tasks:
+                # Get session statistics
+                sessions = PomodoroSession.query.filter_by(homework_id=task.id)
+                total_work_time = sum(s.work_duration for s in sessions if s.work_duration)
+                total_time_spent_minutes = total_work_time // 60 if total_work_time else 0
+                
+                all_tasks.append({
+                    'id': task.id,
+                    'user_id': task.user_id,
+                    'subject': task.subject,
+                    'task': task.task,
+                    'due_date': task.due_date.isoformat() if task.due_date else None,
+                    'status': task.status,
+                    'created_at': task.created_at.isoformat() if task.created_at else None,
+                    'time_spent': total_time_spent_minutes
+                })
+        
+        return jsonify({
+            'success': True,
+            'tasks': all_tasks
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/teacher/homework/<int:teacher_id>', methods=['GET'])
+@jwt_required()
+def get_teacher_homework(teacher_id):
+    """Get all homework assigned by a specific teacher"""
+    try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        
+        # Authorization: only the teacher themselves can access their assigned homework
+        if current_user.id != teacher_id or current_user.role != 'teacher':
+            return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
+        
+        # Get homework assigned by this teacher
+        # Using a custom field to track teacher-assigned homework
+        homework_tasks = HomeworkSchedule.query.filter_by(assigned_by_teacher=teacher_id).order_by(HomeworkSchedule.due_date.asc()).all()
+        
+        homework_data = []
+        for task in homework_tasks:
+            homework_data.append({
+                'id': task.id,
+                'subject': task.subject,
+                'task': task.task,
+                'due_date': task.due_date.isoformat() if task.due_date else None,
+                'status': task.status,
+                'assigned_to': [task.user_id],  # Currently single user, could be extended for multiple
+                'created_at': task.created_at.isoformat() if task.created_at else None
+            })
+        
+        return jsonify({
+            'success': True,
+            'homework': homework_data
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/teacher/assign-homework', methods=['POST'])
+@jwt_required()
+def assign_homework():
+    """Allow teacher to assign homework to multiple students"""
+    try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        data = request.get_json()
+        
+        # Authorization: only teachers can assign homework
+        if current_user.role != 'teacher':
+            return jsonify({'success': False, 'error': 'Only teachers can assign homework'}), 403
+        
+        # Validate required fields
+        required_fields = ['subject', 'task', 'due_date', 'assigned_to']
+        for field in required_fields:
+            if field not in data or not data[field]:
+                return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
+        
+        # Parse due date
+        try:
+            due_date = date.fromisoformat(data['due_date'])
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+        
+        # Verify students belong to this teacher
+        student_ids = data['assigned_to']
+        teacher_relationships = ParentChild.query.filter_by(parent_id=current_user_id).all()
+        teacher_student_ids = [rel.child_id for rel in teacher_relationships]
+        
+        unauthorized_students = [sid for sid in student_ids if sid not in teacher_student_ids]
+        if unauthorized_students:
+            return jsonify({'success': False, 'error': f'Unauthorized to assign homework to students: {unauthorized_students}'}), 403
+        
+        # Create homework tasks for each student
+        created_tasks = []
+        current_time = datetime.utcnow()
+        
+        for student_id in student_ids:
+            new_task = HomeworkSchedule(
+                user_id=student_id,
+                subject=data['subject'],
+                task=data['task'],
+                due_date=due_date,
+                assigned_by_teacher=current_user_id,
+                created_at=current_time,
+                status='pending'
+            )
+            db.session.add(new_task)
+            created_tasks.append(new_task)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Homework assigned to {len(student_ids)} students',
+            'assigned_tasks': len(created_tasks)
+        }), 201
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500

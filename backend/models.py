@@ -13,7 +13,7 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
-    role = db.Column(db.String(10), nullable=False)  # 'parent' or 'child'
+    role = db.Column(db.String(10), nullable=False)  # 'parent', 'child', 'teacher', or 'admin'
     
    
 
@@ -73,6 +73,7 @@ class HomeworkSchedule(db.Model):
     task = db.Column(db.String(255))
     due_date = db.Column(db.Date)
     status = db.Column(db.String(20), default='pending') # pending, in-progress, completed
+    assigned_by_teacher = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Teacher who assigned this task
     created_at = db.Column(db.DateTime, default=datetime.utcnow)  # When task was created
     pomodoro_sessions = db.relationship('PomodoroSession', backref='homework', lazy=True)
 

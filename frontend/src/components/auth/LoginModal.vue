@@ -18,7 +18,7 @@
                             Username
                         </label>
                         <input id="username" v-model="username" type="text" placeholder="Enter your username" required
-                            class="form-input" :disabled="isLoading" />
+                            class="form-input" :disabled="isLoading" @input="clearError" />
                     </div>
 
                     <div class="form-group">
@@ -27,7 +27,13 @@
                             Password
                         </label>
                         <input id="password" v-model="password" type="password" placeholder="Enter your password"
-                            required class="form-input" :disabled="isLoading" />
+                            required class="form-input" :disabled="isLoading" @input="clearError" />
+                    </div>
+
+                    <!-- Error Message Display -->
+                    <div v-if="errorMessage" class="error-message">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        {{ errorMessage }}
                     </div>
 
                     <button type="submit" class="btn-primary" :disabled="isLoading">
@@ -82,16 +88,27 @@ export default {
         const username = ref('')
         const password = ref('')
         const isLoading = ref(false)
+        const errorMessage = ref('')
+
+        const clearError = () => {
+            errorMessage.value = ''
+        }
 
         const handleLogin = async () => {
             if (isLoading.value) return
 
             isLoading.value = true
+            clearError() // Clear any previous error messages
 
             try {
                 const response = await authService.login(username.value, password.value)
 
                 if (response.success) {
+                    console.log('🎉 Login successful!')
+                    console.log('📋 Response data:', response)
+                    console.log('👤 User data:', response.user)
+                    console.log('🎭 User role:', response.user.role)
+                    
                     // Emit success immediately without waiting for alert
                     isLoading.value = false
                     emit('success', response)
@@ -110,11 +127,13 @@ export default {
                     }, 300)
                 } else {
                     isLoading.value = false
+                    const errorText = response.error || 'Invalid credentials. Please try again.'
+                    errorMessage.value = errorText
 
-                    await Swal.fire({
+                    Swal.fire({
                         icon: 'error',
                         title: 'Oops! Adventure Blocked 🚫',
-                        text: 'Invalid credentials. Try again, brave adventurer!',
+                        text: errorText,
                         timer: 3000,
                         showConfirmButton: false,
                         background: 'linear-gradient(135deg, #ff6b6b, #ffa726)',
@@ -125,18 +144,31 @@ export default {
                 console.error('Login failed:', error)
                 isLoading.value = false
 
-                let errorMessage = 'Invalid credentials. Try again, brave adventurer!'
-                if (error.response?.data?.error) {
-                    errorMessage = error.response.data.error
-                } else if (error.message) {
-                    errorMessage = error.message
+                let errorText = 'Invalid credentials. Please check your username and password.'
+                
+                // Handle different error types
+                if (error.response) {
+                    // Server responded with error status
+                    if (error.response.status === 401) {
+                        errorText = 'Invalid username or password. Please try again.'
+                    } else if (error.response.data?.error) {
+                        errorText = error.response.data.error
+                    }
+                } else if (error.request) {
+                    // Network error
+                    errorText = 'Connection error. Please check your internet connection.'
+                } else {
+                    // Other error
+                    errorText = error.message || 'An unexpected error occurred.'
                 }
 
-                await Swal.fire({
+                errorMessage.value = errorText
+
+                Swal.fire({
                     icon: 'error',
                     title: 'Oops! Adventure Blocked 🚫',
-                    text: errorMessage,
-                    timer: 3000,
+                    text: errorText,
+                    timer: 4000,
                     showConfirmButton: false,
                     background: 'linear-gradient(135deg, #ff6b6b, #ffa726)',
                     color: 'white'
@@ -166,10 +198,12 @@ export default {
             username,
             password,
             isLoading,
+            errorMessage,
             handleLogin,
             handleBackdropClick,
             handleCloseClick,
-            handleSwitchToRegister
+            handleSwitchToRegister,
+            clearError
         }
     }
 }
@@ -363,6 +397,40 @@ export default {
     color: #9ca3af;
     cursor: not-allowed;
     opacity: 0.7;
+}
+
+/* Error Message Styles */
+.error-message {
+    background: linear-gradient(135deg, #fee2e2, #fecaca);
+    border: 1px solid #fca5a5;
+    color: #dc2626;
+    padding: 1rem 1.5rem;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+    animation: errorSlideIn 0.3s ease-out;
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.1);
+}
+
+.error-message i {
+    color: #dc2626;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+@keyframes errorSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .btn-primary {

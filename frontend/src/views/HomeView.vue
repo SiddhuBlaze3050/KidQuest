@@ -1,5 +1,6 @@
 <script>
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import authService from '@/services/authService'
 import LoginModal from '@/components/auth/LoginModal.vue'
 import RegisterModal from '@/components/auth/RegisterModal.vue'
@@ -13,6 +14,7 @@ export default {
     EnhancedChatBot
   },
   setup() {
+    const router = useRouter()
     const user = ref(null)
     const showLogin = ref(false)
     const showRegister = ref(false)
@@ -88,11 +90,13 @@ export default {
         if (user.value) {
           console.log('User authenticated, redirecting to dashboard...')
           if (user.value.role === 'admin') {
-            window.location.href = '/admin'
+            router.push('/admin')
           } else if (user.value.role === 'child') {
-            window.location.href = '/child-dashboard'
+            router.push('/child-dashboard')
           } else if (user.value.role === 'parent') {
-            window.location.href = '/parent-dashboard'
+            router.push('/parent-dashboard')
+          } else if (user.value.role === 'teacher') {
+            router.push('/teacher-dashboard')
           }
         }
       } else {
@@ -105,17 +109,27 @@ export default {
     }
 
     const handleLoginSuccess = (userData) => {
+      console.log('Login success, userData:', userData)
       user.value = userData.user
       showLogin.value = false
 
-      // Redirect users based on their role
-      if (userData.user.role === 'admin') {
-        window.location.href = '/admin'
-      } else if (userData.user.role === 'child') {
-        window.location.href = '/child-dashboard'
-      } else if (userData.user.role === 'parent') {
-        window.location.href = '/parent-dashboard'
-      }
+      // Give a small delay to ensure auth state is properly set
+      setTimeout(() => {
+        // Redirect users based on their role using Vue Router
+        if (userData.user.role === 'admin') {
+          console.log('Redirecting to admin dashboard')
+          router.push('/admin')
+        } else if (userData.user.role === 'child') {
+          console.log('Redirecting to child dashboard')
+          router.push('/child-dashboard')
+        } else if (userData.user.role === 'parent') {
+          console.log('Redirecting to parent dashboard')
+          router.push('/parent-dashboard')
+        } else if (userData.user.role === 'teacher') {
+          console.log('Redirecting to teacher dashboard')
+          router.push('/teacher-dashboard')
+        }
+      }, 100) // Small delay to ensure auth state is set
     }
 
     const handleRegisterSuccess = (userData) => {
@@ -124,15 +138,17 @@ export default {
 
       // Delay redirect to allow success message to show
       setTimeout(() => {
-        // Redirect users based on their role
+        // Redirect users based on their role using Vue Router
         if (userData.user.role === 'admin') {
-          window.location.href = '/admin'
+          router.push('/admin')
         } else if (userData.user.role === 'child') {
-          window.location.href = '/child-dashboard'
+          router.push('/child-dashboard')
         } else if (userData.user.role === 'parent') {
-          window.location.href = '/parent-dashboard'
+          router.push('/parent-dashboard')
+        } else if (userData.user.role === 'teacher') {
+          router.push('/teacher-dashboard')
         }
-      }, 3500) // Wait for success message to finish (3000ms timer + 500ms buffer)
+      }, 4500) // Wait for success message to finish (3000ms timer + 500ms buffer)
     }
 
     const logout = () => {
@@ -458,7 +474,10 @@ export default {
 .nav-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
-  background: rgba(255, 255, 255, 0.1);
+}
+
+.nav-btn.primary:hover {
+  background: linear-gradient(135deg, #ff5252, #ff9800);
 }
 
 /* Hero Section */

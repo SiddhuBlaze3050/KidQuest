@@ -314,6 +314,53 @@ export const apiService = {
     }
   },
 
+  // Teacher Management APIs
+  async getTeacherStudents(teacherId) {
+    try {
+      const response = await api.get(`/api/teacher/students/${teacherId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async getStudentTasksForTeacher(teacherId) {
+    try {
+      const response = await api.get(`/api/teacher/student-tasks/${teacherId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async getTeacherHomework(teacherId) {
+    try {
+      const response = await api.get(`/api/teacher/homework/${teacherId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async assignHomework(homeworkData) {
+    try {
+      const response = await api.post('/api/teacher/assign-homework', homeworkData)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // Generic task function for compatibility with teacher dashboard
+  async getUserTasks(userId) {
+    try {
+      const response = await api.get(`/api/tasks/${userId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
   // Pomodoro
   async startPomodoro(userId, homeworkId) {
     try {

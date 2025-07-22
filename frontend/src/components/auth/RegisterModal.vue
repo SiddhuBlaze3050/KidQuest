@@ -522,11 +522,15 @@ export default {
 
           // Show success message after modal closes
           setTimeout(() => {
+            const successMessage = userType.value === 'teacher' 
+              ? 'Registration successful! Please log in to access your teacher dashboard.'
+              : `Your quest begins now, ${payload.username}!`
+            
             Swal.fire({
               icon: 'success',
               title: userType.value === 'kid' ? 'Welcome to KidQuest! 🎉' : userType.value === 'parent' ? 'Welcome, Guardian! 🛡️' : 'Welcome, Educator! 👩‍🏫',
-              text: `Your quest begins now, ${payload.username}!`,
-              timer: 3000,
+              text: successMessage,
+              timer: userType.value === 'teacher' ? 4000 : 3000,
               showConfirmButton: false,
               background: 'linear-gradient(135deg, #667eea, #764ba2)',
               color: 'white',

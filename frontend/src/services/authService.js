@@ -26,8 +26,10 @@ class AuthService {
 
   // User Management
   setUser(user) {
+    console.log('🔧 AuthService: Setting user data:', user)
     this.user = user
     localStorage.setItem('user', JSON.stringify(user))
+    console.log('✅ AuthService: User data stored in localStorage')
   }
 
   getUser() {
@@ -126,7 +128,12 @@ class AuthService {
 
   // Check if user has specific role
   hasRole(role) {
-    return this.user && this.user.role === role
+    console.log(`🔍 AuthService: Checking role '${role}'`)
+    console.log('👤 Current user:', this.user)
+    console.log('🎭 User role:', this.user?.role)
+    const hasRole = this.user && this.user.role === role
+    console.log(`✅ Has role '${role}':`, hasRole)
+    return hasRole
   }
 
   // Setup axios interceptors for automatic token handling

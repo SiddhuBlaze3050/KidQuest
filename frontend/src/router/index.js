@@ -63,10 +63,17 @@ const router = createRouter({
       name: 'teacher-dashboard',
       component: TeacherDashboard,
       beforeEnter: (to, from, next) => {
+        console.log('🔍 Teacher dashboard route guard triggered')
+        console.log('📋 Authentication status:', authService.isAuthenticated())
+        console.log('👤 Current user:', authService.getCurrentUser())
+        console.log('🎭 Has teacher role:', authService.hasRole('teacher'))
+        
         if (authService.isAuthenticated() && authService.hasRole('teacher')) {
+          console.log('✅ Access granted: Teacher authenticated')
           next()
         } else {
           console.log('❌ Access denied: User is not a teacher or not authenticated')
+          console.log('🔍 Redirecting to home page')
           next('/')
         }
       },
