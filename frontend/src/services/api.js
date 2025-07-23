@@ -15,13 +15,10 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     console.log('Making API request:', config.method?.toUpperCase(), config.url)
-
-    // Add JWT token to all requests (except login/register)
-    const token = authService.getToken()
-    if (token && !config.url.includes('/api/auth/')) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-
+    
+    // The authorization header is already set by authService globally
+    // No need to add it here again to avoid conflicts
+    
     return config
   },
   (error) => {
@@ -39,17 +36,7 @@ api.interceptors.response.use(
   (error) => {
     console.error('API Error:', error.response?.data || error.message)
 
-    // Handle JWT authentication errors
-    if (error.response?.status === 401) {
-      // Don't redirect for login endpoint - let the login function handle it
-      if (error.config.url === '/api/auth/login') {
-        return Promise.reject(error)
-      }
-
-      // Handle unauthorized access for other endpoints
-      authService.logout()
-    }
-
+    // Let authService handle 401 errors to avoid duplicate handling
     return Promise.reject(error)
   },
 )

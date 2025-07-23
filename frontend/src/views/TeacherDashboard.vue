@@ -661,6 +661,9 @@ export default {
     // Initialize dashboard
     onMounted(async () => {
       try {
+        // Add a small delay to ensure token is properly set after login
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
         await loadMyStudents()
         await loadStudentTasks()
         await loadAssignedHomework()

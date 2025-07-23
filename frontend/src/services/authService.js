@@ -6,6 +6,12 @@ class AuthService {
   constructor() {
     this.token = this.getToken()
     this.user = this.getUser()
+    
+    // Set up axios headers immediately if token exists
+    if (this.token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${this.token}`
+    }
+    
     this.setupAxiosInterceptors()
   }
 
@@ -13,6 +19,12 @@ class AuthService {
   setToken(token) {
     this.token = token
     localStorage.setItem('jwt_token', token)
+    // Update axios default headers immediately
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+    } else {
+      delete axios.defaults.headers.common['Authorization']
+    }
   }
 
   getToken() {
@@ -22,6 +34,8 @@ class AuthService {
   removeToken() {
     this.token = null
     localStorage.removeItem('jwt_token')
+    // Remove axios authorization header
+    delete axios.defaults.headers.common['Authorization']
   }
 
   // User Management
@@ -50,17 +64,28 @@ class AuthService {
   // Login
   async login(username, password) {
     try {
+      console.log('🔑 Attempting login for:', username)
       const response = await axios.post('http://localhost:5000/api/auth/login', {
         username,
         password,
       })
 
       if (response.data.success) {
+        console.log('🎉 Login successful!')
+        console.log('🔧 Setting token:', response.data.access_token.substring(0, 20) + '...')
+        
         // Store JWT token and user data
         this.setToken(response.data.access_token)
         this.setUser(response.data.user)
 
-        console.log('✅ Login successful, token stored')
+        // Force update axios default headers for immediate effect
+        axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.access_token}`
+
+        console.log('✅ Login successful, token stored and axios headers updated')
+        console.log('👤 User data stored:', response.data.user)
+        console.log('🔧 Token in localStorage:', !!localStorage.getItem('jwt_token'))
+        console.log('🌐 Axios default header set:', !!axios.defaults.headers.common['Authorization'])
+        
         return response.data
       }
 
@@ -165,12 +190,19 @@ class AuthService {
     axios.interceptors.request.use(
       (config) => {
         const token = this.getToken()
+        console.log('🔧 Request interceptor - Token available:', !!token)
+        console.log('🌐 Making request to:', config.url)
+        
         if (token) {
           config.headers.Authorization = `Bearer ${token}`
+          console.log('✅ Authorization header added to request')
+        } else {
+          console.log('⚠️ No token available for request')
         }
         return config
       },
       (error) => {
+        console.error('❌ Request interceptor error:', error)
         return Promise.reject(error)
       },
     )
@@ -178,14 +210,19 @@ class AuthService {
     // Response interceptor - handle token expiration
     axios.interceptors.response.use(
       (response) => {
+        console.log('✅ Response received:', response.status, response.config.url)
         return response
       },
       async (error) => {
+        console.error('❌ Response error:', error.response?.status, error.config?.url)
         const originalRequest = error.config
 
         // Handle 401 Unauthorized errors
         if (error.response?.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true
+
+          console.log('🔒 401 Unauthorized - Token expired or invalid')
+          console.log('🧹 Clearing auth data and redirecting to login')
 
           // Clear tokens and module progress, then redirect to login
           this.removeToken()
