@@ -71,6 +71,16 @@ export const apiService = {
     }
   },
 
+  // Get available students for teacher registration
+  async getAvailableStudents() {
+    try {
+      const response = await api.get('/api/students/available')
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
   // User Profile
   async getUserProfile(userId) {
     try {
@@ -298,6 +308,53 @@ export const apiService = {
   async updateTaskStatus(taskId, status) {
     try {
       const response = await api.put(`/api/tasks/${taskId}/status`, { status })
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // Teacher Management APIs
+  async getTeacherStudents(teacherId) {
+    try {
+      const response = await api.get(`/api/teacher/students/${teacherId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async getStudentTasksForTeacher(teacherId) {
+    try {
+      const response = await api.get(`/api/teacher/student-tasks/${teacherId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async getTeacherHomework(teacherId) {
+    try {
+      const response = await api.get(`/api/teacher/homework/${teacherId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async assignHomework(homeworkData) {
+    try {
+      const response = await api.post('/api/teacher/assign-homework', homeworkData)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // Generic task function for compatibility with teacher dashboard
+  async getUserTasks(userId) {
+    try {
+      const response = await api.get(`/api/tasks/${userId}`)
       return response.data
     } catch (error) {
       throw error
