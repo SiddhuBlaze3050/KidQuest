@@ -524,13 +524,15 @@ export default {
           setTimeout(() => {
             const successMessage = userType.value === 'teacher' 
               ? 'Registration successful! Please log in to access your teacher dashboard.'
-              : `Your quest begins now, ${payload.username}!`
+              : userType.value === 'parent'
+              ? 'Registration successful! Please log in to access your guardian dashboard.'
+              : 'Registration successful! Please log in to start your quest!'
             
             Swal.fire({
               icon: 'success',
               title: userType.value === 'kid' ? 'Welcome to KidQuest! 🎉' : userType.value === 'parent' ? 'Welcome, Guardian! 🛡️' : 'Welcome, Educator! 👩‍🏫',
               text: successMessage,
-              timer: userType.value === 'teacher' ? 4000 : 3000,
+              timer: 2500,
               showConfirmButton: false,
               background: 'linear-gradient(135deg, #667eea, #764ba2)',
               color: 'white',

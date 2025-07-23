@@ -133,22 +133,12 @@ export default {
     }
 
     const handleRegisterSuccess = (userData) => {
-      user.value = userData.user
       showRegister.value = false
 
-      // Delay redirect to allow success message to show
+      // Show the login modal after successful registration
       setTimeout(() => {
-        // Redirect users based on their role using Vue Router
-        if (userData.user.role === 'admin') {
-          router.push('/admin')
-        } else if (userData.user.role === 'child') {
-          router.push('/child-dashboard')
-        } else if (userData.user.role === 'parent') {
-          router.push('/parent-dashboard')
-        } else if (userData.user.role === 'teacher') {
-          router.push('/teacher-dashboard')
-        }
-      }, 4500) // Wait for success message to finish (3000ms timer + 500ms buffer)
+        showLogin.value = true
+      }, 5000) // 5 second delay to allow success message to show
     }
 
     const logout = () => {
