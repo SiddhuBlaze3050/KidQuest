@@ -613,6 +613,16 @@ export const apiService = {
     }
   },
 
+  // Admin dashboard
+  async getAdminStats() {
+    try {
+      const response = await api.get('/api/admin/dashboard-stats')
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
   // Generic fetch methods
   async get(endpoint) {
     const response = await api.get(endpoint)

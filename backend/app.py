@@ -15,6 +15,7 @@ import time
 import traceback
 from datetime import datetime, date
 import json
+from collections import defaultdict
 
 # NEW: JWT imports
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
@@ -3288,9 +3289,45 @@ def logout():
             'success': False,
             'error': str(e)
         }), 500
+    
+@app.route('/api/admin/dashboard-stats', methods=['GET'])
+def get_admin_dashboard_stats():
+    try:
+        today = date.today()
+
+        # Get screen time entries only for today
+        today_screen_data = ScreenTime.query.filter_by(date=today).all()
+
+        # Sum screen time per child user
+        user_hours = defaultdict(float)
+        for entry in today_screen_data:
+            # Ensure the user is a child (optional if you're confident only child users are in screen_time)
+            user = User.query.get(entry.user_id)
+            if user and user.role == 'child':
+                user_hours[entry.user_id] += entry.hours
+
+        # Total number of child users who logged screen time today
+        total_children_with_data = len(user_hours)
+
+        # Average screen time (in hours), then convert to MM:SS
+        avg_screen_time = (sum(user_hours.values()) / total_children_with_data) if total_children_with_data > 0 else 0
+        # Convert to total seconds, not minutes
+        total_seconds = round(avg_screen_time * 3600)
+        mm, ss = divmod(total_seconds, 60)
+        formatted_avg = f"{mm:02d}:{ss:02d}"
 
 
+        stats = {
+            "totalUsers": User.query.filter_by(role='child').count(),  # only child users
+            "chatSessions": ChatSession.query.count(),
+            "achievements": Achievement.query.count(),
+            "avg_screen_time_per_user": formatted_avg
+        }
 
+        return jsonify(stats), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     # Initialize database when running directly
