@@ -64,15 +64,21 @@ class AuthService {
   // Login
   async login(username, password) {
     try {
-      console.log('🔑 Attempting login for:', username)
+      console.log('🔑 AuthService: Attempting login for:', username)
+      console.log('🌐 AuthService: Making request to backend...')
+      
       const response = await axios.post('http://localhost:5000/api/auth/login', {
         username,
         password,
       })
 
+      console.log('📊 AuthService: Login response received:', response)
+      console.log('📊 AuthService: Response status:', response.status)
+      console.log('📊 AuthService: Response data:', response.data)
+
       if (response.data.success) {
-        console.log('🎉 Login successful!')
-        console.log('🔧 Setting token:', response.data.access_token.substring(0, 20) + '...')
+        console.log('🎉 AuthService: Login successful!')
+        console.log('🔧 AuthService: Setting token:', response.data.access_token.substring(0, 20) + '...')
         
         // Store JWT token and user data
         this.setToken(response.data.access_token)
@@ -81,17 +87,35 @@ class AuthService {
         // Force update axios default headers for immediate effect
         axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.access_token}`
 
-        console.log('✅ Login successful, token stored and axios headers updated')
-        console.log('👤 User data stored:', response.data.user)
-        console.log('🔧 Token in localStorage:', !!localStorage.getItem('jwt_token'))
-        console.log('🌐 Axios default header set:', !!axios.defaults.headers.common['Authorization'])
+        console.log('✅ AuthService: Login successful, token stored and axios headers updated')
+        console.log('👤 AuthService: User data stored:', response.data.user)
+        console.log('🔧 AuthService: Token in localStorage:', !!localStorage.getItem('jwt_token'))
+        console.log('🌐 AuthService: Axios default header set:', !!axios.defaults.headers.common['Authorization'])
         
         return response.data
+      } else {
+        // Handle unsuccessful login response
+        console.log('❌ AuthService: Login failed with response:', response.data)
+        console.log('❌ AuthService: Returning failure response to LoginModal')
+        return response.data
       }
-
-      return response.data
     } catch (error) {
-      console.error('❌ Login failed:', error)
+      console.error('❌ AuthService: Login failed with error:', error)
+      console.error('❌ AuthService: Error details:', {
+        message: error.message,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data
+      })
+      
+      // If it's a 401 error with response data, return the error response
+      if (error.response && error.response.status === 401 && error.response.data) {
+        console.log('🔍 AuthService: Handling 401 error, returning response data:', error.response.data)
+        return error.response.data
+      }
+      
+      // For other types of errors, throw them
+      console.log('🔍 AuthService: Re-throwing error for other error types')
       throw error
     }
   }
@@ -217,8 +241,10 @@ class AuthService {
         console.error('❌ Response error:', error.response?.status, error.config?.url)
         const originalRequest = error.config
 
-        // Handle 401 Unauthorized errors
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        // Handle 401 Unauthorized errors, but NOT for login requests
+        if (error.response?.status === 401 && 
+            !originalRequest._retry && 
+            !originalRequest.url.includes('/api/auth/login')) {
           originalRequest._retry = true
 
           console.log('🔒 401 Unauthorized - Token expired or invalid')
@@ -244,6 +270,11 @@ class AuthService {
           window.location.href = '/'
 
           return Promise.reject(error)
+        }
+
+        // For login requests with 401, let the login method handle it
+        if (error.response?.status === 401 && originalRequest.url.includes('/api/auth/login')) {
+          console.log('🔐 Login request failed with 401 - letting login method handle it')
         }
 
         return Promise.reject(error)
