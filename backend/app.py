@@ -382,7 +382,7 @@ def api_register():
             db.session.add(parent_relationship)
 
         elif role == 'teacher':
-            relationship_type = data.get('relationship_type', 'teacher')
+            relationship_type = data.get('relationship_type', 'Teacher')
             selected_students = data.get('selectedStudents', [])
 
             if not selected_students:

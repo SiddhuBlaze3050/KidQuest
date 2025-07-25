@@ -12,6 +12,10 @@
             </div>
           </div>
           <div class="header-actions">
+            <button @click="goToAnalytics" class="analytics-btn">
+              <i class="fas fa-chart-bar"></i>
+              Analytics
+            </button>
             <button @click="logout" class="logout-btn">
               <i class="fas fa-sign-out-alt"></i>
               Logout
@@ -63,8 +67,8 @@
           </div>
         </div>
 
-        <!-- Main Features Grid -->
-        <div class="main-features-grid">
+        <!-- Second Row: Student Task Tracker and Student Progress -->
+        <div class="second-row-grid">
           <!-- Student Task Tracker -->
           <div class="feature-card task-tracker-card">
             <div class="card-header">
@@ -110,10 +114,43 @@
             </div>
           </div>
 
-          <!-- Homework Assignment -->
-          <div class="feature-card homework-card">
+          <!-- Student Progress Overview -->
+          <div class="feature-card progress-card">
             <div class="card-header">
-              <div class="card-icon">📚</div>
+              <div class="card-icon">�</div>
+              <h3>Student Progress</h3>
+            </div>
+            <div class="card-content">
+              <div class="progress-list">
+                <div v-for="student in myStudents" :key="student.id" class="progress-item">
+                  <div class="student-info">
+                    <div class="student-avatar">👨‍🎓</div>
+                    <div class="student-details">
+                      <div class="student-name">{{ student.username }}</div>
+                      <div class="student-email">{{ student.email }}</div>
+                    </div>
+                  </div>
+                  <div class="progress-stats">
+                    <div class="task-count">{{ getStudentTaskCount(student.id) }} tasks</div>
+                    <div class="completion-progress">
+                      <div class="progress-bar">
+                        <div class="progress-fill" :style="{ width: getStudentProgress(student.id) + '%' }"></div>
+                      </div>
+                      <span class="progress-text">{{ getStudentProgress(student.id) }}%</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Third Row: Homework Assignment (Full Width) -->
+        <div class="third-row-grid">
+          <!-- Homework Assignment -->
+          <div class="feature-card homework-card full-width">
+            <div class="card-header">
+              <div class="card-icon">�</div>
               <h3>Assign Homework</h3>
               <button @click="showAssignHomeworkModal = true" class="assign-btn">
                 <i class="fas fa-plus"></i>
@@ -142,68 +179,6 @@
                       <i class="fas fa-trash"></i>
                     </button>
                   </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Student Progress Overview -->
-          <div class="feature-card progress-card">
-            <div class="card-header">
-              <div class="card-icon">📈</div>
-              <h3>Student Progress</h3>
-            </div>
-            <div class="card-content">
-              <div class="progress-list">
-                <div v-for="student in myStudents" :key="student.id" class="progress-item">
-                  <div class="student-info">
-                    <div class="student-avatar">👨‍🎓</div>
-                    <div class="student-details">
-                      <div class="student-name">{{ student.username }}</div>
-                      <div class="student-email">{{ student.email }}</div>
-                    </div>
-                  </div>
-                  <div class="progress-stats">
-                    <div class="task-count">{{ getStudentTaskCount(student.id) }} tasks</div>
-                    <div class="completion-progress">
-                      <div class="progress-bar">
-                        <div class="progress-fill" :style="{ width: getStudentProgress(student.id) + '%' }"></div>
-                      </div>
-                      <span class="progress-text">{{ getStudentProgress(student.id) }}%</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Class Analytics -->
-          <div class="feature-card analytics-card">
-            <div class="card-header">
-              <div class="card-icon">📊</div>
-              <h3>Class Analytics</h3>
-            </div>
-            <div class="card-content">
-              <div class="analytics-grid">
-                <div class="analytics-item">
-                  <div class="analytics-icon">📝</div>
-                  <div class="analytics-value">{{ totalStudentTasks }}</div>
-                  <div class="analytics-label">Total Tasks</div>
-                </div>
-                <div class="analytics-item">
-                  <div class="analytics-icon">✅</div>
-                  <div class="analytics-value">{{ completedTasks }}</div>
-                  <div class="analytics-label">Completed</div>
-                </div>
-                <div class="analytics-item">
-                  <div class="analytics-icon">⏳</div>
-                  <div class="analytics-value">{{ pendingTasks }}</div>
-                  <div class="analytics-label">Pending</div>
-                </div>
-                <div class="analytics-item">
-                  <div class="analytics-icon">📚</div>
-                  <div class="analytics-value">{{ assignedHomework.length }}</div>
-                  <div class="analytics-label">Homework</div>
                 </div>
               </div>
             </div>
@@ -389,6 +364,10 @@ export default {
     const logout = () => {
       authService.logout()
       router.push('/')
+    }
+
+    const goToAnalytics = () => {
+      router.push('/teacher-analytics')
     }
 
     const loadMyStudents = async () => {
@@ -698,6 +677,7 @@ export default {
       
       // Methods
       logout,
+      goToAnalytics,
       loadStudentTasks,
       filterTasks,
       getStudentName,
@@ -791,6 +771,26 @@ export default {
   gap: 15px;
 }
 
+.analytics-btn {
+  background: rgba(76, 175, 80, 0.2);
+  border: 1px solid rgba(76, 175, 80, 0.3);
+  color: white;
+  padding: 10px 15px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(5px);
+}
+
+.analytics-btn:hover {
+  background: rgba(76, 175, 80, 0.3);
+  transform: translateY(-2px);
+}
+
 .logout-btn {
   background: rgba(255, 107, 107, 0.2);
   border: 1px solid rgba(255, 107, 107, 0.3);
@@ -876,11 +876,18 @@ export default {
 }
 
 /* Main Features Grid */
-.main-features-grid {
+.second-row-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  grid-template-columns: 1fr 1fr;
   gap: 30px;
-  margin-bottom: 40px;
+  margin-bottom: 30px;
+}
+
+.third-row-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 30px;
+  margin-bottom: 30px;
 }
 
 .feature-card {
@@ -894,6 +901,10 @@ export default {
   min-height: 400px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   background: rgba(255, 255, 255, 0.1);
+}
+
+.feature-card.full-width {
+  min-height: 300px;
 }
 
 .feature-card:hover {
@@ -1632,7 +1643,11 @@ export default {
 
 /* Responsive Design */
 @media (max-width: 768px) {
-  .main-features-grid {
+  .second-row-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .third-row-grid {
     grid-template-columns: 1fr;
   }
   

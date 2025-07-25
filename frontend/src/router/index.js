@@ -3,6 +3,7 @@ import HomeView from '../views/HomeView.vue'
 import AdminDashboard from '../views/AdminDashboard.vue'
 import ChildDashboard from '../views/ChildDashboard.vue'
 import TeacherDashboard from '../views/TeacherDashboard.vue'
+import TeacherAnalytics from '../views/TeacherAnalytics.vue'
 import ParentDashboard from '../views/ParentDashboard.vue'
 import PyschometricAssessment from '../views/PyschometricAssessment.vue'
 import GoodTouchBadTouchModule from '../views/GoodTouchBadTouchModule.vue'
@@ -70,6 +71,26 @@ const router = createRouter({
         
         if (authService.isAuthenticated() && authService.hasRole('teacher')) {
           console.log('✅ Access granted: Teacher authenticated')
+          next()
+        } else {
+          console.log('❌ Access denied: User is not a teacher or not authenticated')
+          console.log('🔍 Redirecting to home page')
+          next('/')
+        }
+      },
+    },
+    {
+      path: '/teacher-analytics',
+      name: 'teacher-analytics',
+      component: TeacherAnalytics,
+      beforeEnter: (to, from, next) => {
+        console.log('🔍 Teacher analytics route guard triggered')
+        console.log('📋 Authentication status:', authService.isAuthenticated())
+        console.log('👤 Current user:', authService.getCurrentUser())
+        console.log('🎭 Has teacher role:', authService.hasRole('teacher'))
+        
+        if (authService.isAuthenticated() && authService.hasRole('teacher')) {
+          console.log('✅ Access granted: Teacher authenticated for analytics')
           next()
         } else {
           console.log('❌ Access denied: User is not a teacher or not authenticated')
