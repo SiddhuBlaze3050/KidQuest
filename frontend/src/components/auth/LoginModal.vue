@@ -18,7 +18,7 @@
                             Username
                         </label>
                         <input id="username" v-model="username" type="text" placeholder="Enter your username" required
-                            class="form-input" :disabled="isLoading" />
+                            class="form-input" :disabled="isLoading" @input="clearError" />
                     </div>
 
                     <div class="form-group">
@@ -27,7 +27,13 @@
                             Password
                         </label>
                         <input id="password" v-model="password" type="password" placeholder="Enter your password"
-                            required class="form-input" :disabled="isLoading" />
+                            required class="form-input" :disabled="isLoading" @input="clearError" />
+                    </div>
+
+                    <!-- Error Message Display -->
+                    <div v-if="errorMessage" class="error-message">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        {{ errorMessage }}
                     </div>
 
                     <button type="submit" class="btn-primary" :disabled="isLoading">
@@ -82,16 +88,35 @@ export default {
         const username = ref('')
         const password = ref('')
         const isLoading = ref(false)
+        const errorMessage = ref('')
+
+        const clearError = () => {
+            errorMessage.value = ''
+        }
 
         const handleLogin = async () => {
             if (isLoading.value) return
 
             isLoading.value = true
+            clearError() // Clear any previous error messages
 
             try {
+                console.log('🔐 LoginModal: Attempting login with:', username.value)
+                console.log('🔐 LoginModal: Calling authService.login...')
+                
                 const response = await authService.login(username.value, password.value)
+                
+                console.log('📊 LoginModal: Received response from authService:', response)
+                console.log('📊 LoginModal: Response type:', typeof response)
+                console.log('📊 LoginModal: Response success property:', response?.success)
+                console.log('📊 LoginModal: Response success check result:', response && response.success === true)
 
-                if (response.success) {
+                if (response && response.success === true) {
+                    console.log('🎉 LoginModal: Login successful!')
+                    console.log('📋 LoginModal: Response data:', response)
+                    console.log('👤 LoginModal: User data:', response.user)
+                    console.log('🎭 LoginModal: User role:', response.user.role)
+                    
                     // Emit success immediately without waiting for alert
                     isLoading.value = false
                     emit('success', response)
@@ -109,37 +134,103 @@ export default {
                         })
                     }, 300)
                 } else {
+                    // Handle failed login response (wrong credentials)
+                    console.log('❌ LoginModal: Login failed with response:', response)
+                    console.log('❌ LoginModal: Response success:', response?.success)
+                    console.log('❌ LoginModal: Response error:', response?.error)
+                    
                     isLoading.value = false
+                    const errorText = response?.error || 'Invalid username or password. Please try again.'
+                    errorMessage.value = errorText
 
-                    await Swal.fire({
+                    // Show prominent error popup for failed login
+                    console.log('🚨 LoginModal: About to show error popup for failed login:', errorText)
+                    console.log('🚨 LoginModal: Calling Swal.fire...')
+                    
+                    Swal.fire({
                         icon: 'error',
-                        title: 'Oops! Adventure Blocked 🚫',
-                        text: 'Invalid credentials. Try again, brave adventurer!',
-                        timer: 3000,
-                        showConfirmButton: false,
-                        background: 'linear-gradient(135deg, #ff6b6b, #ffa726)',
-                        color: 'white'
+                        title: 'Login Failed! 🚫',
+                        html: `<div style="font-size: 1.1rem; line-height: 1.5;">
+                            <strong>Authentication Error</strong><br>
+                            ${errorText}<br><br>
+                            <em>Please check your credentials and try again.</em>
+                        </div>`,
+                        timer: 0, // No auto-close
+                        showConfirmButton: true,
+                        confirmButtonText: 'Try Again',
+                        background: 'linear-gradient(135deg, #ff4444, #cc0000)',
+                        color: 'white',
+                        confirmButtonColor: '#ff6666',
+                        backdrop: 'rgba(0,0,0,0.9)',
+                        customClass: {
+                            popup: 'error-popup-large',
+                            confirmButton: 'error-confirm-btn'
+                        },
+                        width: '500px',
+                        padding: '2rem'
+                    }).then(() => {
+                        console.log('🚨 LoginModal: Error popup closed')
                     })
+                    
+                    console.log('🚨 LoginModal: Error popup should now be visible')
                 }
             } catch (error) {
-                console.error('Login failed:', error)
+                console.error('❌ LoginModal: Login error caught:', error)
+                console.error('❌ LoginModal: Error details:', {
+                    message: error.message,
+                    status: error.response?.status,
+                    statusText: error.response?.statusText,
+                    data: error.response?.data
+                })
+                
                 isLoading.value = false
 
-                let errorMessage = 'Invalid credentials. Try again, brave adventurer!'
-                if (error.response?.data?.error) {
-                    errorMessage = error.response.data.error
-                } else if (error.message) {
-                    errorMessage = error.message
+                let errorText = 'Connection error. Please check your internet connection and try again.'
+                
+                // Handle different error types
+                if (error.response) {
+                    console.log('🌐 LoginModal: Server error response:', error.response)
+                    // Server responded with error status
+                    if (error.response.status === 401) {
+                        errorText = 'Invalid username or password. Please try again.'
+                    } else if (error.response.data?.error) {
+                        errorText = error.response.data.error
+                    }
+                } else if (error.request) {
+                    // Network error
+                    console.log('🌐 LoginModal: Network error:', error.request)
+                    errorText = 'Connection error. Please check your internet connection.'
+                } else {
+                    // Other error
+                    console.log('⚠️ LoginModal: Other error:', error.message)
+                    errorText = error.message || 'An unexpected error occurred.'
                 }
 
-                await Swal.fire({
+                errorMessage.value = errorText
+
+                // Always show error popup for any login failure
+                console.log('🚨 LoginModal: Showing error popup for network/other error:', errorText)
+                Swal.fire({
                     icon: 'error',
-                    title: 'Oops! Adventure Blocked 🚫',
-                    text: errorMessage,
-                    timer: 3000,
-                    showConfirmButton: false,
-                    background: 'linear-gradient(135deg, #ff6b6b, #ffa726)',
-                    color: 'white'
+                    title: 'Login Failed! 🚫',
+                    html: `<div style="font-size: 1.1rem; line-height: 1.5;">
+                        <strong>Connection Error</strong><br>
+                        ${errorText}<br><br>
+                        <em>Please check your connection and try again.</em>
+                    </div>`,
+                    timer: 0, // No auto-close
+                    showConfirmButton: true,
+                    confirmButtonText: 'Try Again',
+                    background: 'linear-gradient(135deg, #ff4444, #cc0000)',
+                    color: 'white',
+                    confirmButtonColor: '#ff6666',
+                    backdrop: 'rgba(0,0,0,0.9)',
+                    customClass: {
+                        popup: 'error-popup-large',
+                        confirmButton: 'error-confirm-btn'
+                    },
+                    width: '500px',
+                    padding: '2rem'
                 })
             }
         }
@@ -166,10 +257,12 @@ export default {
             username,
             password,
             isLoading,
+            errorMessage,
             handleLogin,
             handleBackdropClick,
             handleCloseClick,
-            handleSwitchToRegister
+            handleSwitchToRegister,
+            clearError
         }
     }
 }
@@ -363,6 +456,87 @@ export default {
     color: #9ca3af;
     cursor: not-allowed;
     opacity: 0.7;
+}
+
+/* Error Message Styles */
+.error-message {
+    background: linear-gradient(135deg, #fee2e2, #fecaca);
+    border: 2px solid #ef4444;
+    color: #dc2626;
+    padding: 1.25rem 1.5rem;
+    border-radius: 15px;
+    font-size: 1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.5rem;
+    animation: errorSlideIn 0.3s ease-out, errorPulse 0.5s ease-in-out;
+    box-shadow: 0 8px 25px rgba(220, 38, 38, 0.2);
+    position: relative;
+    overflow: hidden;
+}
+
+.error-message::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #ef4444, #dc2626, #ef4444);
+    animation: errorGlow 2s linear infinite;
+}
+
+.error-message i {
+    color: #dc2626;
+    font-size: 1.3rem;
+    flex-shrink: 0;
+    animation: errorIconShake 0.5s ease-in-out;
+}
+
+@keyframes errorSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes errorPulse {
+    0% {
+        box-shadow: 0 8px 25px rgba(220, 38, 38, 0.2);
+    }
+    50% {
+        box-shadow: 0 8px 35px rgba(220, 38, 38, 0.4);
+    }
+    100% {
+        box-shadow: 0 8px 25px rgba(220, 38, 38, 0.2);
+    }
+}
+
+@keyframes errorGlow {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+@keyframes errorIconShake {
+    0%, 100% {
+        transform: translateX(0);
+    }
+    25% {
+        transform: translateX(-3px);
+    }
+    75% {
+        transform: translateX(3px);
+    }
 }
 
 .btn-primary {
@@ -586,5 +760,27 @@ export default {
     font-size: 1.1rem;
     font-weight: 600;
     color: #667eea;
+}
+
+/* Enhanced Error Popup Styles */
+:global(.error-popup-large) {
+    font-size: 1.1rem !important;
+    border-radius: 20px !important;
+    box-shadow: 0 20px 60px rgba(255, 68, 68, 0.4) !important;
+    border: 2px solid rgba(255, 255, 255, 0.3) !important;
+}
+
+:global(.error-confirm-btn) {
+    border-radius: 25px !important;
+    padding: 12px 30px !important;
+    font-weight: 600 !important;
+    font-size: 1rem !important;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3) !important;
+    transition: all 0.3s ease !important;
+}
+
+:global(.error-confirm-btn:hover) {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4) !important;
 }
 </style>

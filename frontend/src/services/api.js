@@ -15,13 +15,10 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     console.log('Making API request:', config.method?.toUpperCase(), config.url)
-
-    // Add JWT token to all requests (except login/register)
-    const token = authService.getToken()
-    if (token && !config.url.includes('/api/auth/')) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-
+    
+    // The authorization header is already set by authService globally
+    // No need to add it here again to avoid conflicts
+    
     return config
   },
   (error) => {
@@ -39,17 +36,7 @@ api.interceptors.response.use(
   (error) => {
     console.error('API Error:', error.response?.data || error.message)
 
-    // Handle JWT authentication errors
-    if (error.response?.status === 401) {
-      // Don't redirect for login endpoint - let the login function handle it
-      if (error.config.url === '/api/auth/login') {
-        return Promise.reject(error)
-      }
-
-      // Handle unauthorized access for other endpoints
-      authService.logout()
-    }
-
+    // Let authService handle 401 errors to avoid duplicate handling
     return Promise.reject(error)
   },
 )
@@ -66,6 +53,16 @@ export const apiService = {
         return response.data
       }
       throw new Error(response.data.error || 'Registration failed')
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // Get available students for teacher registration
+  async getAvailableStudents() {
+    try {
+      const response = await api.get('/api/students/available')
+      return response.data
     } catch (error) {
       throw error
     }
@@ -298,6 +295,53 @@ export const apiService = {
   async updateTaskStatus(taskId, status) {
     try {
       const response = await api.put(`/api/tasks/${taskId}/status`, { status })
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // Teacher Management APIs
+  async getTeacherStudents(teacherId) {
+    try {
+      const response = await api.get(`/api/teacher/students/${teacherId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async getStudentTasksForTeacher(teacherId) {
+    try {
+      const response = await api.get(`/api/teacher/student-tasks/${teacherId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async getTeacherHomework(teacherId) {
+    try {
+      const response = await api.get(`/api/teacher/homework/${teacherId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async assignHomework(homeworkData) {
+    try {
+      const response = await api.post('/api/teacher/assign-homework', homeworkData)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // Generic task function for compatibility with teacher dashboard
+  async getUserTasks(userId) {
+    try {
+      const response = await api.get(`/api/tasks/${userId}`)
       return response.data
     } catch (error) {
       throw error
@@ -550,6 +594,16 @@ export const apiService = {
       const response = await api.post('/api/notifications/create-sample', {
         user_id: userId,
       })
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // Admin dashboard
+  async getAdminStats() {
+    try {
+      const response = await api.get('/api/admin/dashboard-stats')
       return response.data
     } catch (error) {
       throw error

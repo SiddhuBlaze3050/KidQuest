@@ -15,15 +15,13 @@ import time
 import traceback
 from datetime import datetime, date
 import json
+from collections import defaultdict
 
 # NEW: JWT imports
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 
 # Import our psychometry module
 from services.psychometry import PsychometryService
-
-# Add these imports at the top of the file
-import math
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -383,6 +381,25 @@ def api_register():
             )
             db.session.add(parent_relationship)
 
+        elif role == 'teacher':
+            relationship_type = data.get('relationship_type', 'Teacher')
+            selected_students = data.get('selectedStudents', [])
+
+            if not selected_students:
+                return jsonify({'success': False, 'error': 'At least one student must be selected for teacher registration'}), 400
+
+            # Create teacher-student relationships for each selected student
+            for student_id in selected_students:
+                # Verify student exists and has 'child' role
+                student = User.query.filter_by(id=student_id, role='child').first()
+                if student:
+                    teacher_relationship = ParentChild(
+                        parent_id=user.id,
+                        child_id=student.id,
+                        relationship_type=relationship_type
+                    )
+                    db.session.add(teacher_relationship)
+
         db.session.commit()
 
         return jsonify({
@@ -559,6 +576,36 @@ def get_current_user_profile():
         }), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+# ---------------------------
+# Student Management Routes
+# ---------------------------
+
+@app.route('/api/students/available', methods=['GET'])
+def get_available_students():
+    """Get list of available students for teacher registration"""
+    try:
+        # Get all users with role 'child'
+        students = User.query.filter_by(role='child').all()
+        
+        student_list = []
+        for student in students:
+            student_list.append({
+                'id': student.id,
+                'username': student.username,
+                'email': student.email,
+                'avatar': '🎓'  # Default avatar for students
+            })
+        
+        return jsonify({
+            'success': True,
+            'data': student_list
+        }), 200
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 # ---------------------------
 # Health Tracker
@@ -821,132 +868,113 @@ def get_login_streak(user_id):
 # Dashboard Statistics Calculation Functions
 # ---------------------------
 
-def calculate_quests_completed(user_id):
-    """Calculate total quests/tasks completed by a user - only from task tracker"""
+def calculate_total_stars(user_id):
+    """Calculate total stars earned by a user - simplified using Achievement table"""
     try:
-        # Count completed tasks from HomeworkSchedule
-        completed_tasks = HomeworkSchedule.query.filter_by(
-            user_id=user_id, 
-            status='completed'
-        ).count()
+        stars = 0
         
-        # Count savings goals
-        savings_goals_count = SavingGoal.query.filter_by(user_id=user_id).count()
+        # Stars per achievement based on activity type
+        achievements = Achievement.query.filter_by(user_id=user_id).all()
+        for achievement in achievements:
+            if 'Memory Game' in achievement.badge_name:
+                stars += 5  # Memory Game gives 5 stars
+            else:
+                stars += 10  # Other activities give 10 stars
         
-        # Total quests is completed tasks plus 1 if any savings goal exists
-        total_quests = completed_tasks + (1 if savings_goals_count > 0 else 0)
+        # 1 star per login streak day
+        login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
+        if login_streak:
+            stars += login_streak.current_streak * 1
         
-        print(f"📊 Quests calculated for user {user_id}: {total_quests} total quests")
-        print(f"  - Completed Tasks: {completed_tasks}")
-        print(f"  - Savings Goals Exist: {savings_goals_count > 0}")
+        # 2 stars per health streak day  
+        health_streak = HealthStreak.query.filter_by(user_id=user_id).first()
+        if health_streak:
+            stars += health_streak.current_streak * 2
         
-        return total_quests
+        return stars
+    except Exception as e:
+        print(f"Error calculating total stars: {e}")
+        return 0
+
+def calculate_quests_completed(user_id):
+    """Calculate total quests/activities completed by a user - includes modules, tasks, and achievements"""
+    try:
+        quests = 0
+        
+        # 1. Count completed module submodules from UserModuleProgress
+        module_progress = UserModuleProgress.query.filter_by(user_id=user_id, completed=True).all()
+        quests += len(module_progress)
+        
+        # 2. Count completed tasks from HomeworkSchedule (task tracker)
+        completed_tasks = HomeworkSchedule.query.filter_by(user_id=user_id, status='completed').all()
+        quests += len(completed_tasks)
+        
+        # 3. Count achievements (excluding module progress records)
+        achievements = Achievement.query.filter_by(user_id=user_id).all()
+        for achievement in achievements:
+            # Skip module progress records (they're stored as achievements but counted above)
+            if not achievement.badge_name or not achievement.badge_name.startswith('module_'):
+                quests += 1
+        
+        print(f"📊 Quests calculated for user {user_id}: {quests} total (modules: {len(module_progress)}, tasks: {len(completed_tasks)}, achievements: {len([a for a in achievements if not a.badge_name or not a.badge_name.startswith('module_')])})")
+        
+        return quests
     except Exception as e:
         print(f"Error calculating quests completed: {e}")
         return 0
 
 def calculate_skills_mastered(user_id):
-    """Calculate number of skills mastered by a user"""
+    """Calculate number of skills mastered by a user - simplified using Achievement table"""
     try:
-        # Get module progress records
-        module_progress = UserModuleProgress.query.filter_by(
-            user_id=user_id, 
-            completed=True
-        ).all()
+        # Simple calculation: every 3 achievements = 1 skill mastered
+        achievements_count = Achievement.query.filter_by(user_id=user_id).count()
+        skills = achievements_count // 3  # Integer division
         
-        # Count unique completed modules
-        completed_modules = set(
-            progress.module_name for progress in module_progress 
-            if progress.completed and not progress.module_name.startswith('module_')
-        )
-        
-        return len(completed_modules)
+        return skills
     except Exception as e:
         print(f"Error calculating skills mastered: {e}")
         return 0
 
 def calculate_todays_goals(user_id, today):
-    """
-    Calculate goals completed today based on various activities.
-    
-    Note: This function is for display purposes only and provides 
-    a snapshot of daily achievements across various activities.
-    """
+    """Calculate goals completed today - includes various goal sources"""
     try:
         goals = 0
         
-        # 1. Water Log - add 1 if user has logged water that day
-        water_log = WaterLog.query.filter_by(user_id=user_id, date=today).first()
-        if water_log and water_log.count > 0:
-            goals += 1
+        # 1. Achievements earned today (excluding module progress)
+        today_achievements = Achievement.query.filter_by(user_id=user_id).filter(
+            db.func.date(Achievement.date_awarded) == today
+        ).all()
+        for achievement in today_achievements:
+            if not achievement.badge_name or not achievement.badge_name.startswith('module_'):
+                goals += 1
         
-        # 2. Transactions - add 1 if transaction on that day
-        transaction = Transaction.query.filter_by(user_id=user_id).filter(
-            Transaction.date == today
-        ).first()
-        if transaction:
-            goals += 1
+        # 2. Module progress completed today (simplified - count all completed modules)
+        today_module_progress = UserModuleProgress.query.filter_by(user_id=user_id, completed=True).count()
+        goals += today_module_progress
         
-        # 3. Login Streak - add 1 if login streak record exists for today
+        # 3. Tasks completed today (from task tracker - simplified)
+        today_tasks = HomeworkSchedule.query.filter_by(user_id=user_id, status='completed').count()
+        goals += today_tasks
+        
+        # 4. Health tasks completed today
+        today_health_tasks = HealthTask.query.filter_by(user_id=user_id, completed=True, date=today).count()
+        goals += today_health_tasks
+        
+        # 5. Login streak (if logged in today)
         login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
         if login_streak and login_streak.last_login_date == today:
             goals += 1
         
-        # 4. Pomodoro Session - add 1 if start time is today
-        pomodoro_session = PomodoroSession.query.filter(
-            PomodoroSession.user_id == user_id,
-            db.func.date(PomodoroSession.start_time) == today
-        ).first()
-        if pomodoro_session:
+        # 6. Water intake goal (if drank water today)
+        water_log = WaterLog.query.filter_by(user_id=user_id, date=today).first()
+        if water_log and water_log.count >= 8:  # 8 glasses goal
             goals += 1
         
-        # 5. LLM Interaction - add 1 if interaction created today
-        llm_interaction = LLMInteractions.query.filter(
-            LLMInteractions.user_id == user_id,
-            db.func.date(LLMInteractions.user_timestamp) == today
-        ).first()
-        if llm_interaction:
-            goals += 1
-        
-        # 6. Task Creation - add 1 if task created today
-        task_created = HomeworkSchedule.query.filter(
-            HomeworkSchedule.user_id == user_id,
-            db.func.date(HomeworkSchedule.created_at) == today
-        ).first()
-        if task_created:
-            goals += 1
-        
-        # 7. Health Tasks - add 1 for each completed health task
-        completed_health_tasks = HealthTask.query.filter_by(
-            user_id=user_id, 
-            completed=True, 
-            date=today
-        ).count()
-        goals += completed_health_tasks
-        
-        # 8. Doodle Session - add 1 if doodle session on that day
-        doodle_session = DoodleSession.query.filter(
-            DoodleSession.user_id == user_id,
-            db.func.date(DoodleSession.timestamp) == today
-        ).first()
-        if doodle_session:
-            goals += 1
-        
-        print(f"📊 Today's goals for user {user_id}: {goals} total")
-        print(f"🚰 Water Log: {bool(water_log and water_log.count > 0)}")
-        print(f"💰 Transaction: {bool(transaction)}")
-        print(f"🔑 Login: {bool(login_streak and login_streak.last_login_date == today)}")
-        print(f"⏰ Pomodoro Session: {bool(pomodoro_session)}")
-        print(f"💬 LLM Interaction: {bool(llm_interaction)}")
-        print(f"📋 Task Created: {bool(task_created)}")
-        print(f"🏃 Health Tasks Completed: {completed_health_tasks}")
-        print(f"🎨 Doodle Session: {bool(doodle_session)}")
+        print(f"📊 Today's goals for user {user_id}: {goals} total (achievements: {len([a for a in today_achievements if not a.badge_name or not a.badge_name.startswith('module_')])}, modules: {today_module_progress}, tasks: {today_tasks}, health: {today_health_tasks})")
         
         return goals
     except Exception as e:
-        print(f"❌ Error calculating today's goals: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"Error calculating today's goals: {e}")
         return 0
 
 # ---------------------------
@@ -976,8 +1004,8 @@ def api_child_stats(user_id):
         login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
         streak_days = login_streak.current_streak if login_streak else 0
         
-        # Calculate user level based on login streak
-        user_level = max(1, streak_days // 7)
+        # Calculate user level based on total stars
+        user_level = max(1, total_stars // 50)  # Level up every 50 stars
         
         stats = {
             'totalStars': total_stars,
@@ -1641,6 +1669,184 @@ def update_task_status(task_id):
         print(f"✅ Task {task_id} status updated to '{new_status}'")
         
         return jsonify({'success': True, 'message': f'Task status updated to {new_status}'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ---------------------------
+# Teacher Management Routes
+# ---------------------------
+@app.route('/api/teacher/students/<int:teacher_id>', methods=['GET'])
+@jwt_required()
+def get_teacher_students(teacher_id):
+    """Get all students assigned to a specific teacher - requires JWT token"""
+    try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        
+        # Authorization: only the teacher themselves can access their students
+        if current_user.id != teacher_id or current_user.role != 'teacher':
+            return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
+        
+        # Get students through ParentChild table where parent_id is the teacher
+        student_relationships = ParentChild.query.filter_by(parent_id=teacher_id).all()
+        students_data = []
+        
+        for relationship in student_relationships:
+            student = User.query.get(relationship.child_id)
+            if student:
+                students_data.append({
+                    'id': student.id,
+                    'username': student.username,
+                    'email': student.email,
+                    'role': student.role
+                })
+        
+        return jsonify({
+            'success': True,
+            'students': students_data
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/teacher/student-tasks/<int:teacher_id>', methods=['GET'])
+@jwt_required()
+def get_student_tasks_for_teacher(teacher_id):
+    """Get all tasks created by students under a specific teacher"""
+    try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        
+        # Authorization: only the teacher themselves can access their students' tasks
+        if current_user.id != teacher_id or current_user.role != 'teacher':
+            return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
+        
+        # Get students under this teacher
+        student_relationships = ParentChild.query.filter_by(parent_id=teacher_id).all()
+        student_ids = [rel.child_id for rel in student_relationships]
+        
+        # Get all tasks for these students
+        all_tasks = []
+        for student_id in student_ids:
+            tasks = HomeworkSchedule.query.filter_by(user_id=student_id).order_by(HomeworkSchedule.due_date.asc()).all()
+            
+            for task in tasks:
+                # Get session statistics
+                sessions = PomodoroSession.query.filter_by(homework_id=task.id)
+                total_work_time = sum(s.work_duration for s in sessions if s.work_duration)
+                total_time_spent_minutes = total_work_time // 60 if total_work_time else 0
+                
+                all_tasks.append({
+                    'id': task.id,
+                    'user_id': task.user_id,
+                    'subject': task.subject,
+                    'task': task.task,
+                    'due_date': task.due_date.isoformat() if task.due_date else None,
+                    'status': task.status,
+                    'created_at': task.created_at.isoformat() if task.created_at else None,
+                    'time_spent': total_time_spent_minutes
+                })
+        
+        return jsonify({
+            'success': True,
+            'tasks': all_tasks
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/teacher/homework/<int:teacher_id>', methods=['GET'])
+@jwt_required()
+def get_teacher_homework(teacher_id):
+    """Get all homework assigned by a specific teacher"""
+    try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        
+        # Authorization: only the teacher themselves can access their assigned homework
+        if current_user.id != teacher_id or current_user.role != 'teacher':
+            return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
+        
+        # Get homework assigned by this teacher
+        # Using a custom field to track teacher-assigned homework
+        homework_tasks = HomeworkSchedule.query.filter_by(assigned_by_teacher=teacher_id).order_by(HomeworkSchedule.due_date.asc()).all()
+        
+        homework_data = []
+        for task in homework_tasks:
+            homework_data.append({
+                'id': task.id,
+                'subject': task.subject,
+                'task': task.task,
+                'due_date': task.due_date.isoformat() if task.due_date else None,
+                'status': task.status,
+                'assigned_to': [task.user_id],  # Currently single user, could be extended for multiple
+                'created_at': task.created_at.isoformat() if task.created_at else None
+            })
+        
+        return jsonify({
+            'success': True,
+            'homework': homework_data
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/teacher/assign-homework', methods=['POST'])
+@jwt_required()
+def assign_homework():
+    """Allow teacher to assign homework to multiple students"""
+    try:
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        data = request.get_json()
+        
+        # Authorization: only teachers can assign homework
+        if current_user.role != 'teacher':
+            return jsonify({'success': False, 'error': 'Only teachers can assign homework'}), 403
+        
+        # Validate required fields
+        required_fields = ['subject', 'task', 'due_date', 'assigned_to']
+        for field in required_fields:
+            if field not in data or not data[field]:
+                return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
+        
+        # Parse due date
+        try:
+            due_date = date.fromisoformat(data['due_date'])
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+        
+        # Verify students belong to this teacher
+        student_ids = data['assigned_to']
+        teacher_relationships = ParentChild.query.filter_by(parent_id=current_user_id).all()
+        teacher_student_ids = [rel.child_id for rel in teacher_relationships]
+        
+        unauthorized_students = [sid for sid in student_ids if sid not in teacher_student_ids]
+        if unauthorized_students:
+            return jsonify({'success': False, 'error': f'Unauthorized to assign homework to students: {unauthorized_students}'}), 403
+        
+        # Create homework tasks for each student
+        created_tasks = []
+        current_time = datetime.utcnow()
+        
+        for student_id in student_ids:
+            new_task = HomeworkSchedule(
+                user_id=student_id,
+                subject=data['subject'],
+                task=data['task'],
+                due_date=due_date,
+                assigned_by_teacher=current_user_id,
+                created_at=current_time,
+                status='pending'
+            )
+            db.session.add(new_task)
+            created_tasks.append(new_task)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Homework assigned to {len(student_ids)} students',
+            'assigned_tasks': len(created_tasks)
+        }), 201
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -3083,263 +3289,45 @@ def logout():
             'success': False,
             'error': str(e)
         }), 500
-
-# Add these functions near other utility functions
-
-def calculate_user_level(total_stars):
-    """Calculate user level based on total stars"""
-    return max(1, total_stars // 50)  # Level up every 50 stars
-
-def generate_level_achievement(user_id):
-    """Generate level-based achievement"""
-    # Calculate total stars for level determination
-    total_stars = calculate_total_stars(user_id)
     
-    # Count completed tasks
-    completed_tasks = HomeworkSchedule.query.filter_by(
-        user_id=user_id, 
-        status='completed'
-    ).count()
-    
-    # Count skills mastered
-    skills_mastered = UserModuleProgress.query.filter_by(
-        user_id=user_id, 
-        completed=True
-    ).count()
-    
-    # Frontend-like level calculation
-    # Base level from stars (every 10 stars = 1 level)
-    star_levels = max(1, completed_tasks // 10)
-    
-    # Bonus levels from skills mastered (each 100% module = +2 levels)
-    skill_bonus_levels = skills_mastered * 2
-    
-    # Total level calculation
-    level = max(1, star_levels + skill_bonus_levels)
-    
-    # Define level-based badges
-    level_badges = {
-        1: {'name': 'Novice Explorer', 'icon': '🌱', 'description': 'Just starting the adventure!'},
-        2: {'name': 'Curious Learner', 'icon': '🔍', 'description': 'Gaining knowledge and skills'},
-        3: {'name': 'Knowledge Seeker', 'icon': '📚', 'description': 'Diving deep into learning'},
-        4: {'name': 'Skill Master', 'icon': '🏆', 'description': 'Mastering new challenges'},
-        5: {'name': 'Wisdom Warrior', 'icon': '🌟', 'description': 'Becoming a true champion of learning'}
-    }
-    
-    # Use the highest available badge or the last one if level exceeds defined badges
-    badge_info = level_badges.get(level, list(level_badges.values())[-1])
-    
-    return {
-        'badge_name': f"Level {level} {badge_info['name']}",
-        'description': badge_info['description'],
-        'icon': badge_info['icon']
-    }
-
-def generate_skill_achievement(user_id):
-    """Generate skill-based achievement"""
-    skills_mastered = calculate_skills_mastered(user_id)
-    
-    # Define skill-based badges
-    skill_badges = {
-        0: {'name': 'Beginner', 'icon': '��', 'description': 'No skills mastered yet'},
-        1: {'name': 'Apprentice', 'icon': '🛠️', 'description': 'Mastered first skill'},
-        2: {'name': 'Practitioner', 'icon': '🧩', 'description': 'Developing multiple skills'},
-        3: {'name': 'Expert', 'icon': '🏅', 'description': 'Mastering diverse skills'},
-        4: {'name': 'Polymath', 'icon': '🌈', 'description': 'A true multi-skilled learner'}
-    }
-    
-    # Use the highest available badge or the last one if skills exceed defined badges
-    badge_level = min(skills_mastered, len(skill_badges) - 1)
-    badge_info = skill_badges[badge_level]
-    
-    return {
-        'badge_name': f"{badge_info['name']} ({skills_mastered} Skills)" if skills_mastered > 0 else badge_info['name'],
-        'description': badge_info['description'],
-        'icon': badge_info['icon']
-    }
-
-def generate_streak_achievement(user_id):
-    """Generate streak-based achievement"""
-    # Check both login and health streaks
-    login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
-    health_streak = HealthStreak.query.filter_by(user_id=user_id).first()
-    
-    # Combine streaks
-    total_streak = (login_streak.current_streak if login_streak else 0) + \
-                   (health_streak.current_streak if health_streak else 0)
-    
-    # Define military-themed streak badges
-    streak_badges = [
-        {'name': 'Recruit', 'icon': '🎖️', 'description': 'Just starting the journey', 'min_streak': 0},
-        {'name': 'Private', 'icon': '💪', 'description': 'Building consistent habits', 'min_streak': 5},
-        {'name': 'Corporal', 'icon': '🏋️', 'description': 'Developing strong discipline', 'min_streak': 10},
-        {'name': 'Sergeant', 'icon': '🌟', 'description': 'Mastering personal growth', 'min_streak': 15},
-        {'name': 'Lieutenant', 'icon': '��', 'description': 'Leading by example', 'min_streak': 20},
-        {'name': 'Captain', 'icon': '🏆', 'description': 'Exceptional consistency', 'min_streak': 25},
-        {'name': 'Major', 'icon': '🌈', 'description': 'Extraordinary commitment', 'min_streak': 30},
-        {'name': 'Colonel', 'icon': '💎', 'description': 'Legendary discipline', 'min_streak': 40},
-        {'name': 'General', 'icon': '✨', 'description': 'Ultimate achievement', 'min_streak': 50}
-    ]
-    
-    # Find the appropriate badge based on total streak
-    current_badge = streak_badges[0]
-    for badge in reversed(streak_badges):
-        if total_streak >= badge['min_streak']:
-            current_badge = badge
-            break
-    
-    return {
-        'badge_name': f"{current_badge['name']} (Streak: {total_streak})",
-        'description': current_badge['description'],
-        'icon': current_badge['icon']
-    }
-
-@app.route('/user/<int:user_id>/achievements', methods=['GET'])
-@jwt_required()
-def get_user_achievements_cards(user_id):
-    """Get achievement cards for a user"""
+@app.route('/api/admin/dashboard-stats', methods=['GET'])
+def get_admin_dashboard_stats():
     try:
-        # Calculate total stars for level-based achievement
-        total_stars = calculate_total_stars(user_id)
-        
-        # Generate achievement cards
-        achievements = {
-            'level_achievement': generate_level_achievement(user_id),
-            'skill_achievement': generate_skill_achievement(user_id),
-            'streak_achievement': generate_streak_achievement(user_id)
+        today = date.today()
+
+        # Get screen time entries only for today
+        today_screen_data = ScreenTime.query.filter_by(date=today).all()
+
+        # Sum screen time per child user
+        user_hours = defaultdict(float)
+        for entry in today_screen_data:
+            # Ensure the user is a child (optional if you're confident only child users are in screen_time)
+            user = User.query.get(entry.user_id)
+            if user and user.role == 'child':
+                user_hours[entry.user_id] += entry.hours
+
+        # Total number of child users who logged screen time today
+        total_children_with_data = len(user_hours)
+
+        # Average screen time (in hours), then convert to MM:SS
+        avg_screen_time = (sum(user_hours.values()) / total_children_with_data) if total_children_with_data > 0 else 0
+        # Convert to total seconds, not minutes
+        total_seconds = round(avg_screen_time * 3600)
+        mm, ss = divmod(total_seconds, 60)
+        formatted_avg = f"{mm:02d}:{ss:02d}"
+
+
+        stats = {
+            "totalUsers": User.query.filter_by(role='child').count(),  # only child users
+            "chatSessions": ChatSession.query.count(),
+            "achievements": Achievement.query.count(),
+            "avg_screen_time_per_user": formatted_avg
         }
-        
-        return jsonify({
-            'success': True,
-            'achievements': achievements
-        }), 200
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
 
-def update_user_achievements(user_id):
-    """Compute and store achievements for a user with only three records"""
-    try:
-        # Calculate total stars for level determination
-        total_stars = calculate_total_stars(user_id)
-        
-        # Generate achievements
-        level_achievement = generate_level_achievement(user_id)
-        skill_achievement = generate_skill_achievement(user_id)
-        streak_achievement = generate_streak_achievement(user_id)
-        
-        # Define achievement types
-        achievement_types = [
-            {'type': 'level', 'data': level_achievement},
-            {'type': 'skill', 'data': skill_achievement},
-            {'type': 'streak', 'data': streak_achievement}
-        ]
-        
-        # Clear existing system-generated achievements
-        Achievement.query.filter(
-            Achievement.user_id == user_id,
-            Achievement.badge_name.in_([
-                'Level Achievement', 
-                'Skills Achievement', 
-                'Streak Achievement'
-            ])
-        ).delete()
-        
-        # Add new achievements
-        for achievement_type in achievement_types:
-            new_achievement = Achievement(
-                user_id=user_id,
-                badge_name=f"{achievement_type['type'].capitalize()} Achievement",
-                description=achievement_type['data']['description']
-            )
-            db.session.add(new_achievement)
-        
-        db.session.commit()
-        
-        return {
-            'level_achievement': level_achievement,
-            'skill_achievement': skill_achievement,
-            'streak_achievement': streak_achievement
-        }
-    except Exception as e:
-        db.session.rollback()
-        print(f"Error updating user achievements: {e}")
-        return None
+        return jsonify(stats), 200
 
-@app.route('/user/<int:user_id>/achievements/update', methods=['POST'])
-@jwt_required()
-def update_user_achievements_route(user_id):
-    """Route to update user achievements"""
-    try:
-        # Verify the user is requesting their own achievements or is an admin
-        current_user_id = get_jwt_identity()
-        current_user = User.query.get(current_user_id)
-        
-        if current_user_id != user_id and current_user.role != 'parent':
-            return jsonify({
-                'success': False, 
-                'error': 'Unauthorized to update achievements for this user'
-            }), 403
-        
-        # Update achievements
-        achievements = update_user_achievements(user_id)
-        
-        if achievements:
-            return jsonify({
-                'success': True,
-                'achievements': achievements
-            }), 200
-        else:
-            return jsonify({
-                'success': False,
-                'error': 'Failed to update achievements'
-            }), 500
     except Exception as e:
-        print(f"Error in update_user_achievements_route: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/user/recalculate-stars/<int:user_id>', methods=['GET'])
-@jwt_required()
-def recalculate_user_stars(user_id):
-    """Manually recalculate and return user's total stars"""
-    try:
-        # Verify the user is requesting their own stars or is an admin
-        current_user_id = get_jwt_identity()
-        current_user = User.query.get(current_user_id)
-        
-        if current_user_id != user_id and current_user.role != 'parent':
-            return jsonify({
-                'success': False, 
-                'error': 'Unauthorized to recalculate stars for this user'
-            }), 403
-        
-        # Calculate total stars
-        total_stars = calculate_total_stars(user_id)
-        
-        # Get login streak for additional context
-        login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
-        streak_days = login_streak.current_streak if login_streak else 0
-        
-        # Calculate level (same logic as in calculate_total_stars)
-        level = max(1, streak_days // 7)
-        
-        return jsonify({
-            'success': True,
-            'total_stars': total_stars,
-            'current_level': level,
-            'streak_days': streak_days
-        }), 200
-    except Exception as e:
-        print(f"Error recalculating stars for user {user_id}: {e}")
-        return jsonify({
-            'success': False, 
-            'error': str(e)
-        }), 500
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     # Initialize database when running directly

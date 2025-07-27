@@ -33,18 +33,18 @@
                     </div>
 
                     <div class="stat-card">
-                        <div class="stat-icon">💬</div>
+                        <div class="stat-icon">⏱️</div>
                         <div class="stat-content">
-                            <h3>Chat Messages</h3>
-                            <div class="stat-number">{{ stats.totalMessages }}</div>
+                            <h3>Avg. Screen time(mins)</h3>
+                            <div class="stat-number">{{ stats.avg_screen_time_per_user }}</div>
                         </div>
                     </div>
 
                     <div class="stat-card">
                         <div class="stat-icon">🎯</div>
                         <div class="stat-content">
-                            <h3>Active Sessions</h3>
-                            <div class="stat-number">{{ stats.activeSessions }}</div>
+                            <h3>Chat Sessions</h3>
+                            <div class="stat-number">{{ stats.chatSessions }}</div>
                         </div>
                     </div>
 
@@ -123,7 +123,7 @@
 
 <script>
 import { ref, onMounted } from 'vue'
-import { userUtils } from '@/services/api'
+import { userUtils, apiService } from '@/services/api'
 import EnhancedChatBot from '@/components/chat/EnhancedChatBot.vue'
 
 export default {
@@ -136,10 +136,10 @@ export default {
         const showChat = ref(false)
 
         const stats = ref({
-            totalUsers: 156,
-            totalMessages: 2847,
-            activeSessions: 23,
-            achievements: 89
+            totalUsers: 0,
+            avg_screen_time_per_user: 0,
+            chatSessions: 0,
+            achievements: 0,
         })
 
         // Check admin access
@@ -151,6 +151,20 @@ export default {
                 return
             }
             user.value = currentUser
+        }
+
+        const fetchAdminStats = async () => {
+        try {
+            const data = await apiService.getAdminStats() 
+            stats.value = {
+            totalUsers: data.totalUsers || 0,
+            chatSessions: data.chatSessions || 0,
+            achievements: data.achievements || 0,
+            avg_screen_time_per_user: data.avg_screen_time_per_user || 0,
+            }
+        } catch (err) {
+            console.error('Failed to fetch stats:', err)
+        }
         }
 
         const logout = () => {
@@ -184,6 +198,7 @@ export default {
 
         onMounted(() => {
             checkAdminAccess()
+            fetchAdminStats()
         })
 
         return {
