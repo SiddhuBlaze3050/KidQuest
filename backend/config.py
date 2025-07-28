@@ -23,3 +23,4 @@ class Config:
     JWT_TOKEN_LOCATION = ['headers']
     JWT_HEADER_NAME = 'Authorization'
     JWT_HEADER_TYPE = 'Bearer'
+    JWT_CSRF_METHODS = []  # Disable CSRF protection for JWT

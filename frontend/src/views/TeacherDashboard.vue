@@ -129,7 +129,7 @@
           <!-- Student Progress Overview -->
           <div class="feature-card progress-card">
             <div class="card-header">
-              <div class="card-icon">�</div>
+              <div class="card-icon">📈</div>
               <h3>Student Progress</h3>
             </div>
             <div class="card-content">
@@ -167,7 +167,7 @@
           <!-- Homework Assignment -->
           <div class="feature-card homework-card full-width">
             <div class="card-header">
-              <div class="card-icon">�</div>
+              <div class="card-icon">✏️</div>
               <h3>Assign Homework</h3>
               <button @click="showAssignHomeworkModal = true" class="assign-btn" :disabled="myStudents.length === 0">
                 <i class="fas fa-plus"></i>
