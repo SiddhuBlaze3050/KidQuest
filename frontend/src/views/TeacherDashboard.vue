@@ -80,13 +80,13 @@
             </div>
             <div class="card-content">
               <div class="task-filters">
-                <select v-model="selectedStudent" @change="filterTasks">
+                <select v-model="selectedStudent" @change="filterTasks" :disabled="myStudents.length === 0">
                   <option value="">All Students</option>
                   <option v-for="student in myStudents" :key="student.id" :value="student.id">
                     {{ student.username }}
                   </option>
                 </select>
-                <select v-model="selectedStatus" @change="filterTasks">
+                <select v-model="selectedStatus" @change="filterTasks" :disabled="filteredStudentTasks.length === 0">
                   <option value="">All Status</option>
                   <option value="pending">Pending</option>
                   <option value="in-progress">In Progress</option>
@@ -94,8 +94,20 @@
                 </select>
               </div>
               <div class="task-list">
-                <div v-if="filteredStudentTasks.length === 0" class="no-tasks">
+                <div v-if="myStudents.length === 0" class="no-tasks">
+                  <div class="no-data-icon">👥</div>
+                  <p>No students assigned</p>
+                  <small>You need students assigned to your class before you can track their tasks</small>
+                </div>
+                <div v-else-if="filteredStudentTasks.length === 0 && studentTasks.length === 0" class="no-tasks">
+                  <div class="no-data-icon">📝</div>
+                  <p>No tasks created yet</p>
+                  <small>Student tasks will appear here once they start creating tasks</small>
+                </div>
+                <div v-else-if="filteredStudentTasks.length === 0" class="no-tasks">
+                  <div class="no-data-icon">🔍</div>
                   <p>No tasks found for the selected filters</p>
+                  <small>Try adjusting your filters to see more tasks</small>
                 </div>
                 <div v-for="task in filteredStudentTasks" :key="task.id" class="task-item">
                   <div class="task-info">
@@ -122,6 +134,11 @@
             </div>
             <div class="card-content">
               <div class="progress-list">
+                <div v-if="myStudents.length === 0" class="no-students">
+                  <div class="no-data-icon">👥</div>
+                  <p>No students assigned to you yet</p>
+                  <small>Students will appear here once they are assigned to your class</small>
+                </div>
                 <div v-for="student in myStudents" :key="student.id" class="progress-item">
                   <div class="student-info">
                     <div class="student-avatar">👨‍🎓</div>
@@ -152,15 +169,22 @@
             <div class="card-header">
               <div class="card-icon">�</div>
               <h3>Assign Homework</h3>
-              <button @click="showAssignHomeworkModal = true" class="assign-btn">
+              <button @click="showAssignHomeworkModal = true" class="assign-btn" :disabled="myStudents.length === 0">
                 <i class="fas fa-plus"></i>
                 Assign
               </button>
             </div>
             <div class="card-content">
               <div class="homework-list">
-                <div v-if="assignedHomework.length === 0" class="no-homework">
+                <div v-if="myStudents.length === 0" class="no-homework">
+                  <div class="no-data-icon">👥</div>
+                  <p>No students to assign homework to</p>
+                  <small>Students need to be assigned to your class first</small>
+                </div>
+                <div v-else-if="assignedHomework.length === 0" class="no-homework">
+                  <div class="no-data-icon">📚</div>
                   <p>No homework assigned yet</p>
+                  <small>Click the "Assign" button to create homework for your students</small>
                 </div>
                 <div v-for="homework in assignedHomework" :key="homework.id" class="homework-item">
                   <div class="homework-info">
@@ -233,7 +257,11 @@
             
             <div class="form-group">
               <label>Assign to Students</label>
-              <div class="student-checkboxes">
+              <div v-if="myStudents.length === 0" class="no-students-message">
+                <p>No students available to assign homework to.</p>
+                <small>Students need to be assigned to your class first.</small>
+              </div>
+              <div v-else class="student-checkboxes">
                 <div v-for="student in myStudents" :key="student.id" class="checkbox-item">
                   <input 
                     :id="'student-' + student.id" 
@@ -376,15 +404,12 @@ export default {
         const response = await apiService.getTeacherStudents(currentUser.value.id)
         if (response.success) {
           myStudents.value = response.students
+        } else {
+          myStudents.value = []
         }
       } catch (error) {
         console.error('Error loading students:', error)
-        // Fallback mock data for testing
-        myStudents.value = [
-          { id: 1, username: 'Emma_Student', email: 'emma@student.com' },
-          { id: 2, username: 'Alex_Learner', email: 'alex@student.com' },
-          { id: 3, username: 'Sofia_Scholar', email: 'sofia@student.com' }
-        ]
+        myStudents.value = []
       }
     }
 
@@ -401,26 +426,8 @@ export default {
         filteredStudentTasks.value = allTasks
       } catch (error) {
         console.error('Error loading student tasks:', error)
-        // Fallback mock data
-        studentTasks.value = [
-          {
-            id: 1,
-            user_id: 1,
-            subject: 'Mathematics',
-            task: 'Complete fraction worksheets',
-            due_date: '2025-07-25',
-            status: 'pending'
-          },
-          {
-            id: 2,
-            user_id: 2,
-            subject: 'Science',
-            task: 'Solar system project',
-            due_date: '2025-07-28',
-            status: 'in-progress'
-          }
-        ]
-        filteredStudentTasks.value = studentTasks.value
+        studentTasks.value = []
+        filteredStudentTasks.value = []
       }
     }
 
@@ -429,19 +436,12 @@ export default {
         const response = await apiService.getTeacherHomework(currentUser.value.id)
         if (response.success) {
           assignedHomework.value = response.homework
+        } else {
+          assignedHomework.value = []
         }
       } catch (error) {
         console.error('Error loading homework:', error)
-        // Fallback mock data
-        assignedHomework.value = [
-          {
-            id: 1,
-            subject: 'English',
-            task: 'Write a short story about summer vacation',
-            due_date: '2025-07-30',
-            assigned_to: [1, 2]
-          }
-        ]
+        assignedHomework.value = []
       }
     }
 
@@ -958,9 +958,20 @@ export default {
 }
 
 .refresh-btn:hover,
-.assign-btn:hover {
+.assign-btn:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+}
+
+.assign-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: rgba(76, 175, 80, 0.3);
+}
+
+.assign-btn:disabled:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .card-content {
@@ -983,6 +994,13 @@ export default {
   padding: 8px 12px;
   border-radius: 8px;
   cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.task-filters select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .task-filters select option {
@@ -1186,10 +1204,52 @@ export default {
 
 /* No Data States */
 .no-tasks,
-.no-homework {
+.no-homework,
+.no-students {
   text-align: center;
   padding: 40px 20px;
   color: rgba(255, 255, 255, 0.7);
+}
+
+.no-data-icon {
+  font-size: 3rem;
+  margin-bottom: 15px;
+  opacity: 0.6;
+}
+
+.no-tasks p,
+.no-homework p,
+.no-students p {
+  font-size: 1.1rem;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.no-tasks small,
+.no-homework small,
+.no-students small {
+  font-size: 0.9rem;
+  opacity: 0.8;
+  line-height: 1.4;
+}
+
+.no-students-message {
+  text-align: center;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.no-students-message p {
+  color: #6c757d;
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+
+.no-students-message small {
+  color: #6c757d;
+  font-size: 0.8rem;
 }
 
 /* Homework Actions */

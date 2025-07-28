@@ -16,8 +16,14 @@ api.interceptors.request.use(
   (config) => {
     console.log('Making API request:', config.method?.toUpperCase(), config.url)
     
-    // The authorization header is already set by authService globally
-    // No need to add it here again to avoid conflicts
+    // Get token from authService and add to this request
+    const token = authService.getToken()
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+      console.log('🔧 API service: Authorization header added to request')
+    } else {
+      console.log('⚠️ API service: No token available for request')
+    }
     
     return config
   },

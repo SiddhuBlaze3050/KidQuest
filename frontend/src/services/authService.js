@@ -19,11 +19,16 @@ class AuthService {
   setToken(token) {
     this.token = token
     localStorage.setItem('jwt_token', token)
+    console.log('🔧 AuthService: Token stored in localStorage:', !!token)
+    console.log('🔧 AuthService: Token length:', token ? token.length : 0)
+    
     // Update axios default headers immediately
     if (token) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      console.log('✅ AuthService: Axios default Authorization header set')
     } else {
       delete axios.defaults.headers.common['Authorization']
+      console.log('🗑️ AuthService: Axios default Authorization header removed')
     }
   }
 
@@ -79,6 +84,8 @@ class AuthService {
       if (response.data.success) {
         console.log('🎉 AuthService: Login successful!')
         console.log('🔧 AuthService: Setting token:', response.data.access_token.substring(0, 20) + '...')
+        console.log('🎯 AuthService: User role from response:', response.data.user?.role)
+        console.log('🎯 AuthService: Is child user?', response.data.user?.role === 'child')
         
         // Store JWT token and user data
         this.setToken(response.data.access_token)
@@ -91,6 +98,12 @@ class AuthService {
         console.log('👤 AuthService: User data stored:', response.data.user)
         console.log('🔧 AuthService: Token in localStorage:', !!localStorage.getItem('jwt_token'))
         console.log('🌐 AuthService: Axios default header set:', !!axios.defaults.headers.common['Authorization'])
+        
+        // Verify authentication state after setting data
+        console.log('🔍 AuthService: Verifying authentication state...')
+        console.log('🔍 AuthService: isAuthenticated():', this.isAuthenticated())
+        console.log('🔍 AuthService: hasRole("child"):', this.hasRole('child'))
+        console.log('🔍 AuthService: getCurrentUser():', this.getCurrentUser())
         
         return response.data
       } else {
@@ -218,10 +231,17 @@ class AuthService {
         console.log('🌐 Making request to:', config.url)
         
         if (token) {
+          // Ensure headers object exists
+          if (!config.headers) {
+            config.headers = {}
+          }
           config.headers.Authorization = `Bearer ${token}`
           console.log('✅ Authorization header added to request')
+          console.log('🔍 Full Authorization header:', config.headers.Authorization ? config.headers.Authorization.substring(0, 20) + '...' : 'NOT SET')
+          console.log('🔍 Token from localStorage:', token.substring(0, 20) + '...')
         } else {
           console.log('⚠️ No token available for request')
+          console.log('🔍 Token from localStorage check:', localStorage.getItem('jwt_token') ? 'EXISTS' : 'MISSING')
         }
         return config
       },
@@ -241,40 +261,67 @@ class AuthService {
         console.error('❌ Response error:', error.response?.status, error.config?.url)
         const originalRequest = error.config
 
-        // Handle 401 Unauthorized errors, but NOT for login requests
-        if (error.response?.status === 401 && 
-            !originalRequest._retry && 
-            !originalRequest.url.includes('/api/auth/login')) {
-          originalRequest._retry = true
+        // Check if this is a login request - be very specific about login URLs
+        const isLoginRequest = originalRequest.url && (
+          originalRequest.url.includes('/api/auth/login') || 
+          originalRequest.url.endsWith('/api/auth/login') ||
+          originalRequest.url.includes('localhost:5000/api/auth/login') ||
+          originalRequest.url === 'http://localhost:5000/api/auth/login'
+        )
 
-          console.log('🔒 401 Unauthorized - Token expired or invalid')
-          console.log('🧹 Clearing auth data and redirecting to login')
+        console.log('🔍 Interceptor: Is login request?', isLoginRequest)
+        console.log('🔍 Interceptor: Request URL:', originalRequest.url)
 
-          // Clear tokens and module progress, then redirect to login
-          this.removeToken()
-          this.removeUser()
-          this.clearAllModuleProgress()
-
-          // Show user-friendly message
-          Swal.fire({
-            icon: 'warning',
-            title: 'Session Expired',
-            text: 'Your session has expired. Please log in again.',
-            timer: 3000,
-            showConfirmButton: false,
-            background: 'linear-gradient(135deg, #ff6b6b, #ffa726)',
-            color: 'white',
-          })
-
-          // Redirect to home page
-          window.location.href = '/'
-
+        // For login requests with 401, ALWAYS let the login method handle it
+        if (error.response?.status === 401 && isLoginRequest) {
+          console.log('� Login request failed with 401 - letting login method handle it')
+          console.log('� Login error details:', error.response?.data)
           return Promise.reject(error)
         }
 
-        // For login requests with 401, let the login method handle it
-        if (error.response?.status === 401 && originalRequest.url.includes('/api/auth/login')) {
-          console.log('🔐 Login request failed with 401 - letting login method handle it')
+        // For non-login requests, only show session expired if we had a valid session
+        if (error.response?.status === 401 && !isLoginRequest && !originalRequest._retry) {
+          const hasToken = this.getToken()
+          const hasUser = this.getUser()
+          
+          console.log('🔍 Interceptor: Has token?', !!hasToken)
+          console.log('🔍 Interceptor: Has user?', !!hasUser)
+          
+          // TEMPORARILY DISABLED: Only treat as session expired if we had both token and user
+          // This is to debug the child login issue
+          console.log('⚠️ INTERCEPTOR TEMPORARILY DISABLED FOR DEBUGGING')
+          console.log('🔍 Would normally show session expired, but skipping for now')
+          
+          // Commented out the session expired logic for debugging
+          /*
+          if (hasToken && hasUser) {
+            originalRequest._retry = true
+            
+            console.log('🔒 Valid session exists but got 401 - treating as session expired')
+            console.log('🧹 Clearing auth data and redirecting to login')
+
+            // Clear tokens and module progress, then redirect to login
+            this.removeToken()
+            this.removeUser()
+            this.clearAllModuleProgress()
+
+            // Show user-friendly message
+            Swal.fire({
+              icon: 'warning',
+              title: 'Session Expired',
+              text: 'Your session has expired. Please log in again.',
+              timer: 3000,
+              showConfirmButton: false,
+              background: 'linear-gradient(135deg, #ff6b6b, #ffa726)',
+              color: 'white',
+            })
+
+            // Redirect to home page
+            window.location.href = '/'
+          } else {
+            console.log('🔍 No valid session - passing 401 through without session expired popup')
+          }
+          */
         }
 
         return Promise.reject(error)
