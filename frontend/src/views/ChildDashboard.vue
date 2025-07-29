@@ -2088,7 +2088,7 @@ export default {
     bottom: 0;
     background: rgba(0, 0, 0, 0.3);
     backdrop-filter: blur(2px);
-    z-index: 999;
+    z-index: 499;
     animation: fadeIn 0.3s ease-out;
 }
 
@@ -2119,7 +2119,7 @@ export default {
     width: auto;
     flex-shrink: 0;
     animation: scrollGlow 3s ease-in-out infinite alternate;
-    z-index: 1000;
+    z-index: 500;
 }
 
 .golden-scroll::before {

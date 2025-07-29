@@ -896,17 +896,9 @@ def get_login_streak(user_id):
 # ---------------------------
 
 def calculate_total_stars(user_id):
-    """Calculate total stars earned by a user based on module completion"""
+    """Calculate total stars earned by a user based on module completion and streaks ONLY"""
     try:
         stars = 0
-        
-        # Stars per achievement based on activity type
-        achievements = Achievement.query.filter_by(user_id=user_id).all()
-        for achievement in achievements:
-            if 'Memory Game' in achievement.badge_name:
-                stars += 5  # Memory Game gives 5 stars
-            else:
-                stars += 10  # Other activities give 10 stars
         
         # Module star calculation based on your requirements:
         # - Single modules (no submodules): 10 stars per module completion
@@ -947,7 +939,7 @@ def calculate_total_stars(user_id):
         if health_streak:
             stars += health_streak.current_streak * 2
         
-        print(f"⭐ Stars calculation for user {user_id}: achievements={len(achievements) * 10}, modules={module_stars}, login_streak={(login_streak.current_streak if login_streak else 0)}, health_streak={(health_streak.current_streak*2 if health_streak else 0)}, total={stars}")
+        print(f"⭐ Stars calculation for user {user_id}: modules={module_stars}, login_streak={(login_streak.current_streak if login_streak else 0)}, health_streak={(health_streak.current_streak*2 if health_streak else 0)}, total={stars}")
         
         return stars
     except Exception as e:
@@ -955,7 +947,7 @@ def calculate_total_stars(user_id):
         return 0
 
 def calculate_quests_completed(user_id):
-    """Calculate total quests/activities completed by a user - includes modules, tasks, and achievements"""
+    """Calculate total quests/activities completed by a user - includes modules and tasks ONLY"""
     try:
         quests = 0
         
@@ -967,14 +959,9 @@ def calculate_quests_completed(user_id):
         completed_tasks = HomeworkSchedule.query.filter_by(user_id=user_id, status='completed').all()
         quests += len(completed_tasks)
         
-        # 3. Count achievements (excluding module progress records)
-        achievements = Achievement.query.filter_by(user_id=user_id).all()
-        for achievement in achievements:
-            # Skip module progress records (they're stored as achievements but counted above)
-            if not achievement.badge_name or not achievement.badge_name.startswith('module_'):
-                quests += 1
+        # Note: Achievements are excluded from quest calculation
         
-        print(f"📊 Quests calculated for user {user_id}: {quests} total (modules: {len(module_progress)}, tasks: {len(completed_tasks)}, achievements: {len([a for a in achievements if not a.badge_name or not a.badge_name.startswith('module_')])})")
+        print(f"📊 Quests calculated for user {user_id}: {quests} total (modules: {len(module_progress)}, tasks: {len(completed_tasks)})")
         
         return quests
     except Exception as e:
@@ -982,11 +969,43 @@ def calculate_quests_completed(user_id):
         return 0
 
 def calculate_skills_mastered(user_id):
-    """Calculate number of skills mastered by a user - simplified using Achievement table"""
+    """Calculate number of skills mastered by a user - based on completed modules ONLY"""
     try:
-        # Simple calculation: every 3 achievements = 1 skill mastered
-        achievements_count = Achievement.query.filter_by(user_id=user_id).count()
-        skills = achievements_count // 3  # Integer division
+        # Count completed full modules (not individual submodules)
+        skills = 0
+        
+        # Single modules without submodules (count if completed)
+        single_modules = ['math_magic', 'word_wizard', 'good_touch_bad_touch']
+        for module_name in single_modules:
+            completed_single = UserModuleProgress.query.filter_by(
+                user_id=user_id, 
+                module_name=module_name, 
+                completed=True
+            ).first()
+            if completed_single:
+                skills += 1  # 1 skill per completed single module
+        
+        # Modules with submodules (count if ALL submodules are completed)
+        submodule_modules = ['safety_measures', 'science_explorer']
+        for module_name in submodule_modules:
+            if module_name == 'safety_measures':
+                completed_submodules = UserModuleProgress.query.filter_by(
+                    user_id=user_id, 
+                    module_name=module_name, 
+                    completed=True
+                ).count()
+                if completed_submodules >= 6:  # All 6 safety submodules completed
+                    skills += 1
+            elif module_name == 'science_explorer':
+                completed_submodules = UserModuleProgress.query.filter_by(
+                    user_id=user_id, 
+                    module_name=module_name, 
+                    completed=True
+                ).count()
+                if completed_submodules >= 6:  # All 6 science submodules completed
+                    skills += 1
+        
+        print(f"🧠 Skills calculated for user {user_id}: {skills} skills mastered")
         
         return skills
     except Exception as e:
@@ -994,41 +1013,37 @@ def calculate_skills_mastered(user_id):
         return 0
 
 def calculate_todays_goals(user_id, today):
-    """Calculate goals completed today - includes various goal sources"""
+    """Calculate goals completed today - includes modules, tasks, health, and streaks ONLY"""
     try:
         goals = 0
         
-        # 1. Achievements earned today (excluding module progress)
-        today_achievements = Achievement.query.filter_by(user_id=user_id).filter(
-            db.func.date(Achievement.date_awarded) == today
-        ).all()
-        for achievement in today_achievements:
-            if not achievement.badge_name or not achievement.badge_name.startswith('module_'):
-                goals += 1
-        
-        # 2. Module progress completed today (simplified - count all completed modules)
-        today_module_progress = UserModuleProgress.query.filter_by(user_id=user_id, completed=True).count()
+        # 1. Module progress completed today (filter by date)
+        today_module_progress = UserModuleProgress.query.filter_by(user_id=user_id, completed=True).filter(
+            db.func.date(UserModuleProgress.updated_at) == today
+        ).count() if hasattr(UserModuleProgress, 'updated_at') else 0
         goals += today_module_progress
         
-        # 3. Tasks completed today (from task tracker - simplified)
-        today_tasks = HomeworkSchedule.query.filter_by(user_id=user_id, status='completed').count()
+        # 2. Tasks completed today (filter by completion date)
+        today_tasks = HomeworkSchedule.query.filter_by(user_id=user_id, status='completed').filter(
+            db.func.date(HomeworkSchedule.updated_at) == today
+        ).count() if hasattr(HomeworkSchedule, 'updated_at') else 0
         goals += today_tasks
         
-        # 4. Health tasks completed today
+        # 3. Health tasks completed today
         today_health_tasks = HealthTask.query.filter_by(user_id=user_id, completed=True, date=today).count()
         goals += today_health_tasks
         
-        # 5. Login streak (if logged in today)
+        # 4. Login streak (if logged in today)
         login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
         if login_streak and login_streak.last_login_date == today:
             goals += 1
         
-        # 6. Water intake goal (if drank water today)
+        # 5. Water intake goal (if drank water today)
         water_log = WaterLog.query.filter_by(user_id=user_id, date=today).first()
         if water_log and water_log.count >= 8:  # 8 glasses goal
             goals += 1
         
-        print(f"📊 Today's goals for user {user_id}: {goals} total (achievements: {len([a for a in today_achievements if not a.badge_name or not a.badge_name.startswith('module_')])}, modules: {today_module_progress}, tasks: {today_tasks}, health: {today_health_tasks})")
+        print(f"📊 Today's goals for user {user_id}: {goals} total (modules: {today_module_progress}, tasks: {today_tasks}, health: {today_health_tasks}, login: {1 if login_streak and login_streak.last_login_date == today else 0}, water: {1 if water_log and water_log.count >= 8 else 0})")
         
         return goals
     except Exception as e:
@@ -1223,26 +1238,30 @@ def get_special_achievements(user_id):
         
         achievements = [knowledge_achievement, streak_achievement, task_achievement]
         
-        # Update achievement records in database
-        for achievement_data in achievements:
-            existing = Achievement.query.filter_by(
-                user_id=user_id, 
-                badge_name=f"{achievement_data['type']}_achievement"
-            ).first()
-            
-            if existing:
-                existing.description = f"{achievement_data['title']}: {achievement_data['description']}"
-                existing.date_awarded = datetime.utcnow()
-            else:
-                new_achievement = Achievement(
-                    user_id=user_id,
-                    badge_name=f"{achievement_data['type']}_achievement",
-                    description=f"{achievement_data['title']}: {achievement_data['description']}",
-                    date_awarded=datetime.utcnow()
-                )
-                db.session.add(new_achievement)
+        # Only update achievement records in database if user has meaningful progress
+        # (Don't create achievements just for login streak - require actual completed modules or tasks)
+        if completed_modules > 0 or completed_tasks > 0 or streak_days >= 5:
+            for achievement_data in achievements:
+                existing = Achievement.query.filter_by(
+                    user_id=user_id, 
+                    badge_name=f"{achievement_data['type']}_achievement"
+                ).first()
+                
+                if existing:
+                    existing.description = f"{achievement_data['title']}: {achievement_data['description']}"
+                    existing.date_awarded = datetime.utcnow()
+                else:
+                    new_achievement = Achievement(
+                        user_id=user_id,
+                        badge_name=f"{achievement_data['type']}_achievement",
+                        description=f"{achievement_data['title']}: {achievement_data['description']}",
+                        date_awarded=datetime.utcnow()
+                    )
+                    db.session.add(new_achievement)
         
-        db.session.commit()
+            db.session.commit()
+        else:
+            print(f"🚫 No achievements created for user {user_id} - insufficient progress (modules: {completed_modules}, tasks: {completed_tasks}, streak: {streak_days})")
         
         print(f"📊 Special achievements for user {user_id}: {[a['title'] for a in achievements]}")
         print(f"🔍 Achievement calculation: modules={completed_modules}, tasks={completed_tasks}, streak={streak_days}")
@@ -2928,63 +2947,7 @@ def mark_notifications_read():
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
-@app.route('/api/notifications/create-sample', methods=['POST'])
-@jwt_required()
-def create_sample_notifications():
-    """Create sample notifications for testing"""
-    try:
-        current_user_id = get_jwt_identity()
-        data = request.get_json()
-        user_id = data.get('user_id', current_user_id)
-        
-        # Security check: ensure user can only create notifications for themselves
-        if user_id != current_user_id:
-            return jsonify({'success': False, 'error': 'Can only create notifications for yourself'}), 403
-        
-        # Create sample notifications
-        sample_notifications = [
-            {
-                'content': '🎉 Welcome to KidQuest! Start your learning adventure today!',
-                'is_read': False
-            },
-            {
-                'content': '⭐ You earned 10 stars for completing Math Magic!',
-                'is_read': False
-            },
-            {
-                'content': '🎯 Reminder: Complete your daily reading task',
-                'is_read': False
-            },
-            {
-                'content': '💧 Don\'t forget to drink water and stay hydrated!',
-                'is_read': False
-            },
-            {
-                'content': '🏆 Amazing! You\'ve maintained a 5-day learning streak!',
-                'is_read': False
-            }
-        ]
-        
-        # Save notifications to database
-        created_count = 0
-        for notif_data in sample_notifications:
-            notification = Notification(
-                user_id=user_id,
-                content=notif_data['content'],
-                is_read=notif_data['is_read']
-            )
-            db.session.add(notification)
-            created_count += 1
-        
-        db.session.commit()
-        
-        return jsonify({
-            'success': True, 
-            'message': f'{created_count} sample notifications created successfully'
-        }), 201
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 def generate_notifications(user_id):
     """Generate notifications for a user based on various conditions"""
@@ -3728,6 +3691,52 @@ def get_admin_dashboard_stats():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# Test/Development Routes
+@app.route('/api/test/clear-user-data/<int:user_id>', methods=['DELETE'])
+@jwt_required()
+def clear_user_data_for_testing(user_id):
+    """Clear all user data for testing - DEVELOPMENT ONLY"""
+    try:
+        # Security check: ensure user can only clear their own data
+        current_user_id = get_jwt_identity()
+        if user_id != current_user_id:
+            return jsonify({'success': False, 'error': 'Can only clear your own data'}), 403
+        
+        print(f"🗑️ Clearing all data for user {user_id} (TESTING)")
+        
+        # Clear achievements
+        Achievement.query.filter_by(user_id=user_id).delete()
+        
+        # Clear module progress
+        UserModuleProgress.query.filter_by(user_id=user_id).delete()
+        
+        # Clear tasks
+        HomeworkSchedule.query.filter_by(user_id=user_id).delete()
+        
+        # Clear health tasks
+        HealthTask.query.filter_by(user_id=user_id).delete()
+        
+        # Clear streaks
+        HealthStreak.query.filter_by(user_id=user_id).delete()
+        LoginStreak.query.filter_by(user_id=user_id).delete()
+        
+        # Clear water logs
+        WaterLog.query.filter_by(user_id=user_id).delete()
+        
+        # Clear notifications
+        Notification.query.filter_by(user_id=user_id).delete()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'All data cleared for user {user_id}'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 if __name__ == '__main__':
     # Initialize database when running directly

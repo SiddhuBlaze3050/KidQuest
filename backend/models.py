@@ -1,5 +1,5 @@
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime, date, timezone
+from datetime import datetime, date, time
 
 db = SQLAlchemy()
 
@@ -47,7 +47,7 @@ class ParentChild(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     parent_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     child_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    relationship_type = db.Column(db.String(20))  # e.g., 'father', 'guardian
+    relationship_type = db.Column(db.String(20))  # e.g., 'father', 'guardian'
 
 
 
@@ -74,7 +74,7 @@ class HomeworkSchedule(db.Model):
     due_date = db.Column(db.Date)
     status = db.Column(db.String(20), default='pending') # pending, in-progress, completed
     assigned_by_teacher = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Teacher who assigned this task
-    created_at = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))# When task was created
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # When task was created
     pomodoro_sessions = db.relationship('PomodoroSession', backref='homework', lazy=True)
 
 
@@ -235,7 +235,7 @@ class Notification(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     content = db.Column(db.String(255))
     is_read = db.Column(db.Boolean, default=False)
-    timestamp = db.Column(db.DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 
 # ---------------------------

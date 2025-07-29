@@ -604,17 +604,6 @@ export const apiService = {
     }
   },
 
-  async createSampleNotifications(userId) {
-    try {
-      const response = await api.post('/api/notifications/create-sample', {
-        user_id: userId,
-      })
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
-
   // Admin dashboard
   async getAdminStats() {
     try {

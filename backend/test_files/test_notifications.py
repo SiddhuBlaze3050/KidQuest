@@ -56,25 +56,8 @@ def test_notification_system():
         print(f"   ❌ Get notifications error: {e}")
         return False
     
-    # Test 3: Create sample notifications
-    print("\n3. Testing Create Sample Notifications...")
-    try:
-        response = requests.post(f"{BASE_URL}/api/notifications/create-sample", 
-                               json={"user_id": user_id}, 
-                               headers=headers)
-        print(f"   Status: {response.status_code}")
-        print(f"   Response: {response.json()}")
-        
-        if response.status_code == 201:
-            print(f"   ✅ Sample notifications created successfully!")
-        else:
-            print(f"   ❌ Create sample notifications failed")
-            
-    except Exception as e:
-        print(f"   ❌ Create sample notifications error: {e}")
-    
-    # Test 4: Get notifications again to verify creation
-    print("\n4. Testing Get Notifications After Creation...")
+    # Test 3: Get notifications again to verify they exist
+    print("\n3. Testing Get Notifications Again...")
     try:
         response = requests.get(f"{BASE_URL}/api/notifications/{user_id}", headers=headers)
         if response.status_code == 200:
