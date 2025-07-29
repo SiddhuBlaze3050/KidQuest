@@ -2873,6 +2873,14 @@ def get_quest_statistics(user_id):
 def get_notifications(user_id):
     """Get all notifications for a user"""
     try:
+        # Security check: ensure user can only access their own notifications
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
+        
+        # Allow users to access their own notifications or parents to access their children's
+        if user_id != current_user_id and current_user.role != 'parent':
+            return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
+        
         notifications = Notification.query.filter_by(user_id=user_id)\
                                          .order_by(Notification.timestamp.desc()).all()
         
@@ -2890,22 +2898,90 @@ def get_notifications(user_id):
     
 
 @app.route('/api/notifications/mark-read', methods=['POST'])
+@jwt_required()
 def mark_notifications_read():
     """Mark notifications as read"""
     try:
+        current_user_id = get_jwt_identity()
         data = request.get_json()
         notification_ids = data.get('notification_ids', [])
         
         if not notification_ids:
             return jsonify({'success': False, 'error': 'notification_ids are required'}), 400
         
+        # Security check: ensure user can only mark their own notifications as read
+        notifications = Notification.query.filter(
+            Notification.id.in_(notification_ids),
+            Notification.user_id == current_user_id
+        ).all()
+        
+        if len(notifications) != len(notification_ids):
+            return jsonify({'success': False, 'error': 'Some notifications not found or unauthorized'}), 403
+        
         # Update notifications
-        notifications = Notification.query.filter(Notification.id.in_(notification_ids)).all()
         for notification in notifications:
             notification.is_read = True
         
         db.session.commit()
         return jsonify({'success': True, 'message': f'{len(notifications)} notifications marked as read'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/notifications/create-sample', methods=['POST'])
+@jwt_required()
+def create_sample_notifications():
+    """Create sample notifications for testing"""
+    try:
+        current_user_id = get_jwt_identity()
+        data = request.get_json()
+        user_id = data.get('user_id', current_user_id)
+        
+        # Security check: ensure user can only create notifications for themselves
+        if user_id != current_user_id:
+            return jsonify({'success': False, 'error': 'Can only create notifications for yourself'}), 403
+        
+        # Create sample notifications
+        sample_notifications = [
+            {
+                'content': '🎉 Welcome to KidQuest! Start your learning adventure today!',
+                'is_read': False
+            },
+            {
+                'content': '⭐ You earned 10 stars for completing Math Magic!',
+                'is_read': False
+            },
+            {
+                'content': '🎯 Reminder: Complete your daily reading task',
+                'is_read': False
+            },
+            {
+                'content': '💧 Don\'t forget to drink water and stay hydrated!',
+                'is_read': False
+            },
+            {
+                'content': '🏆 Amazing! You\'ve maintained a 5-day learning streak!',
+                'is_read': False
+            }
+        ]
+        
+        # Save notifications to database
+        created_count = 0
+        for notif_data in sample_notifications:
+            notification = Notification(
+                user_id=user_id,
+                content=notif_data['content'],
+                is_read=notif_data['is_read']
+            )
+            db.session.add(notification)
+            created_count += 1
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True, 
+            'message': f'{created_count} sample notifications created successfully'
+        }), 201
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500

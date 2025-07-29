@@ -2106,16 +2106,18 @@ export default {
 .golden-scroll {
     background: linear-gradient(145deg, #FFD700 0%, #FFA500 20%, #FFED4E 40%, #F39C12 60%, #E67E22 80%, #D35400 100%);
     border: 3px solid #B8860B;
-    border-radius: 15px;
+    border-radius: 20px;
     box-shadow:
-        0 8px 25px rgba(255, 215, 0, 0.4),
+        0 4px 15px rgba(255, 215, 0, 0.4),
         inset 0 2px 5px rgba(255, 255, 255, 0.3),
         inset 0 -2px 5px rgba(0, 0, 0, 0.2);
     cursor: pointer;
     transition: all 0.4s ease;
     position: relative;
     overflow: visible;
-    max-width: 350px;
+    max-width: none;
+    width: auto;
+    flex-shrink: 0;
     animation: scrollGlow 3s ease-in-out infinite alternate;
     z-index: 1000;
 }
@@ -2156,14 +2158,15 @@ export default {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1rem 1.5rem;
+    padding: 0.6rem 1.2rem;
     background: rgba(0, 0, 0, 0.1);
-    border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+    border-bottom: none;
     color: #2C1810;
-    font-weight: 700;
+    font-weight: 600;
+    font-size: 0.9rem;
     text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.3);
     cursor: pointer;
-    border-radius: 15px 15px 0 0;
+    border-radius: 20px;
     transition: all 0.3s ease;
 }
 
@@ -3518,7 +3521,8 @@ export default {
     }
 
     .scroll-header {
-        padding: 0.8rem 1rem;
+        padding: 0.6rem 1rem;
+        font-size: 0.8rem;
     }
 
     .scroll-content {
