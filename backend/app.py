@@ -1545,7 +1545,34 @@ def complete_psychometry_assessment():
         traceback.print_exc()
         return jsonify({'error': 'Failed to complete assessment', 'message': str(e)}), 500
 
+# Psychometric Test Stats for parent Dashboard
+@app.route('/api/psychometry/results/<int:child_id>', methods=['GET'])
+def get_psychometry_results(child_id):
+    """Get the latest psychometric test result for a child"""
+    try:
+        result = PsychometricTestResult.query.filter_by(child_id=child_id).order_by(PsychometricTestResult.taken_at.desc()).first()
+        if not result:
+            return jsonify({'success': False, 'error': 'No result found'}), 404
 
+        return jsonify({
+            'success': True,
+            'result': {
+                'id': result.id,
+                'child_id': result.child_id,
+                'taken_at': result.taken_at.isoformat() if result.taken_at else None,
+                'learning_style': result.learning_style,
+                'personality_type': result.personality_type,
+                'top_interest': result.top_interest,
+                'concentration_level': result.concentration_level,
+                'memory_strength': result.memory_strength,
+                'detailed_scores': result.detailed_scores,
+                'personality_breakdown': result.personality_breakdown,
+                'duration_seconds': result.duration_seconds,
+                'feedback': result.feedback
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 # ---------------------------
 # Task Tracker (Homework) Routes
 # ---------------------------

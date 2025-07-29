@@ -22,6 +22,64 @@
       </div>
     </div>
     <!-- End Transactions Modal -->
+
+<!-- Psychometric Modal Component -->
+<div v-if="modalComponent === 'psychometric-modal'" class="psychometric-modal modal-overlay" @click="closeModal">
+  <div class="transactions-popup" @click.stop>
+    <div class="popup-header">
+      <span>Psychometric Test Results</span>
+      <button class="close-btn" @click="closeModal">×</button>
+    </div>
+    <div class="psychometric-detailed popup-body">
+      <div class="psycho-stats-grid">
+        <div class="psycho-stat-card">
+          <div class="stat-icon">👤</div>
+          <div class="stat-info">
+            <h4>Personality Type</h4>
+            <div class="stat-value">{{ modalData.personality }}</div>
+            <div class="personality-traits">
+              <div v-for="trait in modalData.traits" :key="trait" class="trait-tag">
+                {{ trait }}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="psycho-stat-card">
+          <div class="stat-icon">🎯</div>
+          <div class="stat-info">
+            <h4>Primary Interests</h4>
+          </div>
+        </div>
+        <div class="psycho-stat-card">
+          <div class="stat-icon">🎯</div>
+          <div class="stat-info"> 
+            <h4>Concentration Level</h4>
+            <div class="stat-value">{{ modalData.concentration }}/100</div>
+          </div>
+        </div>
+        <div class="psycho-stat-card">
+          <div class="stat-icon">🧠</div>
+          <div class="stat-info">
+            <h4>Memory Strength</h4>
+            <div class="stat-value">{{ modalData.memory }}/100</div>
+            <div class="memory-types">
+              <div v-for="type in modalData.memoryTypes" :key="type.name" class="memory-type">
+                <span class="memory-emoji">{{ type.emoji }}</span>
+                <span class="memory-name">{{ type.name }}</span>
+                <span class="memory-score">{{ type.score }}/100</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="psycho-extra-info" style="margin-top:2rem;">
+        <div><strong>Taken At:</strong> {{ modalData.taken_at }}</div>
+        <div><strong>Duration:</strong> {{ modalData.duration_seconds }} seconds</div>
+        <div v-if="modalData.feedback"><strong>Feedback:</strong> {{ modalData.feedback }}</div>
+      </div>
+    </div>
+  </div>
+</div>
     <!-- Header -->
     <header class="dashboard-header">
       <div class="container">
@@ -161,12 +219,12 @@
                 <div class="psycho-item">
                   <div class="psycho-emoji">🎯</div>
                   <div class="psycho-label">Concentration</div>
-                  <div class="psycho-value">{{ psychometricData.concentration }}/10</div>
+                  <div class="psycho-value">{{ psychometricData.concentration }}/100</div>
                 </div>
                 <div class="psycho-item">
                   <div class="psycho-emoji">🧠</div>
                   <div class="psycho-label">Memory</div>
-                  <div class="psycho-value">{{ psychometricData.memory }}/10</div>
+                  <div class="psycho-value">{{ psychometricData.memory }}/100</div>
                 </div>
               </div>
             </div>
@@ -310,64 +368,6 @@
       </div>
     </div>  
 
-    <!-- Psychometric Modal Component -->
-    <div v-if="modalComponent === 'psychometric-modal'" class="psychometric-modal">
-      <div class="psychometric-detailed">
-        <div class="psycho-stats-grid">
-          <div class="psycho-stat-card">
-            <div class="stat-icon">👤</div>
-            <div class="stat-info">
-              <h4>Personality Type</h4>
-              <div class="stat-value">{{ modalData.personality }}</div>
-              <div class="personality-traits">
-                <div v-for="trait in modalData.traits" :key="trait" class="trait-tag">
-                  {{ trait }}
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="psycho-stat-card">
-            <div class="stat-icon">🎯</div>
-            <div class="stat-info">
-              <h4>Primary Interests</h4>
-              <div class="interests-list">
-                <div v-for="interest in modalData.interestsList" :key="interest.name" class="interest-item">
-                  <span class="interest-emoji">{{ interest.emoji }}</span>
-                  <span class="interest-name">{{ interest.name }}</span>
-                  <span class="interest-level">{{ interest.level }}%</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="psycho-stat-card">
-            <div class="stat-icon">🎯</div>
-            <div class="stat-info">
-              <h4>Concentration Level</h4>
-              <div class="stat-value">{{ modalData.concentration }}/10</div>
-              <div class="concentration-meter">
-                <div class="meter-bar">
-                  <div class="meter-fill" :style="{ width: (modalData.concentration/10)*100 + '%' }"></div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="psycho-stat-card">
-            <div class="stat-icon">🧠</div>
-            <div class="stat-info">
-              <h4>Memory Strength</h4>
-              <div class="stat-value">{{ modalData.memory }}/10</div>
-              <div class="memory-types">
-                <div v-for="type in modalData.memoryTypes" :key="type.name" class="memory-type">
-                  <span class="memory-emoji">{{ type.emoji }}</span>
-                  <span class="memory-name">{{ type.name }}</span>
-                  <span class="memory-score">{{ type.score }}/10</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- Doodling Modal Component -->
     <div v-if="modalComponent === 'doodling-modal'" class="doodling-modal">
@@ -550,20 +550,51 @@ const getStreakDays = () => Array.from({ length: 10 }, (_, i) => i + 1)
 
 
 const psychometricData = ref({
-  personality: 'Explorer',
-  interests: 'Science',
-  concentration: 8,
-  memory: 9,
-  traits: ['Curious', 'Creative'],
-  interestsList: [
-    { name: 'Math', emoji: '🔢', level: 90 },
-    { name: 'Science', emoji: '🔬', level: 95 }
-  ],
-  memoryTypes: [
-    { name: 'Visual', emoji: '👁️', score: 9 },
-    { name: 'Auditory', emoji: '👂', score: 8 }
-  ]
+  personality: '',
+  interests: '',
+  concentration: 0,
+  memory: 0,
+  traits: [],
+  interestsList: [],
+  memoryTypes: []
 })
+
+const fetchPsychometricData = async () => {
+  if (!childId.value) return
+  try {
+    const res = await apiService.get(`/api/psychometry/results/${childId.value}`)
+    if (res.success && res.result) {
+      const r = res.result
+      // Map backend fields to frontend structure
+      psychometricData.value = {
+        personality: r.personality_type || '',
+        interests: r.top_interest || '',
+        concentration: r.concentration_level || 0,
+        memory: r.memory_strength || 0,
+        traits: Array.isArray(r.personality_breakdown?.traits) ? r.personality_breakdown.traits : [],
+        interestsList: Array.isArray(r.detailed_scores?.interests)
+          ? r.detailed_scores.interests.map(i => ({
+              name: i.name,
+              emoji: i.emoji || '',
+              level: i.level || 0
+            }))
+          : [],
+        memoryTypes: Array.isArray(r.detailed_scores?.memory_types)
+          ? r.detailed_scores.memory_types.map(m => ({
+              name: m.name,
+              emoji: m.emoji || '',
+              score: m.score || 0
+            }))
+          : [],
+        taken_at: r.taken_at || '',
+        duration_seconds: r.duration_seconds || 0,
+        feedback: r.feedback || ''
+      }
+    }
+  } catch (e) {
+    console.error('Failed to fetch psychometric data', e)
+  }
+}
 
 const skillProgress = ref([
   { id: 1, name: 'Math Magic', icon: '🔢', progress: 80, level: 2, milestones: [] },
@@ -610,6 +641,7 @@ onMounted(async () => {
   if (childId.value) {
     await fetchFinanceStats()
     await fetchHealthStats()
+    await fetchPsychometricData()
   }
 })
 
@@ -1436,6 +1468,16 @@ const exportData = () => {
 }
 
 .transactions-modal.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(30, 30, 30, 0.5);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.psychometric-modal.modal-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(30, 30, 30, 0.5);
