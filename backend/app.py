@@ -1867,6 +1867,64 @@ def get_tasks(user_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+
+@app.route('/api/tasks-for-parent/<int:user_id>', methods=['GET'])
+def get_tasks_for_parents(user_id):
+    """Get all tasks for a specific user"""
+    try:
+        # Security check: ensure user can only access their own tasks
+        # current_user_id = get_jwt_identity()
+        # if user_id != current_user_id:
+        #     return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
+        
+        print(f"🔍 Getting tasks for user: {user_id}")
+        
+        tasks = HomeworkSchedule.query.filter_by(user_id=user_id).order_by(HomeworkSchedule.due_date.asc()).all()
+        print(f"🔍 Found {len(tasks)} tasks in database for user {user_id}")
+        
+        # Simple authorization: users can only access their own tasks
+        # or parents can access their children's tasks
+        # if current_user.id != user_id and current_user.role != 'parent':
+        #     return jsonify({'error': 'Unauthorized access'}), 403
+        
+        tasks = HomeworkSchedule.query.filter_by(user_id=user_id).order_by(HomeworkSchedule.due_date.asc()).all()
+        
+        tasks_data = []
+        for task in tasks:
+            # Get session statistics and calculate totals
+            sessions = PomodoroSession.query.filter_by(homework_id=task.id)
+            total_work_time = sum(s.work_duration for s in sessions)
+            total_break_time = sum(s.break_duration for s in sessions)
+            total_time_spent_minutes = total_work_time // 60  # Convert to minutes
+            
+            session_stats = {
+                'total_sessions': sessions.count(),
+                'completed_sessions': sessions.filter_by(completed=True).count(),
+                'incomplete_sessions': sessions.filter_by(completed=False).count(),
+                'total_work_time': total_work_time // 60,  # Convert to minutes
+                'total_break_time': total_break_time // 60   # Convert to minutes
+            }
+            
+            tasks_data.append({
+                'id': task.id,
+                'user_id': task.user_id,  # Add user_id to response
+                'subject': task.subject,
+                'task': task.task,
+                'due_date': task.due_date.isoformat() if task.due_date else None,
+                'status': task.status,
+                'created_at': task.created_at.isoformat() if task.created_at else None,
+                'time_spent': total_time_spent_minutes,
+                'session_stats': session_stats
+            })
+
+        return jsonify({
+            'success': True,
+            'tasks': tasks_data
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @app.route('/api/tasks', methods=['POST'])
 @jwt_required()
 def create_task():
