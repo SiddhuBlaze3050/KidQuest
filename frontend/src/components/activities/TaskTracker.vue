@@ -44,13 +44,39 @@
                             </div>
                             <div class="task-actions">
                                 <span class="task-status">{{ task.status }}</span>
+                                
+                                <!-- Start Focus Button -->
                                 <button v-if="task.status === 'pending' || task.status === 'in-progress'"
                                     @click="startPomodoro(task)" class="action-btn start">
-                                    Start Focus
+                                    <i class="fas fa-play"></i> Start Focus
                                 </button>
-                                <button v-if="task.status !== 'completed'" @click="updateTaskStatus(task, 'completed')"
+                                
+                                <!-- Mark In Progress Button -->
+                                <button v-if="task.status === 'pending'" 
+                                    @click="updateTaskStatus(task, 'in-progress')"
+                                    class="action-btn in-progress">
+                                    <i class="fas fa-hourglass-start"></i> In Progress
+                                </button>
+                                
+                                <!-- Mark Done Button -->
+                                <button v-if="task.status !== 'completed'" 
+                                    @click="updateTaskStatus(task, 'completed')"
                                     class="action-btn complete">
-                                    Mark Done
+                                    <i class="fas fa-check"></i> Mark Done
+                                </button>
+                                
+                                <!-- Reset to Pending Button -->
+                                <button v-if="task.status === 'in-progress'" 
+                                    @click="updateTaskStatus(task, 'pending')"
+                                    class="action-btn reset">
+                                    <i class="fas fa-undo"></i> Reset
+                                </button>
+                                
+                                <!-- Remove Task Button (only for student-created tasks) -->
+                                <button v-if="!task.assigned_by_teacher" 
+                                    @click="removeTask(task)"
+                                    class="action-btn remove">
+                                    <i class="fas fa-trash"></i> Remove
                                 </button>
                             </div>
                         </div>
@@ -200,8 +226,50 @@ export default defineComponent({
             try {
                 await apiService.updateTaskStatus(task.id, status);
                 task.status = status;
+                console.log(`✅ Task ${task.id} status updated to: ${status}`);
             } catch (error) {
                 console.error('Error updating task status:', error);
+                alert('Failed to update task status. Please try again.');
+            }
+        };
+
+        const removeTask = async (task) => {
+            try {
+                // Confirm before removing
+                const confirmRemove = confirm(`Are you sure you want to remove the quest "${task.task}"? This action cannot be undone.`);
+                if (!confirmRemove) {
+                    return;
+                }
+
+                console.log('🗑️ Removing task:', task.id);
+                
+                const response = await apiService.deleteTask(task.id);
+                
+                if (response.success) {
+                    // Remove task from local array
+                    const taskIndex = tasks.value.findIndex(t => t.id === task.id);
+                    if (taskIndex > -1) {
+                        tasks.value.splice(taskIndex, 1);
+                    }
+                    console.log('✅ Task removed successfully!');
+                } else {
+                    console.error('❌ Task removal failed:', response.error);
+                    alert('Failed to remove quest: ' + (response.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('❌ Error removing task:', error);
+                
+                // Show detailed error message
+                if (error.response) {
+                    console.error('Response error:', error.response.data);
+                    alert('Failed to remove quest: ' + (error.response.data.error || error.response.data.message || 'Server error'));
+                } else if (error.request) {
+                    console.error('Request error:', error.request);
+                    alert('Failed to remove quest: Network error. Please check your connection.');
+                } else {
+                    console.error('General error:', error.message);
+                    alert('Failed to remove quest: ' + error.message);
+                }
             }
         };
 
@@ -240,6 +308,7 @@ export default defineComponent({
             newTask,
             addTask,
             updateTaskStatus,
+            removeTask,
             startPomodoro,
             handleSessionComplete,
         };
@@ -420,29 +489,43 @@ export default defineComponent({
 
 .task-actions {
     display: flex;
-    align-items: center;
-    gap: 1rem;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.8rem;
     flex-shrink: 0;
+    min-width: 200px;
 }
 
 .task-status {
     font-style: italic;
     color: #b0b8c4;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     text-transform: capitalize;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.3rem 0.8rem;
+    border-radius: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    margin-bottom: 0.5rem;
 }
 
 .action-btn,
 .add-task-btn {
     padding: 0.6rem 1.2rem;
     border: none;
-    border-radius: 20px;
+    border-radius: 8px;
     cursor: pointer;
     font-weight: bold;
     font-family: 'Merriweather', serif;
     color: white;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.2);
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+    min-width: 130px;
 }
 
 .action-btn:hover,
@@ -466,8 +549,24 @@ export default defineComponent({
     background: linear-gradient(135deg, #667eea, #764ba2);
 }
 
+.action-btn.in-progress {
+    background: linear-gradient(135deg, #76daff, #4facfe);
+}
+
 .action-btn.complete {
     background: linear-gradient(135deg, #43b581, #389e70);
+}
+
+.action-btn.reset {
+    background: linear-gradient(135deg, #ffcc4d, #f39c12);
+}
+
+.action-btn.remove {
+    background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+}
+
+.action-btn.remove:hover {
+    background: linear-gradient(135deg, #ff5252, #d32f2f);
 }
 
 .add-task-container {
@@ -577,14 +676,31 @@ export default defineComponent({
         grid-template-columns: 1fr;
     }
 
-    .task-actions {
+    .task-item {
         flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+    }
+
+    .task-actions {
+        align-items: stretch;
+        min-width: auto;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
         gap: 0.5rem;
     }
 
     .action-btn {
-        width: 100%;
+        flex: 1;
+        min-width: 120px;
         justify-content: center;
+    }
+    
+    .task-status {
+        order: -1;
+        align-self: center;
+        margin-bottom: 0.8rem;
     }
 }
 </style>
