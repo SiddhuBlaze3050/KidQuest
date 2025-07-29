@@ -307,6 +307,15 @@ export const apiService = {
     }
   },
 
+  async deleteTask(taskId) {
+    try {
+      const response = await api.delete(`/api/tasks/${taskId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
   // Teacher Management APIs
   async getTeacherStudents(teacherId) {
     try {
