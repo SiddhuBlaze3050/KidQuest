@@ -61,18 +61,21 @@
                     <h3>Add a New Quest</h3>
                     <form @submit.prevent="addTask">
                         <div class="form-group">
-                            <label for="task-title">Quest Title</label>
-                            <input type="text" id="task-title" v-model="newTask.task" required>
+                            <label for="task-title">Quest Title *</label>
+                            <input type="text" id="task-title" v-model="newTask.task" required 
+                                   placeholder="Enter your quest title (required)">
                         </div>
                         <div class="form-group">
                             <label for="task-subject">Subject</label>
-                            <input type="text" id="task-subject" v-model="newTask.subject">
+                            <input type="text" id="task-subject" v-model="newTask.subject"
+                                   placeholder="e.g., Math, Science, Reading (optional)">
                         </div>
                         <div class="form-group">
                             <label for="task-due-date">Due Date</label>
-                            <input type="date" id="task-due-date" v-model="newTask.due_date">
+                            <input type="date" id="task-due-date" v-model="newTask.due_date"
+                                   :min="new Date().toISOString().split('T')[0]">
                         </div>
-                        <button type="submit" class="add-task-btn">Add Quest</button>
+                        <button type="submit" class="add-task-btn" :disabled="!newTask.task.trim()">Add Quest</button>
                     </form>
                 </div>
             </div>
@@ -109,16 +112,48 @@ export default defineComponent({
 
         const fetchTasks = async () => {
             try {
+                console.log('🔄 Fetching tasks for user:', props.user.id);
                 const response = await apiService.getTasks(props.user.id);
+                console.log('📥 Tasks response:', response);
+                
                 if (response.success) {
                     tasks.value = response.tasks;
+                    console.log('✅ Tasks loaded successfully:', tasks.value.length, 'tasks');
+                } else {
+                    console.error('❌ Failed to fetch tasks:', response.error);
+                    alert('Failed to load tasks: ' + (response.error || 'Unknown error'));
                 }
             } catch (error) {
-                console.error('Error fetching tasks:', error);
+                console.error('❌ Error fetching tasks:', error);
+                
+                // Show detailed error message
+                if (error.response) {
+                    console.error('Response error:', error.response.data);
+                    alert('Failed to load tasks: ' + (error.response.data.error || error.response.data.message || 'Server error'));
+                } else if (error.request) {
+                    console.error('Request error:', error.request);
+                    alert('Failed to load tasks: Network error. Please check your connection.');
+                } else {
+                    console.error('General error:', error.message);
+                    alert('Failed to load tasks: ' + error.message);
+                }
             }
         };
         const addTask = async () => {
             try {
+                // Validate required fields
+                if (!newTask.value.task || !newTask.value.task.trim()) {
+                    alert('Please enter a quest title! 📝');
+                    return;
+                }
+                
+                if (!props.user || !props.user.id) {
+                    alert('User information is missing. Please try logging in again.');
+                    return;
+                }
+                
+                console.log('🔄 Adding new task...', newTask.value);
+                
                 // Filter out empty due_date before sending
                 const taskData = {
                     ...newTask.value,
@@ -130,13 +165,34 @@ export default defineComponent({
                     delete taskData.due_date;
                 }
                 
+                console.log('📤 Sending task data:', taskData);
+                
                 const response = await apiService.createTask(taskData);
+                console.log('📥 Response received:', response);
+                
                 if (response.success) {
                     tasks.value.push(response.task);
                     newTask.value = { task: '', subject: '', due_date: '' }; // Reset form
+                    console.log('✅ Task added successfully!');
+                    
+                } else {
+                    console.error('❌ Task creation failed:', response.error);
+                    alert('Failed to add quest: ' + (response.error || 'Unknown error'));
                 }
             } catch (error) {
-                console.error('Error adding task:', error);
+                console.error('❌ Error adding task:', error);
+                
+                // Show detailed error message
+                if (error.response) {
+                    console.error('Response error:', error.response.data);
+                    alert('Failed to add quest: ' + (error.response.data.error || error.response.data.message || 'Server error'));
+                } else if (error.request) {
+                    console.error('Request error:', error.request);
+                    alert('Failed to add quest: Network error. Please check your connection.');
+                } else {
+                    console.error('General error:', error.message);
+                    alert('Failed to add quest: ' + error.message);
+                }
             }
         };
 
@@ -390,9 +446,20 @@ export default defineComponent({
 }
 
 .action-btn:hover,
-.add-task-btn:hover {
+.add-task-btn:hover:not(:disabled) {
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.add-task-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #ccc !important;
+}
+
+.add-task-btn:disabled:hover {
+    transform: none;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .action-btn.start {
