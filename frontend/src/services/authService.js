@@ -279,7 +279,7 @@ class AuthService {
           return Promise.reject(error)
         }
 
-        // For non-login requests, only show session expired if we had a valid session
+        // For non-login requests, handle session expiration properly
         if (error.response?.status === 401 && !isLoginRequest && !originalRequest._retry) {
           const hasToken = this.getToken()
           const hasUser = this.getUser()
@@ -287,13 +287,7 @@ class AuthService {
           console.log('🔍 Interceptor: Has token?', !!hasToken)
           console.log('🔍 Interceptor: Has user?', !!hasUser)
           
-          // TEMPORARILY DISABLED: Only treat as session expired if we had both token and user
-          // This is to debug the child login issue
-          console.log('⚠️ INTERCEPTOR TEMPORARILY DISABLED FOR DEBUGGING')
-          console.log('🔍 Would normally show session expired, but skipping for now')
-          
-          // Commented out the session expired logic for debugging
-          /*
+          // Only treat as session expired if we had both token and user (valid session)
           if (hasToken && hasUser) {
             originalRequest._retry = true
             
@@ -321,7 +315,6 @@ class AuthService {
           } else {
             console.log('🔍 No valid session - passing 401 through without session expired popup')
           }
-          */
         }
 
         return Promise.reject(error)

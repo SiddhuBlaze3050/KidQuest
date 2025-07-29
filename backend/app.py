@@ -458,13 +458,32 @@ def api_login():
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/auth/logout', methods=['POST'])
+@jwt_required()
+def api_logout():
+    """API endpoint for user logout - clears any server-side session data"""
+    try:
+        user_id = get_jwt_identity()
+        
+        # Clear any server-side session data if needed
+        # For now, just return success since JWT is stateless
+        print(f"🔒 User {user_id} logged out")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Logout successful'
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/api/chat', methods=['POST'])
+@jwt_required()
 def api_chat():
     """API endpoint for chat interface with session support"""
     try:
         data = request.get_json()
         message = data.get('message')
-        user_id = data.get('user_id', 1)
+        user_id = data.get('user_id', get_jwt_identity())  # Use JWT identity
         session_id = data.get('session_id')  # Add session_id support
         
         if not message:
@@ -641,11 +660,18 @@ def get_health_tasks(user_id):
         }), 500
 
 @app.route('/api/health/tasks/<int:task_id>/toggle', methods=['POST'])
+@jwt_required()
 def toggle_task_completion(task_id):
     try:
+        # Verify user has access to this task
         task = db.session.get(HealthTask, task_id)
         if not task:
             return jsonify({'success': False, 'error': 'Task not found'}), 404
+        
+        # Security check: ensure user can only toggle their own tasks
+        current_user_id = get_jwt_identity()
+        if task.user_id != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
 
         task.completed = not task.completed
         db.session.commit()
@@ -1062,11 +1088,17 @@ def api_child_stats(user_id):
         }), 500
 
 @app.route('/api/achievement/test', methods=['POST'])
+@jwt_required()
 def create_test_achievement():
     """Create a test achievement for testing dashboard stats"""
     try:
         data = request.get_json()
-        user_id = data.get('user_id')
+        user_id = data.get('user_id', get_jwt_identity())  # Use JWT identity if not provided
+        
+        # Security check: ensure user can only create achievements for themselves
+        current_user_id = get_jwt_identity()
+        if user_id != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
         
         if not user_id:
             return jsonify({'success': False, 'error': 'user_id is required'}), 400
@@ -1294,9 +1326,13 @@ def api_child_quests(user_id):
         }), 500
 
 @app.route('/api/child/quest/<int:quest_id>/toggle', methods=['POST'])
+@jwt_required()
 def api_toggle_quest(quest_id):
     """Toggle quest completion status"""
     try:
+        # Verify user authentication
+        current_user_id = get_jwt_identity()
+        
         # Mock implementation - in production, update database
         return jsonify({
             'success': True,
@@ -1756,28 +1792,19 @@ def get_psychometry_results(child_id):
 # Task Tracker (Homework) Routes
 # ---------------------------
 @app.route('/api/tasks/<int:user_id>', methods=['GET'])
-# @jwt_required()  # Temporarily disabled for testing
+@jwt_required()
 def get_tasks(user_id):
-    """Get all tasks for a specific user - temporarily disabled JWT for testing"""
+    """Get all tasks for a specific user"""
     try:
-        # Get Authorization header to extract user info for testing
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({'success': False, 'error': 'Missing authorization token'}), 401
-        
-        # For now, accept any valid format Bearer token (fix JWT later)
-        token = auth_header.split(' ')[1]
-        if not token:
-            return jsonify({'success': False, 'error': 'Invalid token format'}), 401
+        # Security check: ensure user can only access their own tasks
+        current_user_id = get_jwt_identity()
+        if user_id != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
         
         print(f"🔍 Getting tasks for user: {user_id}")
         
         tasks = HomeworkSchedule.query.filter_by(user_id=user_id).order_by(HomeworkSchedule.due_date.asc()).all()
         print(f"🔍 Found {len(tasks)} tasks in database for user {user_id}")
-        
-        # Simplified authorization: for testing, just verify user_id matches request
-        # current_user_id = get_jwt_identity()
-        # current_user = User.query.get(current_user_id)
         
         # Simple authorization: users can only access their own tasks
         # or parents can access their children's tasks
@@ -1822,22 +1849,17 @@ def get_tasks(user_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/tasks', methods=['POST'])
-# @jwt_required()  # Temporarily disabled for testing
+@jwt_required()
 def create_task():
-    """Create a new task - temporarily disabled JWT for testing"""
+    """Create a new task"""
     try:
-        # For testing, skip JWT validation
         data = request.get_json()
         
-        # Get Authorization header to extract user info for testing
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({'success': False, 'error': 'Missing authorization token'}), 401
-        
-        # For now, accept any valid format Bearer token (fix JWT later)
-        token = auth_header.split(' ')[1]
-        if not token:
-            return jsonify({'success': False, 'error': 'Invalid token format'}), 401
+        # Security check: ensure user can only create tasks for themselves
+        user_id = data.get('user_id')
+        current_user_id = get_jwt_identity()
+        if user_id != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
         
         print(f"🔍 Creating task for user: {data.get('user_id')}")
         print(f"🔍 Task data: {data}")
@@ -1884,22 +1906,13 @@ def create_task():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/tasks/<int:task_id>/status', methods=['PUT'])
-# @jwt_required()  # Temporarily disabled for testing
+@jwt_required()
 def update_task_status(task_id):
-    """Update a task's status - temporarily disabled JWT for testing"""
+    """Update a task's status"""
     try:
-        # Get Authorization header to extract user info for testing
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({'success': False, 'error': 'Missing authorization token'}), 401
-        
-        # For now, accept any valid format Bearer token (fix JWT later)
-        token = auth_header.split(' ')[1]
-        if not token:
-            return jsonify({'success': False, 'error': 'Invalid token format'}), 401
-        
-        # current_user_id = get_jwt_identity()
-        # current_user = User.query.get(current_user_id)
+        # Security check: get current user
+        current_user_id = get_jwt_identity()
+        current_user = User.query.get(current_user_id)
         data = request.get_json()
         new_status = data.get('status')
 
@@ -1908,8 +1921,8 @@ def update_task_status(task_id):
             return jsonify({'success': False, 'error': 'Task not found'}), 404
 
         # Authorization: users can only update their own tasks or parents can update their children's tasks
-        # if task.user_id != current_user_id and current_user.role != 'parent':
-        #     return jsonify({'success': False, 'error': 'Unauthorized: Can only update your own tasks'}), 403
+        if task.user_id != current_user_id and current_user.role != 'parent':
+            return jsonify({'success': False, 'error': 'Unauthorized: Can only update your own tasks'}), 403
 
         task.status = new_status
         # Note: updated_at will be automatically set by SQLAlchemy if the column exists
@@ -2441,6 +2454,7 @@ def module_has_submodules(module_name):
     return module_info.get('has_submodules', False) if module_info else False
 
 @app.route('/api/module/progress', methods=['POST'])
+@jwt_required()
 def save_module_progress():
     """Save module progress for a user using UserModuleProgress table"""
     try:
@@ -2448,6 +2462,11 @@ def save_module_progress():
         
         # Extract data from request
         user_id = data.get('user_id')
+        
+        # Security check: ensure user can only save their own progress
+        current_user_id = get_jwt_identity()
+        if user_id != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
         module_type = data.get('module_type', 'Unknown Module')
         progress_percentage = data.get('progress_percentage', 0)
         is_completed = data.get('is_completed', False)
