@@ -216,8 +216,10 @@ const markComplete = async () => {
 const saveProgress = async () => {
     try {
         const progressData = {
-            completed: isCompleted.value,
-            completionPercentage: isCompleted.value ? 100 : 0,
+            is_completed: isCompleted.value,
+            progress_percentage: isCompleted.value ? 100 : 0,
+            completed: isCompleted.value,  // Keep for backward compatibility
+            completionPercentage: isCompleted.value ? 100 : 0,  // Keep for backward compatibility
             lastAccessed: new Date().toISOString()
         }
 

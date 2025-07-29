@@ -29,52 +29,51 @@
                                         </div>
                                         <div class="analytics-item">
                                             <span class="analytics-label">Completed:</span>
-                                            <span class="analytics-value">{{ task.session_stats.completed_sessions }}</span>
+                                            <span class="analytics-value">{{ task.session_stats.completed_sessions
+                                                }}</span>
                                         </div>
                                         <div class="analytics-item">
                                             <span class="analytics-label">Focus Time:</span>
-                                            <span class="analytics-value">{{ task.session_stats.total_work_time }}m</span>
+                                            <span class="analytics-value">{{ task.session_stats.total_work_time
+                                                }}m</span>
                                         </div>
                                         <div class="analytics-item">
                                             <span class="analytics-label">Break Time:</span>
-                                            <span class="analytics-value">{{ task.session_stats.total_break_time }}m</span>
+                                            <span class="analytics-value">{{ task.session_stats.total_break_time
+                                                }}m</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                             <div class="task-actions">
                                 <span class="task-status">{{ task.status }}</span>
-                                
+
                                 <!-- Start Focus Button -->
                                 <button v-if="task.status === 'pending' || task.status === 'in-progress'"
                                     @click="startPomodoro(task)" class="action-btn start">
                                     <i class="fas fa-play"></i> Start Focus
                                 </button>
-                                
+
                                 <!-- Mark In Progress Button -->
-                                <button v-if="task.status === 'pending'" 
-                                    @click="updateTaskStatus(task, 'in-progress')"
+                                <button v-if="task.status === 'pending'" @click="updateTaskStatus(task, 'in-progress')"
                                     class="action-btn in-progress">
                                     <i class="fas fa-hourglass-start"></i> In Progress
                                 </button>
-                                
+
                                 <!-- Mark Done Button -->
-                                <button v-if="task.status !== 'completed'" 
-                                    @click="updateTaskStatus(task, 'completed')"
+                                <button v-if="task.status !== 'completed'" @click="updateTaskStatus(task, 'completed')"
                                     class="action-btn complete">
                                     <i class="fas fa-check"></i> Mark Done
                                 </button>
-                                
+
                                 <!-- Reset to Pending Button -->
-                                <button v-if="task.status === 'in-progress'" 
-                                    @click="updateTaskStatus(task, 'pending')"
+                                <button v-if="task.status === 'in-progress'" @click="updateTaskStatus(task, 'pending')"
                                     class="action-btn reset">
                                     <i class="fas fa-undo"></i> Reset
                                 </button>
-                                
+
                                 <!-- Remove Task Button (only for student-created tasks) -->
-                                <button v-if="!task.assigned_by_teacher" 
-                                    @click="removeTask(task)"
+                                <button v-if="!task.assigned_by_teacher" @click="removeTask(task)"
                                     class="action-btn remove">
                                     <i class="fas fa-trash"></i> Remove
                                 </button>
@@ -88,18 +87,18 @@
                     <form @submit.prevent="addTask">
                         <div class="form-group">
                             <label for="task-title">Quest Title *</label>
-                            <input type="text" id="task-title" v-model="newTask.task" required 
-                                   placeholder="Enter your quest title (required)">
+                            <input type="text" id="task-title" v-model="newTask.task" required
+                                placeholder="Enter your quest title (required)">
                         </div>
                         <div class="form-group">
                             <label for="task-subject">Subject</label>
                             <input type="text" id="task-subject" v-model="newTask.subject"
-                                   placeholder="e.g., Math, Science, Reading (optional)">
+                                placeholder="e.g., Math, Science, Reading (optional)">
                         </div>
                         <div class="form-group">
                             <label for="task-due-date">Due Date</label>
                             <input type="date" id="task-due-date" v-model="newTask.due_date"
-                                   :min="new Date().toISOString().split('T')[0]">
+                                :min="new Date().toISOString().split('T')[0]">
                         </div>
                         <button type="submit" class="add-task-btn" :disabled="!newTask.task.trim()">Add Quest</button>
                     </form>
@@ -120,6 +119,7 @@ import PomodoroTimer from './PomodoroTimer.vue';
 export default defineComponent({
     name: 'TaskTracker',
     components: { PomodoroTimer },
+    emits: ['close', 'task-completed'],
     props: {
         user: {
             type: Object,
@@ -141,7 +141,7 @@ export default defineComponent({
                 console.log('🔄 Fetching tasks for user:', props.user.id);
                 const response = await apiService.getTasks(props.user.id);
                 console.log('📥 Tasks response:', response);
-                
+
                 if (response.success) {
                     tasks.value = response.tasks;
                     console.log('✅ Tasks loaded successfully:', tasks.value.length, 'tasks');
@@ -151,7 +151,7 @@ export default defineComponent({
                 }
             } catch (error) {
                 console.error('❌ Error fetching tasks:', error);
-                
+
                 // Show detailed error message
                 if (error.response) {
                     console.error('Response error:', error.response.data);
@@ -172,42 +172,42 @@ export default defineComponent({
                     alert('Please enter a quest title! 📝');
                     return;
                 }
-                
+
                 if (!props.user || !props.user.id) {
                     alert('User information is missing. Please try logging in again.');
                     return;
                 }
-                
+
                 console.log('🔄 Adding new task...', newTask.value);
-                
+
                 // Filter out empty due_date before sending
                 const taskData = {
                     ...newTask.value,
                     user_id: props.user.id,
                 };
-                
+
                 // Remove due_date if it's empty
                 if (!taskData.due_date || taskData.due_date.trim() === '') {
                     delete taskData.due_date;
                 }
-                
+
                 console.log('📤 Sending task data:', taskData);
-                
+
                 const response = await apiService.createTask(taskData);
                 console.log('📥 Response received:', response);
-                
+
                 if (response.success) {
                     tasks.value.push(response.task);
                     newTask.value = { task: '', subject: '', due_date: '' }; // Reset form
                     console.log('✅ Task added successfully!');
-                    
+
                 } else {
                     console.error('❌ Task creation failed:', response.error);
                     alert('Failed to add quest: ' + (response.error || 'Unknown error'));
                 }
             } catch (error) {
                 console.error('❌ Error adding task:', error);
-                
+
                 // Show detailed error message
                 if (error.response) {
                     console.error('Response error:', error.response.data);
@@ -227,6 +227,13 @@ export default defineComponent({
                 await apiService.updateTaskStatus(task.id, status);
                 task.status = status;
                 console.log(`✅ Task ${task.id} status updated to: ${status}`);
+
+                // If task was completed, trigger achievement refresh
+                if (status === 'completed') {
+                    console.log('🎯 Task completed, refreshing achievements...');
+                    // Emit event to parent to refresh achievements
+                    emit('task-completed');
+                }
             } catch (error) {
                 console.error('Error updating task status:', error);
                 alert('Failed to update task status. Please try again.');
@@ -242,9 +249,9 @@ export default defineComponent({
                 }
 
                 console.log('🗑️ Removing task:', task.id);
-                
+
                 const response = await apiService.deleteTask(task.id);
-                
+
                 if (response.success) {
                     // Remove task from local array
                     const taskIndex = tasks.value.findIndex(t => t.id === task.id);
@@ -258,7 +265,7 @@ export default defineComponent({
                 }
             } catch (error) {
                 console.error('❌ Error removing task:', error);
-                
+
                 // Show detailed error message
                 if (error.response) {
                     console.error('Response error:', error.response.data);
@@ -273,27 +280,27 @@ export default defineComponent({
             }
         };
 
-    const startPomodoro = async (task) => {
-  try {
-    const userId = props.user.id
-    const homeworkId = task.id
+        const startPomodoro = async (task) => {
+            try {
+                const userId = props.user.id
+                const homeworkId = task.id
 
-    console.log('✅ Sending to API from TaskTracker:', {
-      user_id: userId,
-      homework_id: homeworkId,
-    })
+                console.log('✅ Sending to API from TaskTracker:', {
+                    user_id: userId,
+                    homework_id: homeworkId,
+                })
 
-    // Make API call
-    //await apiService.startPomodoro(userId, homeworkId)
+                // Make API call
+                //await apiService.startPomodoro(userId, homeworkId)
 
-    // Open PomodoroTimer component
-    selectedTask.value = task
-    showPomodoro.value = true
-  } catch (err) {
-    console.error('❌ Failed to start pomodoro session:', err)
-    alert('Could not start session. Please try again.')
-  }
-}
+                // Open PomodoroTimer component
+                selectedTask.value = task
+                showPomodoro.value = true
+            } catch (err) {
+                console.error('❌ Failed to start pomodoro session:', err)
+                alert('Could not start session. Please try again.')
+            }
+        }
 
         const handleSessionComplete = () => {
             fetchTasks();
@@ -696,7 +703,7 @@ export default defineComponent({
         min-width: 120px;
         justify-content: center;
     }
-    
+
     .task-status {
         order: -1;
         align-self: center;

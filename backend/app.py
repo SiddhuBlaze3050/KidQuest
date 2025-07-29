@@ -870,7 +870,7 @@ def get_login_streak(user_id):
 # ---------------------------
 
 def calculate_total_stars(user_id):
-    """Calculate total stars earned by a user - simplified using Achievement table"""
+    """Calculate total stars earned by a user based on module completion"""
     try:
         stars = 0
         
@@ -882,6 +882,35 @@ def calculate_total_stars(user_id):
             else:
                 stars += 10  # Other activities give 10 stars
         
+        # Module star calculation based on your requirements:
+        # - Single modules (no submodules): 10 stars per module completion
+        # - Modules with submodules: 5 stars per submodule completion
+        
+        module_stars = 0
+        
+        # Single modules without submodules (10 stars each when completed)
+        single_modules = ['math_magic', 'word_wizard', 'good_touch_bad_touch']
+        for module_name in single_modules:
+            completed_single = UserModuleProgress.query.filter_by(
+                user_id=user_id, 
+                module_name=module_name, 
+                completed=True
+            ).first()
+            if completed_single:
+                module_stars += 10  # 10 stars per single module completion
+        
+        # Modules with submodules (5 stars per submodule completion)
+        submodule_modules = ['safety_measures', 'science_explorer']
+        for module_name in submodule_modules:
+            completed_submodules = UserModuleProgress.query.filter_by(
+                user_id=user_id, 
+                module_name=module_name, 
+                completed=True
+            ).count()
+            module_stars += completed_submodules * 5  # 5 stars per submodule
+        
+        stars += module_stars
+        
         # 1 star per login streak day
         login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
         if login_streak:
@@ -891,6 +920,8 @@ def calculate_total_stars(user_id):
         health_streak = HealthStreak.query.filter_by(user_id=user_id).first()
         if health_streak:
             stars += health_streak.current_streak * 2
+        
+        print(f"⭐ Stars calculation for user {user_id}: achievements={len(achievements) * 10}, modules={module_stars}, login_streak={(login_streak.current_streak if login_streak else 0)}, health_streak={(health_streak.current_streak*2 if health_streak else 0)}, total={stars}")
         
         return stars
     except Exception as e:
@@ -1066,6 +1097,154 @@ def create_test_achievement():
     except Exception as e:
         db.session.rollback()
         print(f"Error creating test achievement: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/achievements/special/<int:user_id>', methods=['GET'])
+@jwt_required()
+def get_special_achievements(user_id):
+    """Get the three special achievements for display cards"""
+    try:
+        # Calculate achievements data
+        achievements = []
+        
+        # 1. Knowledge Achievement (based on completed modules)
+        # Count full modules completed, not individual submodules
+        completed_modules = 0
+        
+        # Single modules without submodules (count if completed)
+        single_modules = ['math_magic', 'word_wizard', 'good_touch_bad_touch']
+        for module_name in single_modules:
+            completed_single = UserModuleProgress.query.filter_by(
+                user_id=user_id, 
+                module_name=module_name, 
+                completed=True
+            ).first()
+            if completed_single:
+                completed_modules += 1
+        
+        # Modules with submodules (count if ALL submodules are completed)
+        submodule_modules = ['safety_measures', 'science_explorer']
+        for module_name in submodule_modules:
+            if module_name == 'safety_measures':
+                completed_submodules = UserModuleProgress.query.filter_by(
+                    user_id=user_id, 
+                    module_name=module_name, 
+                    completed=True
+                ).count()
+                if completed_submodules >= 6:  # All 6 safety submodules completed
+                    completed_modules += 1
+            elif module_name == 'science_explorer':
+                completed_submodules = UserModuleProgress.query.filter_by(
+                    user_id=user_id, 
+                    module_name=module_name, 
+                    completed=True
+                ).count()
+                if completed_submodules >= 6:  # All 6 science submodules completed
+                    completed_modules += 1
+        
+        knowledge_titles = ["🌱 Beginner", "📚 Learner", "🎓 Scholar", "🧠 Expert", "🌟 Master", "🚀 Genius"]
+        knowledge_level = min(completed_modules, len(knowledge_titles) - 1)
+        knowledge_achievement = {
+            "id": 1,
+            "title": knowledge_titles[knowledge_level],
+            "description": f"Completed {completed_modules} learning modules",
+            "medal": "🥇",
+            "earnedDate": datetime.utcnow().isoformat(),
+            "type": "knowledge",
+            "level": knowledge_level,
+            "progress": completed_modules
+        }
+        
+        # 2. Streak Achievement (based on login streak)
+        login_streak = LoginStreak.query.filter_by(user_id=user_id).first()
+        streak_days = login_streak.current_streak if login_streak else 0
+        streak_titles = ["🔰 Newbie", "⚔️ Private", "🎖️ Corporal", "🏆 Sergeant", "👑 Lieutenant", "⭐ Captain", "🌟 Major", "🚀 Colonel"]
+        streak_level = min(streak_days // 5, len(streak_titles) - 1)  # Level up every 5 days
+        streak_achievement = {
+            "id": 2,
+            "title": streak_titles[streak_level],
+            "description": f"Maintained {streak_days} day learning streak",
+            "medal": "🥈",
+            "earnedDate": datetime.utcnow().isoformat(),
+            "type": "streak",
+            "level": streak_level,
+            "progress": streak_days
+        }
+        
+        # 3. Task Achievement (based on completed tasks)
+        completed_tasks = HomeworkSchedule.query.filter_by(user_id=user_id, status='completed').count()
+        task_titles = ["🏃 Starter", "💪 Doer", "⚡ Achiever", "🎯 Champion", "🏆 Hero", "🌟 Legend"]
+        task_level = min(completed_tasks // 5, len(task_titles) - 1)  # Level up every 5 tasks
+        task_achievement = {
+            "id": 3,
+            "title": task_titles[task_level],
+            "description": f"Completed {completed_tasks} tasks successfully",
+            "medal": "🥉",
+            "earnedDate": datetime.utcnow().isoformat(),
+            "type": "tasks",
+            "level": task_level,
+            "progress": completed_tasks
+        }
+        
+        achievements = [knowledge_achievement, streak_achievement, task_achievement]
+        
+        # Update achievement records in database
+        for achievement_data in achievements:
+            existing = Achievement.query.filter_by(
+                user_id=user_id, 
+                badge_name=f"{achievement_data['type']}_achievement"
+            ).first()
+            
+            if existing:
+                existing.description = f"{achievement_data['title']}: {achievement_data['description']}"
+                existing.date_awarded = datetime.utcnow()
+            else:
+                new_achievement = Achievement(
+                    user_id=user_id,
+                    badge_name=f"{achievement_data['type']}_achievement",
+                    description=f"{achievement_data['title']}: {achievement_data['description']}",
+                    date_awarded=datetime.utcnow()
+                )
+                db.session.add(new_achievement)
+        
+        db.session.commit()
+        
+        print(f"📊 Special achievements for user {user_id}: {[a['title'] for a in achievements]}")
+        print(f"🔍 Achievement calculation: modules={completed_modules}, tasks={completed_tasks}, streak={streak_days}")
+        
+        return jsonify({
+            'success': True,
+            'achievements': achievements
+        }), 200
+        
+    except Exception as e:
+        print(f"Error fetching special achievements for user {user_id}: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/achievements/refresh/<int:user_id>', methods=['POST'])
+@jwt_required()
+def refresh_achievements(user_id):
+    """Force refresh achievements for a user - for testing"""
+    try:
+        print(f"🔄 Force refreshing achievements for user {user_id}")
+        
+        # Call the existing get_special_achievements function
+        response = get_special_achievements(user_id)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Achievements refreshed successfully',
+            'response': response[0].get_json() if hasattr(response[0], 'get_json') else 'Success'
+        }), 200
+        
+    except Exception as e:
+        print(f"Error refreshing achievements for user {user_id}: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -2223,20 +2402,20 @@ MODULE_MAPPING = {
 # Submodule ID mapping - only for modules that have submodules
 SUBMODULE_MAPPING = {
     'science_explorer': {
-        'balance_master': {'id': 1, 'name': 'Balance Master', 'progress_weight': 20},
-        'force_detective': {'id': 2, 'name': 'Force Detective', 'progress_weight': 20},
-        'space_explorer': {'id': 3, 'name': 'Space Explorer', 'progress_weight': 20},
-        'wave_wizard': {'id': 4, 'name': 'Wave Wizard', 'progress_weight': 20},
-        'matter_transformer': {'id': 5, 'name': 'Matter Transformer', 'progress_weight': 20},
-        'energy_master': {'id': 6, 'name': 'Energy Master', 'progress_weight': 20}
+        'balance_master': {'id': 1, 'name': 'Balance Master', 'progress_weight': 16.67},
+        'force_detective': {'id': 2, 'name': 'Force Detective', 'progress_weight': 16.67},
+        'space_explorer': {'id': 3, 'name': 'Space Explorer', 'progress_weight': 16.67},
+        'wave_wizard': {'id': 4, 'name': 'Wave Wizard', 'progress_weight': 16.67},
+        'matter_transformer': {'id': 5, 'name': 'Matter Transformer', 'progress_weight': 16.67},
+        'energy_master': {'id': 6, 'name': 'Energy Master', 'progress_weight': 16.65}
     },
     'safety_measures': {
-        'home_safety': {'id': 1, 'name': 'Home Safety', 'progress_weight': 20},
-        'road_safety': {'id': 2, 'name': 'Road Safety', 'progress_weight': 20},
-        'internet_safety': {'id': 3, 'name': 'Internet Safety', 'progress_weight': 20},
-        'fire_safety': {'id': 4, 'name': 'Fire Safety', 'progress_weight': 20},
-        'emergency_procedures': {'id': 5, 'name': 'Emergency Procedures', 'progress_weight': 20},
-        'personal_safety': {'id': 6, 'name': 'Personal Safety', 'progress_weight': 20}
+        'home_safety': {'id': 1, 'name': 'Home Safety', 'progress_weight': 16.67},
+        'road_safety': {'id': 2, 'name': 'Road Safety', 'progress_weight': 16.67},
+        'internet_safety': {'id': 3, 'name': 'Internet Safety', 'progress_weight': 16.67},
+        'fire_safety': {'id': 4, 'name': 'Fire Safety', 'progress_weight': 16.67},
+        'emergency_procedures': {'id': 5, 'name': 'Emergency Procedures', 'progress_weight': 16.67},
+        'personal_safety': {'id': 6, 'name': 'Personal Safety', 'progress_weight': 16.65}
     }
 }
 
