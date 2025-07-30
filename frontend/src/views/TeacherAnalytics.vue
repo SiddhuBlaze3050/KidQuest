@@ -247,89 +247,57 @@ export default {
 
     const loadMyStudents = async () => {
       try {
+        console.log('🔄 Loading students for teacher:', currentUser.value.id);
         const response = await apiService.getTeacherStudents(currentUser.value.id)
+        console.log('📥 Students response:', response);
         if (response.success) {
           myStudents.value = response.students
+          console.log('✅ Students loaded:', myStudents.value.length);
+        } else {
+          console.error('❌ Failed to load students:', response.error);
+          myStudents.value = []
         }
       } catch (error) {
-        console.error('Error loading students:', error)
-        // Fallback mock data
-        myStudents.value = [
-          { id: 1, username: 'Emma_Student', email: 'emma@student.com' },
-          { id: 2, username: 'Alex_Learner', email: 'alex@student.com' },
-          { id: 3, username: 'Sofia_Scholar', email: 'sofia@student.com' }
-        ]
+        console.error('❌ Error loading students:', error);
+        myStudents.value = []
       }
     }
 
     const loadStudentTasks = async () => {
       try {
-        const allTasks = []
-        for (const student of myStudents.value) {
-          const response = await apiService.getUserTasks(student.id)
-          if (response.success) {
-            allTasks.push(...response.tasks)
-          }
+        console.log('🔄 Loading student tasks for teacher:', currentUser.value.id);
+        // Use the teacher-specific endpoint instead of individual student endpoints
+        const response = await apiService.getStudentTasksForTeacher(currentUser.value.id)
+        console.log('📥 Student tasks response:', response);
+        
+        if (response.success) {
+          studentTasks.value = response.tasks
+          console.log('✅ Total student tasks loaded:', response.tasks.length);
+        } else {
+          console.error('❌ Failed to load student tasks:', response.error);
+          studentTasks.value = []
         }
-        studentTasks.value = allTasks
       } catch (error) {
-        console.error('Error loading student tasks:', error)
-        // Fallback mock data
-        studentTasks.value = [
-          {
-            id: 1,
-            user_id: 1,
-            subject: 'Mathematics',
-            task: 'Complete fraction worksheets',
-            due_date: '2025-07-25',
-            status: 'completed'
-          },
-          {
-            id: 2,
-            user_id: 2,
-            subject: 'Science',
-            task: 'Solar system project',
-            due_date: '2025-07-28',
-            status: 'in-progress'
-          },
-          {
-            id: 3,
-            user_id: 1,
-            subject: 'English',
-            task: 'Write essay on summer vacation',
-            due_date: '2025-07-30',
-            status: 'pending'
-          },
-          {
-            id: 4,
-            user_id: 3,
-            subject: 'Mathematics',
-            task: 'Solve geometry problems',
-            due_date: '2025-08-01',
-            status: 'completed'
-          }
-        ]
+        console.error('❌ Error loading student tasks:', error);
+        studentTasks.value = []
       }
     }
 
     const loadAssignedHomework = async () => {
       try {
+        console.log('🔄 Loading assigned homework for teacher:', currentUser.value.id);
         const response = await apiService.getTeacherHomework(currentUser.value.id)
+        console.log('📥 Homework response:', response);
         if (response.success) {
           assignedHomework.value = response.homework
+          console.log('✅ Assigned homework loaded:', assignedHomework.value.length);
+        } else {
+          console.error('❌ Failed to load homework:', response.error);
+          assignedHomework.value = []
         }
       } catch (error) {
-        console.error('Error loading homework:', error)
-        // Fallback mock data
-        assignedHomework.value = [
-          {
-            id: 1,
-            subject: 'English',
-            task: 'Write a short story about summer vacation',
-            due_date: '2025-07-30',
-            assigned_to: [1, 2]
-          }
-        ]
+        console.error('❌ Error loading homework:', error);
+        assignedHomework.value = []
       }
     }
 
@@ -351,11 +319,19 @@ export default {
     // Initialize analytics
     onMounted(async () => {
       try {
+        console.log('🚀 Initializing Teacher Analytics for user:', currentUser.value);
+        // Add a small delay to ensure token is properly set after login
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        console.log('📝 Step 1: Loading students...');
         await loadMyStudents()
+        console.log('📝 Step 2: Loading student tasks...');
         await loadStudentTasks()
+        console.log('📝 Step 3: Loading assigned homework...');
         await loadAssignedHomework()
+        console.log('✅ Analytics initialization complete');
       } catch (error) {
-        console.error('Error initializing analytics:', error)
+        console.error('❌ Error initializing analytics:', error)
       } finally {
         isLoading.value = false
       }

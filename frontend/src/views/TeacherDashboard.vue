@@ -478,20 +478,19 @@ export default {
 
     const loadStudentTasks = async () => {
       try {
-        console.log('🔄 Loading tasks for', myStudents.value.length, 'students');
-        const allTasks = []
-        for (const student of myStudents.value) {
-          console.log('🔄 Loading tasks for student:', student.username, 'ID:', student.id);
-          const response = await apiService.getUserTasks(student.id)
-          console.log('📥 Tasks response for', student.username, ':', response);
-          if (response.success) {
-            console.log('✅ Found', response.tasks.length, 'tasks for', student.username);
-            allTasks.push(...response.tasks)
-          }
+        console.log('🔄 Loading student tasks for teacher:', currentUser.value.id);
+        const response = await apiService.getStudentTasksForTeacher(currentUser.value.id)
+        console.log('📥 Student tasks response:', response);
+        
+        if (response.success) {
+          studentTasks.value = response.tasks
+          filteredStudentTasks.value = response.tasks
+          console.log('✅ Total student tasks loaded:', response.tasks.length);
+        } else {
+          console.error('❌ Failed to load student tasks:', response.error);
+          studentTasks.value = []
+          filteredStudentTasks.value = []
         }
-        studentTasks.value = allTasks
-        filteredStudentTasks.value = allTasks
-        console.log('✅ Total student tasks loaded:', allTasks.length);
       } catch (error) {
         console.error('❌ Error loading student tasks:', error)
         studentTasks.value = []
@@ -590,33 +589,34 @@ export default {
       try {
         console.log('🔄 Assigning homework to students:', newHomework.value.assigned_to);
         
-        // Create homework for each selected student
-        const homeworkPromises = newHomework.value.assigned_to.map(studentId => 
-          apiService.createTask({
-            user_id: studentId,
-            subject: newHomework.value.subject,
-            task: newHomework.value.task,
-            due_date: newHomework.value.due_date,
-            assigned_by_teacher: currentUser.value.id
+        // Use the dedicated assignHomework API endpoint
+        const homeworkData = {
+          subject: newHomework.value.subject,
+          task: newHomework.value.task,
+          due_date: newHomework.value.due_date,
+          assigned_to: newHomework.value.assigned_to
+        }
+
+        const result = await apiService.assignHomework(homeworkData)
+        console.log('✅ Homework assignment result:', result);
+
+        if (result.success) {
+          Swal.fire({
+            icon: 'success',
+            title: 'Homework Assigned!',
+            text: result.message || 'Homework has been successfully assigned to selected students.',
+            timer: 3000,
+            showConfirmButton: false
           })
-        )
 
-        const results = await Promise.all(homeworkPromises)
-        console.log('✅ Homework creation results:', results);
-
-        Swal.fire({
-          icon: 'success',
-          title: 'Homework Assigned!',
-          text: 'Homework has been successfully assigned to selected students.',
-          timer: 3000,
-          showConfirmButton: false
-        })
-
-        closeAssignHomeworkModal()
-        
-        // Refresh both student tasks and assigned homework
-        await loadStudentTasks()
-        await loadAssignedHomework()
+          closeAssignHomeworkModal()
+          
+          // Refresh both student tasks and assigned homework
+          await loadStudentTasks()
+          await loadAssignedHomework()
+        } else {
+          throw new Error(result.error || 'Failed to assign homework')
+        }
 
       } catch (error) {
         console.error('❌ Error assigning homework:', error)
