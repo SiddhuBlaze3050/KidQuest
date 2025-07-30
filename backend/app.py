@@ -1518,19 +1518,9 @@ def chatbot_logic(user_id, user_message, session_id=None):
 
 #Finance tracker APIs
 @app.route('/api/parentchild', methods=['GET'])
-@jwt_required()
 def get_parent_child_links():
-    """Get parent-child relationships - restricted to admins only"""
+    """Get parent-child relationships"""
     try:
-        current_user_id = int(get_jwt_identity())
-        current_user = User.query.get(current_user_id)
-        
-        if not current_user:
-            return jsonify({'success': False, 'error': 'User not found'}), 404
-            
-        # Only admins can view all parent-child relationships
-        if current_user.role != 'admin':
-            return jsonify({'success': False, 'error': 'Admin access required'}), 403
         links = ParentChild.query.all()
         return jsonify({
             "links": [
