@@ -80,6 +80,30 @@
     </div>
   </div>
 </div>
+
+
+<!-- Recent Tasks Modal Component -->
+<div v-if="modalComponent === 'recent-tasks-modal'" class="recent-tasks-modal modal-overlay" @click="closeModal">
+  <div class="transactions-popup" @click.stop>
+    <div class="popup-header">
+      <span>Recent Tasks</span>
+      <button class="close-btn" @click="closeModal">×</button>
+    </div>
+    <div class="popup-body">
+      <div v-if="!modalData.allTasks || modalData.allTasks.length === 0" class="no-transactions">
+        No recent tasks.
+      </div>
+      <div v-for="task in modalData.allTasks" :key="task.id" class="transaction-item">
+        <div class="transaction-date">{{ task.due_date }}</div>
+        <div class="transaction-desc">{{ task.title }} ({{ task.subject }})</div>
+        <div class="transaction-amount">{{ task.status }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+
     <!-- Header -->
     <header class="dashboard-header">
       <div class="container">
@@ -259,38 +283,44 @@
           </div>
 
           <!-- Task Tracker -->
-          <div class="feature-card task-card" @click="showTaskModal">
-            <div class="card-header">
-              <div class="card-icon">🎯</div>
-              <h3>Task Tracker</h3>
-            </div>
-            <div class="card-content">
-              <div class="task-calendar">
-                <div class="calendar-header">
-                  <span class="calendar-month">{{ getCurrentMonth() }}</span>
-                </div>
-                <div class="calendar-grid">
-                  <div 
-                    v-for="day in getCalendarDays()" 
-                    :key="day.date" 
-                    class="calendar-day"
-                    :class="{ 'today': day.isToday, 'has-tasks': day.taskCount > 0 }"
-                  >
-                    <div class="day-number">{{ day.day }}</div>
-                    <div class="day-tasks" v-if="day.taskCount > 0">
-                      {{ day.completedTasks }}/{{ day.taskCount }}
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="recent-tasks">
-                <div class="recent-task-item">
-                  <div class="task-name">{{ taskStats.recent[0].title }}</div>
-                  <div class="task-session">{{ taskStats.recent[0].sessionTime }}min</div>
-                </div>
-              </div>
-            </div>
+<div class="feature-card task-card">
+  <div class="card-header">
+    <div class="card-icon">🎯</div>
+    <h3>Task Tracker</h3>
+  </div>
+  <div class="card-content">
+    <div class="task-calendar">
+      <div class="calendar-header">
+        <span class="calendar-month">{{ getCurrentMonth() }}</span>
+      </div>
+      <div class="calendar-grid">
+        <div 
+          v-for="day in taskStats.calendar || []" 
+          :key="day.date" 
+          class="calendar-day"
+          :class="{ 'today': day.isToday, 'has-tasks': day.taskCount > 0 }"
+        >
+          <div class="day-number">{{ day.day }}</div>
+          <div class="day-tasks" v-if="day.taskCount > 0">
+            {{ day.completedTasks }}/{{ day.taskCount }}
           </div>
+        </div>
+      </div>
+    </div>
+    <div class="recent-tasks">
+  <div 
+    v-for="task in taskStats.recent || []" 
+    :key="task.id" 
+    class="recent-task-item"
+    @click="showRecentTasksModal"
+    style="cursor:pointer;"
+  >
+    <div class="task-name">{{ task.title }}</div>
+    <div class="task-session">{{ task.status }}</div>
+  </div>
+</div>
+  </div>
+</div>
 
           <!-- Emotional Insights -->
           <div class="feature-card emotional-card" @click="showEmotionalModal">
@@ -596,6 +626,53 @@ const fetchPsychometricData = async () => {
   }
 }
 
+const fetchTaskStats = async () => {
+  if (!childId.value) return
+  try {
+    const res = await apiService.getTasksParent(childId.value)
+    if (res.success && Array.isArray(res.tasks)) {
+      // Prepare calendar stats for last 7 days
+      const today = new Date()
+      const calendarStats = []
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today)
+        date.setDate(today.getDate() - i)
+        const dateStr = date.toISOString().slice(0, 10)
+        // Filter tasks for this day
+        const dayTasks = res.tasks.filter(t => t.due_date?.slice(0, 10) === dateStr)
+        const completedTasks = dayTasks.filter(t => t.status === 'completed').length
+        calendarStats.push({
+          date: dateStr,
+          day: date.getDate(),
+          isToday: i === 0,
+          taskCount: dayTasks.length,
+          completedTasks: completedTasks
+        })
+      }
+
+      // Get latest 3 pending/in-progress tasks
+      const recentTasks = res.tasks
+        .filter(t => t.status === 'pending' || t.status === 'in-progress')
+        .sort((a, b) => new Date(b.due_date) - new Date(a.due_date))
+        .slice(0, 3)
+        .map(t => ({
+          id: t.id,
+          title: t.task,
+          status: t.status,
+          subject: t.subject,
+          due_date: t.due_date
+        }))
+
+      taskStats.value = {
+        recent: recentTasks,
+        calendar: calendarStats
+      }
+    }
+  } catch (e) {
+    console.error('Failed to fetch task stats', e)
+  }
+}
+
 const skillProgress = ref([
   { id: 1, name: 'Math Magic', icon: '🔢', progress: 80, level: 2, milestones: [] },
   { id: 2, name: 'Science Lab', icon: '🔬', progress: 60, level: 1, milestones: [] }
@@ -642,6 +719,7 @@ onMounted(async () => {
     await fetchFinanceStats()
     await fetchHealthStats()
     await fetchPsychometricData()
+    await fetchTaskStats()
   }
 })
 
@@ -677,11 +755,8 @@ const doodleStats = ref({
 })
 
 const taskStats = ref({
-  recent: [{ id: 1, title: 'Math Practice', sessionTime: 20 }],
-  allTasks: [],
-  schedule: [],
-  getCalendarDays: () => [],
-  getDetailedCalendarDays: () => [],
+  recent: [],
+  calendar: []
 })
 
 const emotionalInsights = ref({
@@ -723,6 +798,9 @@ const showTaskModal = () => openModal('Tasks', 'task-modal', taskStats.value)
 const showEmotionalModal = () => openModal('Emotions', 'emotional-modal', emotionalInsights.value)
 const showSkillsModal = () => openModal('Skills', 'skills-modal', skillProgress.value)
 const viewDoodle = (doodle) => openModal('Doodle View', 'doodling-modal', doodle)
+const showRecentTasksModal = () => {
+  openModal('Recent Tasks', 'recent-tasks-modal', { allTasks: taskStats.value.recent })
+}
 
 const logout = () => {
   userUtils.logout()
@@ -1478,6 +1556,16 @@ const exportData = () => {
 }
 
 .psychometric-modal.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(30, 30, 30, 0.5);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.recent-tasks-modal.modal-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(30, 30, 30, 0.5);

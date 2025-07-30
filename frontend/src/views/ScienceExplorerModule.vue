@@ -144,7 +144,7 @@ const simulations = ref([
         timeSpent: 0,
         gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         difficulty: 'Explorer',
-        progressWeight: 20, // Matches backend submodule progress weight
+        progressWeight: 16.67, // Matches backend submodule progress weight
         estimatedTime: '10-15 min',
         submodule_name: 'balance_master' // Updated to match backend
     },
@@ -159,7 +159,7 @@ const simulations = ref([
         timeSpent: 0,
         gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
         difficulty: 'Detective',
-        progressWeight: 20, // Matches backend submodule progress weight
+        progressWeight: 16.67, // Matches backend submodule progress weight
         estimatedTime: '15-20 min',
         submodule_name: 'force_detective' // Updated to match backend
     },
@@ -174,7 +174,7 @@ const simulations = ref([
         timeSpent: 0,
         gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
         difficulty: 'Astronaut',
-        progressWeight: 20, // Matches backend submodule progress weight
+        progressWeight: 16.67, // Matches backend submodule progress weight
         estimatedTime: '20-25 min',
         submodule_name: 'space_explorer' // Updated to match backend
     },
@@ -189,7 +189,7 @@ const simulations = ref([
         timeSpent: 0,
         gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
         difficulty: 'Wizard',
-        progressWeight: 20, // Matches backend submodule progress weight
+        progressWeight: 16.67, // Matches backend submodule progress weight
         estimatedTime: '15-20 min',
         submodule_name: 'wave_wizard' // Updated to match backend
     },
@@ -204,7 +204,7 @@ const simulations = ref([
         timeSpent: 0,
         gradient: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
         difficulty: 'Scientist',
-        progressWeight: 20, // Matches backend submodule progress weight
+        progressWeight: 16.67, // Matches backend submodule progress weight
         estimatedTime: '15-20 min',
         submodule_name: 'matter_transformer' // Updated to match backend
     },
@@ -219,7 +219,7 @@ const simulations = ref([
         timeSpent: 0,
         gradient: 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
         difficulty: 'Master',
-        progressWeight: 20, // Matches backend submodule progress weight
+        progressWeight: 16.65, // Matches backend submodule progress weight (slightly less to total 100%)
         estimatedTime: '10-15 min',
         submodule_name: 'energy_master' // Updated to match backend
     }
@@ -334,90 +334,114 @@ const saveSubmoduleProgress = async (simulation) => {
 const markSimulationComplete = async () => {
     if (!currentSimulation.value || !user.value) return
 
-    // Calculate time spent
-    if (currentSimulation.value.startTime) {
-        currentSimulation.value.timeSpent = Math.floor((Date.now() - currentSimulation.value.startTime) / 1000 / 60) // in minutes
-    }
-
-    // Mark as completed
-    currentSimulation.value.completed = true
-    currentSimulation.value.started = true // Ensure it's marked as started too
-    completedSimulations.value.add(currentSimulation.value.id)
-
-    // Recalculate progress - each submodule is exactly 20%
-    const completedSubmodules = simulations.value.filter(sim => sim.completed).length
-    moduleProgress.value = completedSubmodules * 20
-
-    // Save progress locally first (most important)
-    await saveProgress()
-
-    // Save individual submodule progress
-    await saveSubmoduleProgress(currentSimulation.value)
-
-    // Try to create achievement (but don't fail if it doesn't work)
     try {
-        const achievementData = {
-            user_id: user.value.id,
-            badge_name: `Science: ${currentSimulation.value.title} Master`,
-            description: `Completed the ${currentSimulation.value.title} science quest in ${currentSimulation.value.timeSpent || 'unknown'} minutes!`,
-            badge_type: 'science_quest',
-            icon: currentSimulation.value.icon
-        }
-        await apiService.createAchievement(achievementData)
-        console.log('✅ SIMPLE: Achievement created successfully')
-    } catch (achievementError) {
-        console.warn('⚠️ SIMPLE: Achievement creation failed, but quest completion is saved:', achievementError)
-    }
-
-    // Try additional module progress update (redundant but helpful)
-    try {
-        await apiService.updateModuleProgress({
-            user_id: user.value.id,
-            module_type: 'science_explorer', // Use the correct module type
-            submodule_name: currentSimulation.value.submodule_name, // Send submodule name
-            progress_percentage: 20, // Each submodule is 20%
-            is_completed: true
-        })
-        console.log('✅ SIMPLE: Module progress updated successfully')
-    } catch (moduleError) {
-        console.warn('⚠️ SIMPLE: Module progress update failed, but local progress is saved:', moduleError)
-    }
-
-    // Always show celebration regardless of save issues
-    Swal.fire({
-        title: '🎉 Quest Complete! 🎉',
-        html: `
-            <div style="text-align: center; line-height: 1.8;">
-                <div style="font-size: 4rem; margin: 1rem 0;">⭐🏆✨</div>
-                <h3 style="color: #28a745; margin: 1rem 0;">
-                    Amazing work, Science Champion!
-                </h3>
-                <p style="color: #667eea; font-size: 1.1rem;">
-                    You've mastered the <strong>${currentSimulation.value.title}</strong> quest!
-                </p>
-                <div style="background: rgba(40, 167, 69, 0.1); padding: 1rem; border-radius: 15px; margin: 1rem 0;">
-                    <p style="color: #28a745; font-weight: 600; margin: 0.5rem 0;">
-                        🏅 Achievement: ${currentSimulation.value.title} Master
+        const result = await Swal.fire({
+            title: '🎉 Science Quest Mastered!',
+            html: `
+                <div style="text-align: center; line-height: 1.8;">
+                    <div style="font-size: 4rem; margin: 1rem 0;">🧪✨🔬</div>
+                    <p style="font-size: 1.2rem; color: #4a5568; font-weight: 600;">
+                        Amazing! You've mastered the ${currentSimulation.value.title} quest!
                     </p>
-                    <p style="color: #17a2b8; font-size: 0.9rem; margin: 0.5rem 0;">
-                        ⚡ Progress Gained: 20% (Submodule Complete)
+                    <p style="color: #718096; margin: 1rem 0;">
+                        Your scientific discovery skills are legendary! 🌟
                     </p>
-                    <p style="color: #6f42c1; font-size: 0.9rem; margin: 0.5rem 0;">
-                        ⏱️ Time Spent: ${currentSimulation.value.timeSpent || 'N/A'} minutes
-                    </p>
-                    <p style="color: #fd7e14; font-size: 0.9rem; margin: 0.5rem 0;">
-                        📊 Total Progress: ${moduleProgress.value}% Complete
-                    </p>
+                    <div style="font-size: 3rem; margin: 1rem 0;">⭐🏆⭐</div>
                 </div>
-                <div style="font-size: 3rem; margin: 1rem 0;">🚀🔬🌟</div>
-                ${moduleProgress.value === 100 ? '<p style="color: #28a745; font-weight: 700; font-size: 1.2rem;">🎊 CONGRATULATIONS! You\'ve completed the entire Science Adventure! 🎊</p>' : ''}
-            </div>
-        `,
-        confirmButtonText: moduleProgress.value === 100 ? '🏆 Return as Science Master!' : '🎯 Continue Adventure!',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-        color: 'white',
-        confirmButtonColor: '#28a745'
-    })
+            `,
+            showCancelButton: true,
+            confirmButtonText: '🎯 Mark as Complete!',
+            cancelButtonText: '🔬 Continue Exploring',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: 'white',
+            customClass: {
+                popup: 'science-quest-popup',
+                confirmButton: 'quest-confirm-btn',
+                cancelButton: 'quest-cancel-btn'
+            }
+        })
+
+        if (!result.isConfirmed) {
+            return // User cancelled, don't mark as complete
+        }
+
+        // Calculate time spent
+        if (currentSimulation.value.startTime) {
+            currentSimulation.value.timeSpent = Math.floor((Date.now() - currentSimulation.value.startTime) / 1000 / 60) // in minutes
+        }
+
+        // Mark as completed
+        currentSimulation.value.completed = true
+        currentSimulation.value.started = true // Ensure it's marked as started too
+        completedSimulations.value.add(currentSimulation.value.id)
+
+        // Recalculate progress - sum the progress weights of completed submodules
+        const completedSubmodules = simulations.value.filter(sim => sim.completed)
+        moduleProgress.value = completedSubmodules.reduce((total, sim) => total + sim.progressWeight, 0)
+
+        // Save progress locally first (most important)
+        await saveProgress()
+
+        // Save individual submodule progress
+        await saveSubmoduleProgress(currentSimulation.value)
+
+        // Try to create achievement (but don't fail if it doesn't work)
+        try {
+            const achievementData = {
+                user_id: user.value.id,
+                badge_name: `Science: ${currentSimulation.value.title} Master`,
+                description: `Completed the ${currentSimulation.value.title} science quest in ${currentSimulation.value.timeSpent || 'unknown'} minutes!`,
+                badge_type: 'science_quest',
+                icon: currentSimulation.value.icon
+            }
+            await apiService.createAchievement(achievementData)
+            console.log('✅ SIMPLE: Achievement created successfully')
+        } catch (achievementError) {
+            console.warn('⚠️ SIMPLE: Achievement creation failed, but quest completion is saved:', achievementError)
+        }
+
+        // Try additional module progress update (redundant but helpful)
+        try {
+            await apiService.updateModuleProgress({
+                user_id: user.value.id,
+                module_type: 'science_explorer', // Use the correct module type
+                submodule_name: currentSimulation.value.submodule_name, // Send submodule name
+                progress_percentage: currentSimulation.value.progressWeight, // Use actual progress weight
+                is_completed: true
+            })
+            console.log('✅ SIMPLE: Module progress updated successfully')
+        } catch (moduleError) {
+            console.warn('⚠️ SIMPLE: Module progress update failed, but local progress is saved:', moduleError)
+        }
+
+        // Success message
+        await Swal.fire({
+            title: '� Science Champion!',
+            html: `
+                <div style="text-align: center;">
+                    <div style="font-size: 4rem; margin: 1rem 0;">�🧪🎊</div>
+                    <p style="font-size: 1.1rem; color: #4a5568;">
+                        You are now a ${currentSimulation.value.title} Master!
+                    </p>
+                    <div style="font-size: 3rem; margin: 1rem 0;">📈💪🔬</div>
+                    ${moduleProgress.value === 100 ? '<p style="color: #28a745; font-weight: 700; font-size: 1.2rem;">� CONGRATULATIONS! You\'ve completed the entire Science Adventure! 🎊</p>' : ''}
+                </div>
+            `,
+            timer: 3000,
+            timerProgressBar: true,
+            background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+            color: 'white'
+        })
+    } catch (error) {
+        console.error('❌ Error completing simulation:', error)
+        Swal.fire({
+            icon: 'error',
+            title: 'Oops!',
+            text: 'Something went wrong. Please try again.',
+            background: 'linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%)',
+            color: 'white'
+        })
+    }
 }
 
 const saveProgress = async () => {
@@ -442,9 +466,9 @@ const saveProgress = async () => {
         const submoduleProgress = {}
         simulations.value.forEach(sim => {
             if (sim.submodule_name) {
-                // Each completed submodule is exactly 20%
+                // Use the actual progress weight for each submodule
                 submoduleProgress[sim.submodule_name] = {
-                    progress_percentage: sim.completed ? 20 : 0,
+                    progress_percentage: sim.completed ? sim.progressWeight : 0,
                     is_completed: sim.completed
                 }
             }
@@ -492,10 +516,19 @@ const loadProgress = async () => {
         // Use the correct structure: response.progress.submodule_progress (array)
         if (response.success && response.progress && Array.isArray(response.progress.submodule_progress)) {
             const submodules = response.progress.submodule_progress;
-            backendProgress = submodules.reduce(
-                (sum, sub) => sum + (sub.is_completed ? 20 : 0),
-                0
-            );
+
+            // Calculate progress by summing actual progress weights of completed submodules
+            backendProgress = 0;
+            submodules.forEach(sub => {
+                if (sub.is_completed) {
+                    // Find the corresponding simulation to get the correct progress weight
+                    const sim = simulations.value.find(s => s.submodule_name === sub.submodule_name);
+                    if (sim) {
+                        backendProgress += sim.progressWeight;
+                    }
+                }
+            });
+
             // Update simulation states
             submodules.forEach(sub => {
                 const sim = simulations.value.find(s => s.submodule_name === sub.submodule_name);
@@ -1228,5 +1261,61 @@ onMounted(() => {
         padding: 0.6rem 1.2rem;
         font-size: 1rem;
     }
+}
+
+/* Science Explorer Module Button Styling */
+:global(.quest-confirm-btn) {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 25px !important;
+    font-weight: 700 !important;
+    margin: 0 10px !important;
+    color: white !important;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3) !important;
+    transition: all 0.3s ease !important;
+}
+
+:global(.quest-confirm-btn:hover) {
+    background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4) !important;
+}
+
+:global(.quest-cancel-btn) {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 25px !important;
+    font-weight: 600 !important;
+    margin: 0 10px !important;
+    color: white !important;
+    transition: all 0.3s ease !important;
+}
+
+:global(.quest-cancel-btn:hover) {
+    background: rgba(255, 255, 255, 0.3) !important;
+    transform: translateY(-2px) !important;
+}
+
+/* Alternative approach with higher specificity */
+:global(.swal2-popup .quest-confirm-btn) {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 25px !important;
+    font-weight: 700 !important;
+    margin: 0 10px !important;
+    color: white !important;
+}
+
+:global(.swal2-popup .quest-cancel-btn) {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 25px !important;
+    font-weight: 600 !important;
+    margin: 0 10px !important;
+    color: white !important;
 }
 </style>

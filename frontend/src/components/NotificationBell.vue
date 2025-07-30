@@ -19,9 +19,6 @@
             <div class="notification-list">
                 <div v-if="notifications.length === 0" class="empty-notifications">
                     <p>No notifications yet!</p>
-                    <button @click="createSampleNotifications" class="sample-btn">
-                        Create Sample Notifications
-                    </button>
                 </div>
 
                 <div v-else>
@@ -105,15 +102,6 @@ export default {
             }
         }
 
-        const createSampleNotifications = async () => {
-            try {
-                await apiService.createSampleNotifications(props.userId)
-                await fetchNotifications() // Refresh the list
-            } catch (error) {
-                console.error('Error creating sample notifications:', error)
-            }
-        }
-
         const toggleDropdown = () => {
             showDropdown.value = !showDropdown.value
             // Simply fetch notifications when dropdown is opened
@@ -160,7 +148,6 @@ export default {
             fetchNotifications,
             markAsRead,
             markAllAsRead,
-            createSampleNotifications,
             toggleDropdown,
             formatTime
         }
@@ -272,21 +259,6 @@ export default {
     padding: 2rem;
     text-align: center;
     color: #666;
-}
-
-.sample-btn {
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    color: white;
-    border: none;
-    padding: 0.6rem 1.2rem;
-    border-radius: 8px;
-    cursor: pointer;
-    margin-top: 1rem;
-    transition: transform 0.3s;
-}
-
-.sample-btn:hover {
-    transform: translateY(-2px);
 }
 
 .notification-item {
