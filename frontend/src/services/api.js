@@ -289,6 +289,16 @@ export const apiService = {
     }
   },
 
+  // Task Tracker for parents
+  async getTasksParent(userId) {
+    try {
+      const response = await api.get(`/api/tasks-for-parent/${userId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
   async createTask(taskData) {
     try {
       const response = await api.post('/api/tasks', taskData)
