@@ -55,19 +55,9 @@ db.init_app(app)
 # NEW: Initialize JWT with proper configuration
 jwt = JWTManager(app)
 
-# Print JWT configuration for debugging
-print(f"🔧 JWT Configuration:")
-print(f"   - JWT_SECRET_KEY: {app.config.get('JWT_SECRET_KEY', 'NOT SET')[:20]}...")
-print(f"   - JWT_ACCESS_TOKEN_EXPIRES: {app.config.get('JWT_ACCESS_TOKEN_EXPIRES', 'NOT SET')}")
-print(f"   - JWT_ALGORITHM: {app.config.get('JWT_ALGORITHM', 'NOT SET')}")
-print(f"   - SECRET_KEY: {app.config.get('SECRET_KEY', 'NOT SET')[:20]}...")
-
 # NEW: JWT error handlers with better debugging
 @jwt.expired_token_loader
 def expired_token_callback(jwt_header, jwt_payload):
-    print(f"🔒 JWT Token expired for user: {jwt_payload.get('sub', 'Unknown')}")
-    print(f"🔒 Token expiry: {jwt_payload.get('exp', 'Unknown')}")
-    print(f"🔒 Current time: {datetime.now(IST).timestamp()}")
     return jsonify({
         'success': False,
         'error': 'Token has expired',
@@ -76,7 +66,6 @@ def expired_token_callback(jwt_header, jwt_payload):
 
 @jwt.invalid_token_loader
 def invalid_token_callback(error):
-    print(f"🔒 Invalid JWT token: {error}")
     return jsonify({
         'success': False,
         'error': 'Invalid token',
@@ -85,7 +74,6 @@ def invalid_token_callback(error):
 
 @jwt.unauthorized_loader
 def missing_token_callback(error):
-    print(f"🔒 Missing JWT token: {error}")
     return jsonify({
         'success': False,
         'error': 'Missing authorization token',
@@ -95,7 +83,6 @@ def missing_token_callback(error):
 # NEW: Add additional JWT error handlers
 @jwt.revoked_token_loader
 def revoked_token_callback(jwt_header, jwt_payload):
-    print(f"🔒 Revoked JWT token for user: {jwt_payload.get('sub', 'Unknown')}")
     return jsonify({
         'success': False,
         'error': 'Token has been revoked',
@@ -104,7 +91,6 @@ def revoked_token_callback(jwt_header, jwt_payload):
 
 @jwt.token_verification_failed_loader
 def token_verification_failed_callback(jwt_header, jwt_payload):
-    print(f"🔒 Token verification failed: {jwt_payload}")
     return jsonify({
         'success': False,
         'error': 'Token verification failed',
@@ -132,10 +118,8 @@ def create_default_admin():
             )
             db.session.add(admin_user)
             db.session.commit()
-            print("Database tables created successfully!")
-            print("Default admin created successfully!")
         else:
-            print("Admin already exists!")
+            pass  # Admin already exists
 
 # ---------------------------
 # Chatbot System Setup
@@ -188,12 +172,19 @@ def api_chat_sessions(user_id):
         }), 500
 
 @app.route('/api/chat/session/<int:session_id>', methods=['GET'])
+@jwt_required()
 def api_get_session(session_id):
     """Get detailed session with all interactions"""
     try:
+        current_user_id = int(get_jwt_identity())
+        
         session = db.session.get(ChatSession, session_id)
         if not session:
             return jsonify({'success': False, 'error': 'Session not found'}), 404
+        
+        # Authorization: only allow access to own sessions
+        if session.user_id != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
         
         interactions = LLMInteractions.query.filter_by(session_id=session_id)\
                                            .order_by(LLMInteractions.user_timestamp.asc()).all()
@@ -236,15 +227,21 @@ def api_get_session(session_id):
         }), 500
 
 @app.route('/api/chat/session/<int:session_id>/summary', methods=['PUT'])
+@jwt_required()
 def update_session_summary(session_id):
     """Update session summary"""
     try:
+        current_user_id = int(get_jwt_identity())
         data = request.get_json()
         summary = data.get('summary')
         
         session = db.session.get(ChatSession, session_id)
         if not session:
             return jsonify({'success': False, 'error': 'Session not found'}), 404
+        
+        # Authorization: only allow users to update their own sessions
+        if session.user_id != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
         
         session.summary = summary
         session.updated_at = datetime.now(UTC)
@@ -482,7 +479,7 @@ def api_login():
             expires = timedelta(hours=8)  # Explicit 8-hour expiration
             
             access_token = create_access_token(
-                identity=user.id,
+                identity=str(user.id),
                 expires_delta=expires,
                 additional_claims={
                     'username': user.username,
@@ -490,10 +487,6 @@ def api_login():
                     'login_time': datetime.now(IST).isoformat()
                 }
             )
-            
-            print(f"🔑 Login successful for user {user.id} ({user.username})")
-            print(f"🔑 Token expires in: {expires}")
-            print(f"🔑 Token created at: {datetime.now(IST)}")
             
             # Update login streak for successful login
             update_login_streak(user.id)
@@ -514,10 +507,8 @@ def api_login():
                 }
             }), 200
         else:
-            print(f"🔒 Login failed for username: {username}")
             return jsonify({'success': False, 'error': 'Invalid credentials'}), 401
     except Exception as e:
-        print(f"❌ Login error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/auth/logout', methods=['POST'])
@@ -529,7 +520,6 @@ def api_logout():
         
         # Clear any server-side session data if needed
         # For now, just return success since JWT is stateless
-        print(f"🔒 User {user_id} logged out")
         
         return jsonify({
             'success': True,
@@ -556,9 +546,6 @@ def api_verify_token():
         from flask_jwt_extended import get_jwt
         claims = get_jwt()
         
-        print(f"🔍 Token verification for user {user_id}")
-        print(f"🔍 Token claims: {claims}")
-        
         return jsonify({
             'success': True,
             'user': {
@@ -574,7 +561,6 @@ def api_verify_token():
             }
         }), 200
     except Exception as e:
-        print(f"❌ Token verification error: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -889,7 +875,7 @@ def evaluate_streak_internal(user_id):
 
             db.session.commit()
     except Exception as e:
-        print("Streak Eval Error:", traceback.format_exc())
+        pass  # Silent error handling for streak evaluation
 
 def update_login_streak(user_id):
     """Update login streak for a user"""
@@ -931,10 +917,8 @@ def update_login_streak(user_id):
                     login_streak.longest_streak = login_streak.current_streak
         
         db.session.commit()
-        print(f"Updated login streak for user {user_id}: {login_streak.current_streak} days")
         
     except Exception as e:
-        print(f"Error updating login streak: {e}")
         db.session.rollback()
 
 # -----------------------
@@ -954,7 +938,6 @@ def get_motivational_quote(user_id):
         else:
             raise Exception("API call failed")
     except Exception as e:
-        print("Error fetching quote:", e)
         fallback_quote = "Believe in yourself and magic will happen! ✨"
         return jsonify({'success': False, 'quote': fallback_quote}), 200
 
@@ -984,7 +967,6 @@ def get_login_streak(user_id):
             }), 200
             
     except Exception as e:
-        print(f"Error fetching login streak: {e}")
         return jsonify({
             'success': False,
             'error': str(e),
@@ -1043,11 +1025,8 @@ def calculate_total_stars(user_id):
         if health_streak:
             stars += health_streak.current_streak * 2
         
-        print(f"⭐ Stars calculation for user {user_id}: modules={module_stars}, login_streak={(login_streak.current_streak if login_streak else 0)}, health_streak={(health_streak.current_streak*2 if health_streak else 0)}, total={stars}")
-        
         return stars
     except Exception as e:
-        print(f"Error calculating total stars: {e}")
         return 0
 
 def calculate_quests_completed(user_id):
@@ -1065,11 +1044,8 @@ def calculate_quests_completed(user_id):
         
         # Note: Achievements are excluded from quest calculation
         
-        print(f"📊 Quests calculated for user {user_id}: {quests} total (modules: {len(module_progress)}, tasks: {len(completed_tasks)})")
-        
         return quests
     except Exception as e:
-        print(f"Error calculating quests completed: {e}")
         return 0
 
 def calculate_skills_mastered(user_id):
@@ -1109,11 +1085,8 @@ def calculate_skills_mastered(user_id):
                 if completed_submodules >= 6:  # All 6 science submodules completed
                     skills += 1
         
-        print(f"🧠 Skills calculated for user {user_id}: {skills} skills mastered")
-        
         return skills
     except Exception as e:
-        print(f"Error calculating skills mastered: {e}")
         return 0
 
 def calculate_todays_goals(user_id, today):
@@ -1147,11 +1120,8 @@ def calculate_todays_goals(user_id, today):
         if water_log and water_log.count >= 8:  # 8 glasses goal
             goals += 1
         
-        print(f"📊 Today's goals for user {user_id}: {goals} total (modules: {today_module_progress}, tasks: {today_tasks}, health: {today_health_tasks}, login: {1 if login_streak and login_streak.last_login_date == today else 0}, water: {1 if water_log and water_log.count >= 8 else 0})")
-        
         return goals
     except Exception as e:
-        print(f"Error calculating today's goals: {e}")
         return 0
 
 # ---------------------------
@@ -1193,14 +1163,11 @@ def api_child_stats(user_id):
             'userLevel': user_level
         }
         
-        print(f"📊 Dashboard stats for user {user_id}: {stats}")
-        
         return jsonify({
             'success': True,
             'stats': stats
         }), 200
     except Exception as e:
-        print(f"Error calculating stats for user {user_id}: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -1233,7 +1200,6 @@ def create_test_achievement():
         db.session.add(achievement)
         db.session.commit()
         
-        print(f"✅ Created test achievement for user {user_id}: {achievement.badge_name}")
         
         return jsonify({
             'success': True,
@@ -1247,7 +1213,6 @@ def create_test_achievement():
         
     except Exception as e:
         db.session.rollback()
-        print(f"Error creating test achievement: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -1364,11 +1329,6 @@ def get_special_achievements(user_id):
                     db.session.add(new_achievement)
         
             db.session.commit()
-        else:
-            print(f"🚫 No achievements created for user {user_id} - insufficient progress (modules: {completed_modules}, tasks: {completed_tasks}, streak: {streak_days})")
-        
-        print(f"📊 Special achievements for user {user_id}: {[a['title'] for a in achievements]}")
-        print(f"🔍 Achievement calculation: modules={completed_modules}, tasks={completed_tasks}, streak={streak_days}")
         
         return jsonify({
             'success': True,
@@ -1376,7 +1336,6 @@ def get_special_achievements(user_id):
         }), 200
         
     except Exception as e:
-        print(f"Error fetching special achievements for user {user_id}: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -1387,7 +1346,6 @@ def get_special_achievements(user_id):
 def refresh_achievements(user_id):
     """Force refresh achievements for a user - for testing"""
     try:
-        print(f"🔄 Force refreshing achievements for user {user_id}")
         
         # Call the existing get_special_achievements function
         response = get_special_achievements(user_id)
@@ -1399,7 +1357,6 @@ def refresh_achievements(user_id):
         }), 200
         
     except Exception as e:
-        print(f"Error refreshing achievements for user {user_id}: {e}")
         return jsonify({
             'success': False,
             'error': str(e)
@@ -1525,7 +1482,6 @@ def chatbot_logic(user_id, user_message, session_id=None):
         
         bot_reply = response.choices[0].message.content.strip()
     except Exception as e:
-        print(f"Error getting AI response: {e}")
         bot_reply = "I apologize, but I'm having trouble connecting to my knowledge base right now. Please try again in a moment. [MOOD: neutral]"
     
     # Extract mood from LLM response
@@ -1540,7 +1496,6 @@ def chatbot_logic(user_id, user_message, session_id=None):
             # Remove mood tag from the response shown to user
             clean_bot_reply = bot_reply.split('[MOOD:')[0].strip()
         except (IndexError, AttributeError):
-            print("Failed to parse mood from LLM response")
             detected_mood = 'neutral'
     
     # Update the interaction with bot response and detected mood
@@ -1554,8 +1509,6 @@ def chatbot_logic(user_id, user_message, session_id=None):
     
     db.session.commit()
     
-    print(f"Updated session {chat_session.id} mood to: {detected_mood}")
-    
     return {
         'response': clean_bot_reply,  # Return clean response without mood tag
         'timestamp': user_interaction.llm_timestamp.isoformat(),
@@ -1565,8 +1518,19 @@ def chatbot_logic(user_id, user_message, session_id=None):
 
 #Finance tracker APIs
 @app.route('/api/parentchild', methods=['GET'])
+@jwt_required()
 def get_parent_child_links():
+    """Get parent-child relationships - restricted to admins only"""
     try:
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
+        
+        if not current_user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+            
+        # Only admins can view all parent-child relationships
+        if current_user.role != 'admin':
+            return jsonify({'success': False, 'error': 'Admin access required'}), 403
         links = ParentChild.query.all()
         return jsonify({
             "links": [
@@ -1741,14 +1705,11 @@ def start_psychometry_test():
         session['psychometry_start_time'] = time.time()
         session.permanent = True
         
-        print(f"Starting new psychometry assessment with {len(test_questions)} questions...")
-        
         # Return first question
         return get_next_psychometry_question()
         
     except Exception as e:
-        print(f"Error in start_psychometry_test: {e}")
-        traceback.print_exc()
+
         return jsonify({'error': 'Failed to start psychometry test', 'message': str(e)}), 500
 
 @app.route('/api/psychometry/submit', methods=['POST'])
@@ -1791,8 +1752,6 @@ def submit_psychometry_answer():
         # Update session
         session['psychometry_current_index'] = current_index + 1
         
-        print(f"Answer submitted for {current_question['category']}: {user_answer} vs {current_question['correct_answer']}")
-        
         # Check if test is complete
         if session['psychometry_current_index'] >= len(questions):
             return complete_psychometry_assessment()
@@ -1801,8 +1760,7 @@ def submit_psychometry_answer():
         return get_next_psychometry_question()
         
     except Exception as e:
-        print(f"Error in submit_psychometry_answer: {e}")
-        traceback.print_exc()
+
         return jsonify({'error': 'Failed to submit answer', 'message': str(e)}), 500
 
 def get_next_psychometry_question():
@@ -1827,8 +1785,7 @@ def get_next_psychometry_question():
         })
         
     except Exception as e:
-        print(f"Error in get_next_psychometry_question: {e}")
-        traceback.print_exc()
+
         return jsonify({'error': 'Failed to get next question', 'message': str(e)}), 500
 
 
@@ -1879,8 +1836,7 @@ def complete_psychometry_assessment():
             'duration_seconds': test_duration
         })
     except Exception as e:
-        print(f"Error in complete_psychometry_assessment: {e}")
-        traceback.print_exc()
+
         return jsonify({'error': 'Failed to complete assessment', 'message': str(e)}), 500
 
 # Psychometric Test Stats for parent Dashboard
@@ -1920,14 +1876,11 @@ def get_tasks(user_id):
     """Get all tasks for a specific user"""
     try:
         # Security check: ensure user can only access their own tasks
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         if user_id != current_user_id:
             return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
         
-        print(f"🔍 Getting tasks for user: {user_id}")
-        
         tasks = HomeworkSchedule.query.filter_by(user_id=user_id).order_by(HomeworkSchedule.due_date.asc()).all()
-        print(f"🔍 Found {len(tasks)} tasks in database for user {user_id}")
         
         # Simple authorization: users can only access their own tasks
         # or parents can access their children's tasks
@@ -1973,18 +1926,30 @@ def get_tasks(user_id):
 
 
 @app.route('/api/tasks-for-parent/<int:user_id>', methods=['GET'])
+@jwt_required()
 def get_tasks_for_parents(user_id):
-    """Get all tasks for a specific user"""
+    """Get all tasks for a specific user - only accessible by parents"""
     try:
-        # Security check: ensure user can only access their own tasks
-        # current_user_id = get_jwt_identity()
-        # if user_id != current_user_id:
-        #     return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
+        # Security check: ensure current user is a parent and can access child's tasks
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
         
-        print(f"🔍 Getting tasks for user: {user_id}")
+        if not current_user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+            
+        # Check if current user is a parent
+        if current_user.role != 'parent':
+            return jsonify({'success': False, 'error': 'Unauthorized access - parent role required'}), 403
+        
+        # Check if there's a parent-child relationship
+        parent_child_link = ParentChild.query.filter_by(
+            parent_id=current_user_id, 
+            child_id=user_id
+        ).first()
+        if not parent_child_link:
+            return jsonify({'success': False, 'error': 'Unauthorized access - no parent-child relationship'}), 403
         
         tasks = HomeworkSchedule.query.filter_by(user_id=user_id).order_by(HomeworkSchedule.due_date.asc()).all()
-        print(f"🔍 Found {len(tasks)} tasks in database for user {user_id}")
         
         # Simple authorization: users can only access their own tasks
         # or parents can access their children's tasks
@@ -2038,17 +2003,13 @@ def create_task():
         
         # Security check: ensure user can only create tasks for themselves
         user_id = data.get('user_id')
-        current_user_id = get_jwt_identity()
-        if user_id != current_user_id:
-            return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
+        current_user_id = int(get_jwt_identity())
         
-        print(f"🔍 Creating task for user: {data.get('user_id')}")
-        print(f"🔍 Task data: {data}")
-        
-        # Ensure user can only create tasks for themselves (simplified check)
-        current_user_id = data.get('user_id')  # Use the user_id from the request data
-        if not current_user_id:
+        if not user_id:
             return jsonify({'success': False, 'error': 'user_id is required'}), 400
+            
+        if user_id != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized access - can only create tasks for yourself'}), 403
         
         # Handle empty due_date string properly
         due_date_str = data.get('due_date')
@@ -2092,7 +2053,7 @@ def update_task_status(task_id):
     """Update a task's status"""
     try:
         # Security check: get current user
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         current_user = User.query.get(current_user_id)
         data = request.get_json()
         new_status = data.get('status')
@@ -2109,42 +2070,33 @@ def update_task_status(task_id):
         # Note: updated_at will be automatically set by SQLAlchemy if the column exists
         db.session.commit()
         
-        print(f"✅ Task {task_id} status updated to '{new_status}'")
-        
         return jsonify({'success': True, 'message': f'Task status updated to {new_status}'}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/tasks/<int:task_id>', methods=['DELETE'])
-# @jwt_required()  # Temporarily disabled for testing
+@jwt_required()
 def delete_task(task_id):
-    """Delete a task - temporarily disabled JWT for testing"""
+    """Delete a task"""
     try:
-        # Get Authorization header to extract user info for testing
-        auth_header = request.headers.get('Authorization')
-        if not auth_header or not auth_header.startswith('Bearer '):
-            return jsonify({'success': False, 'error': 'Missing authorization token'}), 401
+        # Security check: get current user
+        current_user_id = int(get_jwt_identity())
+        current_user = User.query.get(current_user_id)
         
-        # For now, accept any valid format Bearer token (fix JWT later)
-        token = auth_header.split(' ')[1]
-        if not token:
-            return jsonify({'success': False, 'error': 'Invalid token format'}), 401
-        
-        print(f"🗑️ Deleting task {task_id}")
+        if not current_user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
         
         task = db.session.get(HomeworkSchedule, task_id)
         if not task:
             return jsonify({'success': False, 'error': 'Task not found'}), 404
 
         # Authorization: users can only delete their own tasks or teachers can delete tasks they assigned
-        # if task.user_id != current_user_id and task.assigned_by_teacher != current_user_id:
-        #     return jsonify({'success': False, 'error': 'Unauthorized: Can only delete your own tasks or tasks you assigned'}), 403
+        if task.user_id != current_user_id and task.assigned_by_teacher != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized: Can only delete your own tasks or tasks you assigned'}), 403
 
         db.session.delete(task)
         db.session.commit()
-        
-        print(f"✅ Task {task_id} deleted successfully")
         
         return jsonify({'success': True, 'message': 'Task deleted successfully'}), 200
     except Exception as e:
@@ -2158,7 +2110,7 @@ def delete_task(task_id):
 def get_teacher_students(teacher_id):
     """Get all students assigned to a specific teacher"""
     try:
-        print(f"🔍 get_teacher_students called for teacher_id: {teacher_id}")
+        
         
         # Simple authorization check using Authorization header
         auth_header = request.headers.get('Authorization')
@@ -2170,18 +2122,18 @@ def get_teacher_students(teacher_id):
         if not token:
             return jsonify({'success': False, 'error': 'Invalid token format'}), 401
         
-        print(f"✅ Authorization header present for teacher {teacher_id}")
+        
         
         # Get students through ParentChild table where parent_id is the teacher
         student_relationships = ParentChild.query.filter_by(parent_id=teacher_id).all()
         students_data = []
         
-        print(f"🔍 Found {len(student_relationships)} student relationships")
+        
         
         for relationship in student_relationships:
             student = User.query.get(relationship.child_id)
             if student:
-                print(f"🔍 Found student: {student.username} (ID: {student.id})")
+                
                 students_data.append({
                     'id': student.id,
                     'username': student.username,
@@ -2256,7 +2208,7 @@ def get_teacher_homework(teacher_id):
         if not token:
             return jsonify({'success': False, 'error': 'Invalid token format'}), 401
         
-        print(f"🔍 Getting homework assigned by teacher: {teacher_id}")
+        
         
         # current_user_id = get_jwt_identity()
         # current_user = User.query.get(current_user_id)
@@ -2358,19 +2310,19 @@ def assign_homework():
 def start_pomodoro():
     """Start a new pomodoro session for a task - requires JWT token"""
     try:
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         data = request.get_json()
-        print("📥 Received data:", data)
 
         # Ensure user can only start sessions for themselves
         if data.get('user_id') != current_user_id:
             return jsonify({'success': False, 'error': 'Unauthorized: Can only start sessions for yourself'}), 403
 
-        # Debug print to confirm presence of required keys
+        # Validate required fields
         if 'user_id' not in data:
-            print("❌ Missing 'user_id' in request")
+            return jsonify({'success': False, 'error': 'Missing user_id'}), 400
         if 'homework_id' not in data:
-            print("❌ Missing 'homework_id' in request")
+            return jsonify({'success': False, 'error': 'Missing homework_id'}), 400
+            
         session = PomodoroSession(
             user_id=data['user_id'],
             homework_id=data['homework_id'],
@@ -2396,7 +2348,7 @@ def start_pomodoro():
 def complete_pomodoro(session_id):
     """Complete a pomodoro session - requires JWT token"""
     try:
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         data = request.get_json()
         duration = data.get('duration') # in minutes
 
@@ -2429,12 +2381,19 @@ def complete_pomodoro(session_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/pomodoro/pause/<int:session_id>', methods=['PUT'])
+@jwt_required()
 def pause_pomodoro(session_id):
     """Pause a pomodoro session"""
     try:
+        current_user_id = int(get_jwt_identity())
+        
         session = db.session.get(PomodoroSession, session_id)
         if not session:
             return jsonify({'success': False, 'error': 'Session not found'}), 404
+
+        # Authorization: users can only pause their own sessions
+        if session.user_id != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized: Can only pause your own sessions'}), 403
 
         # Calculate work duration so far
         if session.start_time:
@@ -2452,12 +2411,19 @@ def pause_pomodoro(session_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/pomodoro/resume/<int:session_id>', methods=['PUT'])
+@jwt_required()
 def resume_pomodoro(session_id):
     """Resume a paused pomodoro session"""
     try:
+        current_user_id = int(get_jwt_identity())
+        
         session = db.session.get(PomodoroSession, session_id)
         if not session:
             return jsonify({'success': False, 'error': 'Session not found'}), 404
+
+        # Authorization: users can only resume their own sessions
+        if session.user_id != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized: Can only resume your own sessions'}), 403
 
         session.start_time = datetime.now(UTC)
 
@@ -2470,13 +2436,19 @@ def resume_pomodoro(session_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/pomodoro/abandon/<int:session_id>', methods=['PUT'])
+@jwt_required()
 def abandon_pomodoro(session_id):
     """Abandon a pomodoro session"""
     try:
+        current_user_id = int(get_jwt_identity())
         data = request.get_json()
         session = db.session.get(PomodoroSession, session_id)
         if not session:
             return jsonify({'success': False, 'error': 'Session not found'}), 404
+
+        # Authorization: users can only abandon their own sessions
+        if session.user_id != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized: Can only abandon your own sessions'}), 403
 
         # Get work and break duration from request
         work_duration = data.get('work_duration', 0) if data else 0
@@ -2654,18 +2626,16 @@ def save_module_progress():
         progress_data = data.get('progress_data', {})
         submodule_name = data.get('submodule_name', '')
         
-        print(f"📝 Saving progress for User {user_id}, Module '{module_type}', Progress: {progress_percentage}%")
-        print(f"🔍 Full request data: {data}")  # Log full request data
+        
+          # Log full request data
         
         # Validation
         if not user_id:
-            print("❌ Missing user_id")
             return jsonify({'success': False, 'error': 'user_id is required'}), 400
         
         # Check if user exists
         user = db.session.get(User, user_id)
         if not user:
-            print(f"❌ User {user_id} not found")
             return jsonify({'success': False, 'error': 'User not found'}), 404
         
         # Get module and submodule IDs
@@ -2675,18 +2645,18 @@ def save_module_progress():
         if module_has_submodules(module_type):
             # Module has submodules, so submodule_name is required
             if not submodule_name:
-                print(f"❌ Submodule name required for module '{module_type}'")
+                
                 return jsonify({'success': False, 'error': f'Submodule name required for module: {module_type}'}), 400
             submodule_id = get_submodule_id(module_type, submodule_name)
             if not submodule_id:
-                print(f"❌ Invalid submodule '{submodule_name}' for module '{module_type}'")
+                
                 return jsonify({'success': False, 'error': f'Invalid submodule: {submodule_name}'}), 400
         else:
             # Module doesn't have submodules, so clear submodule fields
             submodule_name = None
             submodule_id = None
         
-        print(f"🔍 Module ID: {module_id}, Submodule ID: {submodule_id} for '{module_type}'/'{submodule_name}'")
+        
         
         # Find existing progress record for this module/submodule combination
         if module_has_submodules(module_type):
@@ -2710,7 +2680,7 @@ def save_module_progress():
             existing_progress.submodule_name = submodule_name
             existing_progress.module_id = module_id
             existing_progress.submodule_id = submodule_id
-            print(f"✅ Updated existing progress record for {module_type}")
+            
         else:
             # Create new progress record
             new_progress = UserModuleProgress(
@@ -2723,12 +2693,12 @@ def save_module_progress():
                 completed=is_completed
             )
             db.session.add(new_progress)
-            print(f"✅ Created new progress record for {module_type}")
+            
         
         # Commit changes
         db.session.commit()
         
-        print(f"✅ Progress saved successfully for {module_type}")
+        
         return jsonify({
             'success': True, 
             'message': 'Progress saved successfully',
@@ -2737,9 +2707,9 @@ def save_module_progress():
         }), 200
         
     except Exception as e:
-        print(f"💥 Error in save_module_progress: {e}")
+        
         import traceback
-        traceback.print_exc()  # Print full traceback
+  # Print full traceback
         db.session.rollback()
         return jsonify({
             'success': False, 
@@ -2755,18 +2725,18 @@ def get_module_progress(user_id, module_type):
         from urllib.parse import unquote
         decoded_module_type = unquote(module_type)
         
-        print(f"🔍 Getting module progress for user {user_id}, module: '{decoded_module_type}'")
+        
         
         # Check if user exists
         user = db.session.get(User, user_id)
         if not user:
-            print(f"❌ User {user_id} not found")
+            
             return jsonify({'success': False, 'error': 'User not found'}), 404
         
         # Check if module exists
         module_info = MODULE_MAPPING.get(decoded_module_type)
         if not module_info:
-            print(f"❌ Module '{decoded_module_type}' not found")
+            
             return jsonify({'success': False, 'error': f'Module not found: {decoded_module_type}'}), 404
         
         # Find progress record for this module using UserModuleProgress table
@@ -2804,7 +2774,7 @@ def get_module_progress(user_id, module_type):
                     'completed_submodules': total_completed
                 }
                 
-                print(f"✅ Retrieved module progress for user {user_id}, module {decoded_module_type}: {progress_data}")
+                
                 return jsonify({
                     'success': True,
                     'progress': progress_data
@@ -2826,13 +2796,13 @@ def get_module_progress(user_id, module_type):
                     'submodule_id': None
                 }
                 
-                print(f"✅ Retrieved module progress for user {user_id}, module {decoded_module_type}: {progress_data}")
+                
                 return jsonify({
                     'success': True,
                     'progress': progress_data
                 }), 200
         
-        print(f"📝 No progress found for user {user_id}, module {decoded_module_type}")
+        
         # Return success with null progress instead of 404 for better UX
         return jsonify({
             'success': True, 
@@ -2841,9 +2811,9 @@ def get_module_progress(user_id, module_type):
         }), 200
         
     except Exception as e:
-        print(f"💥 Error retrieving module progress: {e}")
+        
         import traceback
-        traceback.print_exc()
+
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/module/progress/<int:user_id>', methods=['GET'])
@@ -2851,12 +2821,12 @@ def get_module_progress(user_id, module_type):
 def get_all_module_progress(user_id):
     """Get all module progress for a user"""
     try:
-        print(f"🔍 Getting all module progress for user {user_id}")
+        
         
         # Check if user exists
         user = db.session.get(User, user_id)
         if not user:
-            print(f"❌ User {user_id} not found")
+            
             return jsonify({'success': False, 'error': 'User not found'}), 404
         
         # Get all progress records for this user
@@ -2904,7 +2874,7 @@ def get_all_module_progress(user_id):
         # Convert to list
         progress_list = list(module_progress.values())
         
-        print(f"✅ Retrieved {len(progress_list)} module progress records for user {user_id}")
+        
         return jsonify({
             'success': True,
             'progress_list': progress_list,
@@ -2915,9 +2885,9 @@ def get_all_module_progress(user_id):
         }), 200
         
     except Exception as e:
-        print(f"💥 Error retrieving all module progress: {e}")
+        
         import traceback
-        traceback.print_exc()
+
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/modules/info', methods=['GET'])
@@ -2948,7 +2918,7 @@ def get_modules_info():
 def get_quest_statistics(user_id):
     """Get detailed quest statistics"""
     try:
-        print(f"🔍 Getting detailed quest statistics for user {user_id}")
+        
         
         # Check if user exists
         user = db.session.get(User, user_id)
@@ -3033,7 +3003,7 @@ def get_quest_statistics(user_id):
             }
         }
         
-        print(f"📊 Detailed quest stats for user {user_id}: {stats}")
+        
         
         return jsonify({
             'success': True,
@@ -3041,9 +3011,9 @@ def get_quest_statistics(user_id):
         }), 200
         
     except Exception as e:
-        print(f"💥 Error getting quest statistics: {e}")
+        
         import traceback
-        traceback.print_exc()
+
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ---------------------------
@@ -3055,11 +3025,23 @@ def get_notifications(user_id):
     """Get all notifications for a user"""
     try:
         # Security check: ensure user can only access their own notifications
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         current_user = User.query.get(current_user_id)
         
-        # Allow users to access their own notifications or parents to access their children's
-        if user_id != current_user_id and current_user.role != 'parent':
+        # Allow users to access their own notifications
+        if user_id == current_user_id:
+            # User accessing their own notifications - allowed
+            pass
+        elif current_user.role == 'parent':
+            # Parent accessing child's notifications - check if there's a parent-child relationship
+            parent_child_link = ParentChild.query.filter_by(
+                parent_id=current_user_id, 
+                child_id=user_id
+            ).first()
+            if not parent_child_link:
+                return jsonify({'success': False, 'error': 'Unauthorized access - no parent-child relationship'}), 403
+        else:
+            # Not own notifications and not a parent - deny access
             return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
         
         notifications = Notification.query.filter_by(user_id=user_id)\
@@ -3211,7 +3193,7 @@ def generate_notifications(user_id):
         return len(notifications)
     
     except Exception as e:
-        print(f"Error generating notifications: {e}")
+        
         db.session.rollback()
         return 0
 
@@ -3220,11 +3202,17 @@ def generate_notifications(user_id):
 # ---------------------------
 
 @app.route('/api/drawings/save', methods=['POST'])
+@jwt_required()
 def save_drawing():
     """Save a drawing to both local storage and database"""
     try:
+        current_user_id = int(get_jwt_identity())
         data = request.get_json()
-        user_id = data.get('user_id', 1)
+        user_id = data.get('user_id', current_user_id)
+        
+        # Security check: users can only save drawings for themselves
+        if user_id != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized: Can only save drawings for yourself'}), 403
         image_data = data.get('image_data')
         description = data.get('description', 'Untitled Drawing')
         time_taken = data.get('time_taken', 0)
@@ -3396,20 +3384,26 @@ def get_drawing_image(drawing_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/drawings/delete/<int:drawing_id>', methods=['DELETE'])
+@jwt_required()
 def delete_drawing(drawing_id):
     """Delete a drawing from both database and file system"""
     try:
+        current_user_id = int(get_jwt_identity())
+        
         drawing = db.session.get(DoodleSession, drawing_id)
         if not drawing:
             return jsonify({'success': False, 'error': 'Drawing not found'}), 404
+        
+        # Authorization: users can only delete their own drawings
+        if drawing.user_id != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized: Can only delete your own drawings'}), 403
         
         # Delete file if it exists
         if drawing.save_image_path and os.path.exists(drawing.save_image_path):
             try:
                 os.remove(drawing.save_image_path)
-                print(f"Deleted file: {drawing.save_image_path}")
             except Exception as e:
-                print(f"Error deleting file: {str(e)}")
+                pass  # Continue even if file deletion fails
         
         # Delete from database
         db.session.delete(drawing)
@@ -3607,17 +3601,15 @@ def initialize_database():
             
         with app.app_context():
             # Create all database tables (won't recreate if they exist)
-            print("🔄 Creating database tables...")
             db.create_all()
-            print("✅ Database tables created successfully!")
             
             # Create default admin user
             create_default_admin()
             
     except Exception as e:
-        print(f"❌ Error initializing database: {e}")
+        
         import traceback
-        traceback.print_exc()
+
         raise e
 
 # ---------------------------
@@ -3655,7 +3647,7 @@ def complete_activity():
         if activity_name == 'Memory Game':
             stars_earned = 5  # Memory Game gives 5 stars
         
-        print(f"Activity completed: {activity_name} by user {user_id}, earned {stars_earned} stars")
+        
         
         return jsonify({
             'success': True,
@@ -3666,7 +3658,7 @@ def complete_activity():
         
     except Exception as e:
         db.session.rollback()
-        print(f"Error tracking activity completion: {e}")
+        
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # Achievement Management Routes
@@ -3675,7 +3667,7 @@ def complete_activity():
 def get_user_achievements(user_id):
     """Get all achievements for a user"""
     try:
-        print(f"🔄 Loading achievements for user {user_id}")
+        
         
         # Check if user exists
         user = db.session.get(User, user_id)
@@ -3702,7 +3694,7 @@ def get_user_achievements(user_id):
                 
             achievement_list.append(achievement_data)
         
-        print(f"✅ Found {len(achievement_list)} achievements for user {user_id}")
+        
         
         return jsonify({
             'success': True,
@@ -3710,9 +3702,9 @@ def get_user_achievements(user_id):
         }), 200
         
     except Exception as e:
-        print(f"💥 Error loading achievements for user {user_id}: {e}")
+        
         import traceback
-        traceback.print_exc()
+
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/achievement', methods=['POST'])
@@ -3726,7 +3718,7 @@ def create_achievement():
         badge_type = data.get('badge_type', 'general')
         icon = data.get('icon', '🏆')
         
-        print(f"🔄 Creating achievement: {badge_name} for user {user_id}")
+        
         
         if not user_id or not badge_name:
             return jsonify({'success': False, 'error': 'user_id and badge_name are required'}), 400
@@ -3753,7 +3745,7 @@ def create_achievement():
         db.session.add(achievement)
         db.session.commit()
         
-        print(f"✅ Created achievement: {badge_name} for user {user_id}")
+        
         
         return jsonify({
             'success': True,
@@ -3770,9 +3762,9 @@ def create_achievement():
         
     except Exception as e:
         db.session.rollback()
-        print(f"💥 Error creating achievement: {e}")
+        
         import traceback
-        traceback.print_exc()
+
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # Add this function near other notification-related routes
@@ -3784,11 +3776,11 @@ def clear_user_notifications(user_id):
         # Delete all existing notifications for the user
         Notification.query.filter_by(user_id=user_id).delete()
         db.session.commit()
-        print(f"🗑️ Cleared all notifications for user {user_id}")
+        
         return True
     except Exception as e:
         db.session.rollback()
-        print(f"❌ Error clearing notifications for user {user_id}: {e}")
+        
         return False
 
 # Modify the logout route to clear notifications
@@ -3865,7 +3857,7 @@ def clear_user_data_for_testing(user_id):
         if user_id != current_user_id:
             return jsonify({'success': False, 'error': 'Can only clear your own data'}), 403
         
-        print(f"🗑️ Clearing all data for user {user_id} (TESTING)")
+        
         
         # Clear achievements
         Achievement.query.filter_by(user_id=user_id).delete()
