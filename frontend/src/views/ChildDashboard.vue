@@ -405,6 +405,7 @@
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { userUtils, apiService } from '@/services/api'
+import authService from '@/services/authService'
 import { calculateSimpleLevel, getLevelTitle, getLevelProgress, checkForLevelUp } from '@/services/levelService'
 import EnhancedChatBot from '@/components/chat/EnhancedChatBot.vue'
 import Swal from 'sweetalert2'
@@ -1558,20 +1559,51 @@ export default {
         }
 
         onMounted(async () => {
+            console.log('🎬 ChildDashboard: Component mounted, starting initialization...')
+            
+            // Always run these checks first (non-API operations)
             checkChildAccess()
             startScreenTimeSession()
-            fetchQuote()
-            fetchLoginStreak()
-            fetchDashboardStats()
-            await loadSpecialAchievements()
-            await loadGoodTouchBadTouchProgress()
-            await loadSafetyMeasuresProgress()
-            await loadScienceExplorerProgress()
-            await loadWordWizardProgress()
-            await loadMathMagicProgress()
+            
+            // For authenticated users, ensure token is ready before making API calls
+            if (userUtils.getCurrentUser()) {
+                console.log('👤 ChildDashboard: User detected, ensuring authentication before API calls...')
+                
+                try {
+                    // Wait for authentication to be ready before proceeding with API calls
+                    const authReady = await authService.ensureAuthenticated()
+                    
+                    if (authReady) {
+                        console.log('✅ ChildDashboard: Authentication verified, proceeding with API calls...')
+                        
+                        // Now safe to make API calls
+                        fetchQuote()
+                        fetchLoginStreak()
+                        fetchDashboardStats()
+                        await loadSpecialAchievements()
+                        await loadGoodTouchBadTouchProgress()
+                        await loadSafetyMeasuresProgress()
+                        await loadScienceExplorerProgress()
+                        await loadWordWizardProgress()
+                        await loadMathMagicProgress()
 
-            // Calculate skills mastered after loading all module progress
-            calculateSkillsMastered()
+                        // Calculate skills mastered after loading all module progress
+                        calculateSkillsMastered()
+                        
+                        console.log('🎉 ChildDashboard: All data loaded successfully')
+                    } else {
+                        console.error('❌ ChildDashboard: Authentication verification failed')
+                        // Still allow basic dashboard functionality without API data
+                    }
+                } catch (authError) {
+                    console.error('❌ ChildDashboard: Authentication error:', authError)
+                    // Continue with basic dashboard functionality
+                }
+            } else {
+                console.log('👥 ChildDashboard: No user detected, loading basic dashboard...')
+                // For guest users, still load basic functionality
+                fetchQuote()
+            }
 
             // Add event listener for page unload
             window.addEventListener('beforeunload', logScreenTime)

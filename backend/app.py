@@ -1,19 +1,21 @@
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Achievement, ChatSession,ChildProfile, DoodleSession, LLMInteractions, ParentChild, SavingGoal, Transaction, HomeworkSchedule, PomodoroSession, ScreenTime, Notification, HealthTask, HealthStreak, WaterLog, LoginStreak, PsychometricTestResult, UserModuleProgress
+from models import db, User, Achievement, ChatSession,ChildProfile, DoodleSession, LLMInteractions, ParentChild, SavingGoal, Transaction, HomeworkSchedule, PomodoroSession, ScreenTime, Notification, HealthTask, HealthStreak, WaterLog, LoginStreak, PsychometricTestResult, UserModuleProgress, get_current_ist_time, IST
 import re, requests
 import PIL
 import os
 import random
 import glob
 import base64
+import time
+import traceback
 from config import Config
 from openai import OpenAI
 import secrets
 import time
 import traceback
-from datetime import datetime, date
+from datetime import datetime, date, UTC
 import json
 from collections import defaultdict
 
@@ -22,6 +24,14 @@ from flask_jwt_extended import JWTManager, create_access_token, jwt_required, ge
 
 # Import our psychometry module
 from services.psychometry import PsychometryService
+
+def get_today_ist():
+    """Get today's date in IST timezone"""
+    return datetime.now(IST).date()
+
+def get_current_ist_datetime():
+    """Get current datetime in IST timezone"""
+    return datetime.now(IST)
 
 app = Flask(__name__)
 app.config.from_object(Config)
@@ -42,29 +52,63 @@ CORS(app,
 
 db.init_app(app)
 
-# NEW: Initialize JWT
+# NEW: Initialize JWT with proper configuration
 jwt = JWTManager(app)
 
-# NEW: JWT error handlers
+# Print JWT configuration for debugging
+print(f"🔧 JWT Configuration:")
+print(f"   - JWT_SECRET_KEY: {app.config.get('JWT_SECRET_KEY', 'NOT SET')[:20]}...")
+print(f"   - JWT_ACCESS_TOKEN_EXPIRES: {app.config.get('JWT_ACCESS_TOKEN_EXPIRES', 'NOT SET')}")
+print(f"   - JWT_ALGORITHM: {app.config.get('JWT_ALGORITHM', 'NOT SET')}")
+print(f"   - SECRET_KEY: {app.config.get('SECRET_KEY', 'NOT SET')[:20]}...")
+
+# NEW: JWT error handlers with better debugging
 @jwt.expired_token_loader
 def expired_token_callback(jwt_header, jwt_payload):
+    print(f"🔒 JWT Token expired for user: {jwt_payload.get('sub', 'Unknown')}")
+    print(f"🔒 Token expiry: {jwt_payload.get('exp', 'Unknown')}")
+    print(f"🔒 Current time: {datetime.now(IST).timestamp()}")
     return jsonify({
         'success': False,
-        'error': 'Token has expired'
+        'error': 'Token has expired',
+        'error_type': 'token_expired'
     }), 401
 
 @jwt.invalid_token_loader
 def invalid_token_callback(error):
+    print(f"🔒 Invalid JWT token: {error}")
     return jsonify({
         'success': False,
-        'error': 'Invalid token'
+        'error': 'Invalid token',
+        'error_type': 'token_invalid'
     }), 401
 
 @jwt.unauthorized_loader
 def missing_token_callback(error):
+    print(f"🔒 Missing JWT token: {error}")
     return jsonify({
         'success': False,
-        'error': 'Missing authorization token'
+        'error': 'Missing authorization token',
+        'error_type': 'token_missing'
+    }), 401
+
+# NEW: Add additional JWT error handlers
+@jwt.revoked_token_loader
+def revoked_token_callback(jwt_header, jwt_payload):
+    print(f"🔒 Revoked JWT token for user: {jwt_payload.get('sub', 'Unknown')}")
+    return jsonify({
+        'success': False,
+        'error': 'Token has been revoked',
+        'error_type': 'token_revoked'
+    }), 401
+
+@jwt.token_verification_failed_loader
+def token_verification_failed_callback(jwt_header, jwt_payload):
+    print(f"🔒 Token verification failed: {jwt_payload}")
+    return jsonify({
+        'success': False,
+        'error': 'Token verification failed',
+        'error_type': 'token_verification_failed'
     }), 401
 
 EMAIL_REGEX = re.compile(r"[^@]+@[^@]+\.[^@]+") 
@@ -203,7 +247,7 @@ def update_session_summary(session_id):
             return jsonify({'success': False, 'error': 'Session not found'}), 404
         
         session.summary = summary
-        session.updated_at = datetime.utcnow()
+        session.updated_at = datetime.now(UTC)
         db.session.commit()
         
         return jsonify({
@@ -433,8 +477,23 @@ def api_login():
 
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password_hash, password):
-            # Generate JWT token
-            access_token = create_access_token(identity=user.id)
+            # Generate JWT token with explicit expiration
+            from datetime import timedelta
+            expires = timedelta(hours=8)  # Explicit 8-hour expiration
+            
+            access_token = create_access_token(
+                identity=user.id,
+                expires_delta=expires,
+                additional_claims={
+                    'username': user.username,
+                    'role': user.role,
+                    'login_time': datetime.now(IST).isoformat()
+                }
+            )
+            
+            print(f"🔑 Login successful for user {user.id} ({user.username})")
+            print(f"🔑 Token expires in: {expires}")
+            print(f"🔑 Token created at: {datetime.now(IST)}")
             
             # Update login streak for successful login
             update_login_streak(user.id)
@@ -446,6 +505,7 @@ def api_login():
                 'success': True,
                 'message': 'Login successful', 
                 'access_token': access_token,
+                'expires_in': int(expires.total_seconds()),  # Send expiration time to frontend
                 'user': {
                     'id': user.id,
                     'username': user.username,
@@ -454,8 +514,10 @@ def api_login():
                 }
             }), 200
         else:
+            print(f"🔒 Login failed for username: {username}")
             return jsonify({'success': False, 'error': 'Invalid credentials'}), 401
     except Exception as e:
+        print(f"❌ Login error: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/auth/logout', methods=['POST'])
@@ -475,6 +537,48 @@ def api_logout():
         }), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/auth/verify', methods=['GET'])
+@jwt_required()
+def api_verify_token():
+    """Verify if the current JWT token is valid and get user info"""
+    try:
+        user_id = get_jwt_identity()
+        user = User.query.get(user_id)
+        
+        if not user:
+            return jsonify({
+                'success': False,
+                'error': 'User not found'
+            }), 404
+        
+        # Get JWT claims for debugging
+        from flask_jwt_extended import get_jwt
+        claims = get_jwt()
+        
+        print(f"🔍 Token verification for user {user_id}")
+        print(f"🔍 Token claims: {claims}")
+        
+        return jsonify({
+            'success': True,
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'role': user.role
+            },
+            'token_info': {
+                'expires_at': claims.get('exp'),
+                'issued_at': claims.get('iat'),
+                'login_time': claims.get('login_time')
+            }
+        }), 200
+    except Exception as e:
+        print(f"❌ Token verification error: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/api/chat', methods=['POST'])
 @jwt_required()
@@ -1059,7 +1163,7 @@ def calculate_todays_goals(user_id, today):
 def api_child_stats(user_id):
     """Get child dashboard statistics"""
     try:
-        today = date.today()
+        today = get_today_ist()  # Use IST timezone for today's date
         
         # Calculate Stars Collected
         total_stars = calculate_total_stars(user_id)
@@ -1121,9 +1225,9 @@ def create_test_achievement():
         # Create a test achievement
         achievement = Achievement(
             user_id=user_id,
-            badge_name=data.get('badge_name', f"Test Achievement {datetime.utcnow().timestamp()}"),
+            badge_name=data.get('badge_name', f"Test Achievement {datetime.now(UTC).timestamp()}"),
             description=data.get('description', 'Test achievement for dashboard stats'),
-            date_awarded=datetime.utcnow()
+            date_awarded=datetime.now(UTC)
         )
         
         db.session.add(achievement)
@@ -1199,7 +1303,7 @@ def get_special_achievements(user_id):
             "title": knowledge_titles[knowledge_level],
             "description": f"Completed {completed_modules} learning modules",
             "medal": "🥇",
-            "earnedDate": datetime.utcnow().isoformat(),
+            "earnedDate": datetime.now(IST).isoformat(),
             "type": "knowledge",
             "level": knowledge_level,
             "progress": completed_modules
@@ -1215,7 +1319,7 @@ def get_special_achievements(user_id):
             "title": streak_titles[streak_level],
             "description": f"Maintained {streak_days} day learning streak",
             "medal": "🥈",
-            "earnedDate": datetime.utcnow().isoformat(),
+            "earnedDate": datetime.now(IST).isoformat(),
             "type": "streak",
             "level": streak_level,
             "progress": streak_days
@@ -1230,7 +1334,7 @@ def get_special_achievements(user_id):
             "title": task_titles[task_level],
             "description": f"Completed {completed_tasks} tasks successfully",
             "medal": "🥉",
-            "earnedDate": datetime.utcnow().isoformat(),
+            "earnedDate": datetime.now(IST).isoformat(),
             "type": "tasks",
             "level": task_level,
             "progress": completed_tasks
@@ -1249,13 +1353,13 @@ def get_special_achievements(user_id):
                 
                 if existing:
                     existing.description = f"{achievement_data['title']}: {achievement_data['description']}"
-                    existing.date_awarded = datetime.utcnow()
+                    existing.date_awarded = datetime.now(UTC)
                 else:
                     new_achievement = Achievement(
                         user_id=user_id,
                         badge_name=f"{achievement_data['type']}_achievement",
                         description=f"{achievement_data['title']}: {achievement_data['description']}",
-                        date_awarded=datetime.utcnow()
+                        date_awarded=datetime.now(UTC)
                     )
                     db.session.add(new_achievement)
         
@@ -1384,7 +1488,7 @@ def chatbot_logic(user_id, user_message, session_id=None):
     user_interaction = LLMInteractions(
         session_id=chat_session.id,
         user_message=user_message,
-        user_timestamp=datetime.utcnow()
+        user_timestamp=datetime.now(UTC)
     )
     db.session.add(user_interaction)
     db.session.flush()
@@ -1441,12 +1545,12 @@ def chatbot_logic(user_id, user_message, session_id=None):
     
     # Update the interaction with bot response and detected mood
     user_interaction.llm_response = bot_reply  # Keep full response with mood tag
-    user_interaction.llm_timestamp = datetime.utcnow()
+    user_interaction.llm_timestamp = datetime.now(UTC)
     user_interaction.mood_tag = detected_mood
     
     # Update session mood_tag (overwrite with latest mood)
     chat_session.mood_tag = detected_mood
-    chat_session.updated_at = datetime.utcnow()
+    chat_session.updated_at = datetime.now(UTC)
     
     db.session.commit()
     
@@ -1896,7 +2000,7 @@ def create_task():
                 due_date = date.fromisoformat(due_date_str)
             except ValueError:
                 return jsonify({'success': False, 'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
-        current_time = datetime.utcnow()
+        current_time = datetime.now(UTC)
         # Create task with current timestamp
         new_task = HomeworkSchedule(
            user_id=data['user_id'],
@@ -2162,7 +2266,7 @@ def assign_homework():
         
         # Create homework tasks for each student
         created_tasks = []
-        current_time = datetime.utcnow()
+        current_time = datetime.now(UTC)
         
         for student_id in student_ids:
             new_task = HomeworkSchedule(
@@ -2212,7 +2316,7 @@ def start_pomodoro():
         session = PomodoroSession(
             user_id=data['user_id'],
             homework_id=data['homework_id'],
-            start_time=datetime.utcnow()
+            start_time=datetime.now(UTC)
         )
         db.session.add(session)
 
@@ -2252,13 +2356,13 @@ def complete_pomodoro(session_id):
         
         # Add any remaining active time
         if session.start_time:
-            remaining_work = int((datetime.utcnow() - session.start_time).total_seconds())
+            remaining_work = int((datetime.now(UTC) - session.start_time).total_seconds())
             work_duration += remaining_work
 
         session.work_duration = work_duration
         session.break_duration = break_duration
         session.completed = True
-        session.end_time = datetime.utcnow()
+        session.end_time = datetime.now(UTC)
 
         db.session.commit()
         return jsonify({'success': True, 'message': 'Pomodoro session completed'}), 200
@@ -2276,7 +2380,7 @@ def pause_pomodoro(session_id):
 
         # Calculate work duration so far
         if session.start_time:
-            work_duration = int((datetime.utcnow() - session.start_time).total_seconds())
+            work_duration = int((datetime.now(UTC) - session.start_time).total_seconds())
             session.work_duration += work_duration
 
         session.start_time = None  # Reset start time for next resume
@@ -2297,7 +2401,7 @@ def resume_pomodoro(session_id):
         if not session:
             return jsonify({'success': False, 'error': 'Session not found'}), 404
 
-        session.start_time = datetime.utcnow()
+        session.start_time = datetime.now(UTC)
 
         # Session resumed - break time will be calculated when session ends
 
@@ -2322,12 +2426,12 @@ def abandon_pomodoro(session_id):
         
         # Add any remaining active time
         if session.start_time:
-            remaining_work = int((datetime.utcnow() - session.start_time).total_seconds())
+            remaining_work = int((datetime.now(UTC) - session.start_time).total_seconds())
             work_duration += remaining_work
 
         session.work_duration = work_duration
         session.break_duration = break_duration
-        session.end_time = datetime.utcnow()
+        session.end_time = datetime.now(UTC)
 
         db.session.commit()
         return jsonify({'success': True, 'message': 'Session abandoned'}), 200
@@ -3114,7 +3218,7 @@ def save_drawing():
                 ref_image_title=ref_image_title,
                 save_image_path=file_path,
                 is_completed=True,
-                timestamp=datetime.utcnow(),
+                timestamp=datetime.now(UTC),
                 time_taken=time_taken
             )
             
@@ -3190,7 +3294,7 @@ def start_drawing_session():
             user_id=user_id,
             ref_image_path=ref_image_path,
             ref_image_title=ref_image_title,
-            start_time=datetime.utcnow(),
+            start_time=datetime.now(UTC),
             is_completed=False
         )
         
@@ -3579,7 +3683,7 @@ def create_achievement():
             user_id=user_id,
             badge_name=badge_name,
             description=description,
-            date_awarded=datetime.utcnow()
+            date_awarded=datetime.now(UTC)
         )
         
         # Add additional fields if the Achievement model supports them

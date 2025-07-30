@@ -1,8 +1,18 @@
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime, date, time
+from datetime import datetime, date, time, UTC, timezone, timedelta
+
+# Define India Standard Time (IST) - UTC+5:30
+IST = timezone(timedelta(hours=5, minutes=30))
 
 db = SQLAlchemy()
 
+def get_current_ist_time():
+    """Get current time in India Standard Time"""
+    return datetime.now(IST)
+
+def get_current_utc_time():
+    """Get current time in UTC"""
+    return datetime.now(UTC)
 
 
 # ----------------------------
@@ -74,7 +84,8 @@ class HomeworkSchedule(db.Model):
     due_date = db.Column(db.Date)
     status = db.Column(db.String(20), default='pending') # pending, in-progress, completed
     assigned_by_teacher = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Teacher who assigned this task
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)  # When task was created
+    created_at = db.Column(db.DateTime(timezone=True), default=get_current_ist_time)  # When task was created (IST)
+    updated_at = db.Column(db.DateTime(timezone=True), default=get_current_ist_time, onupdate=get_current_ist_time)  # For tracking status changes (IST)
     pomodoro_sessions = db.relationship('PomodoroSession', backref='homework', lazy=True)
 
 
@@ -90,7 +101,7 @@ class DoodleSession(db.Model):
     ref_image_title = db.Column(db.String(255), nullable=True)  # Title of reference image
     save_image_path = db.Column(db.String(255), nullable=True)
     is_completed = db.Column(db.Boolean, default=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime(timezone=True), default=get_current_ist_time)  # IST time
     time_taken = db.Column(db.Integer, nullable=True)  # Time in seconds
     start_time = db.Column(db.DateTime, nullable=True)  # When drawing started 
 
@@ -102,8 +113,8 @@ class ChatSession(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     mood_tag = db.Column(db.String(50), nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-    updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
+    created_at = db.Column(db.DateTime(timezone=True), default=get_current_ist_time)  # IST time
+    updated_at = db.Column(db.DateTime(timezone=True), onupdate=get_current_ist_time)  # IST time
 
     interactions = db.relationship('LLMInteractions', backref='session', cascade="all, delete-orphan", lazy=True)
     summary = db.Column(db.Text, nullable=True)
@@ -112,7 +123,7 @@ class LLMInteractions(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     session_id = db.Column(db.Integer, db.ForeignKey('chat_session.id'), nullable=False)
     user_message = db.Column(db.Text, nullable=False)
-    user_timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    user_timestamp = db.Column(db.DateTime(timezone=True), default=get_current_ist_time)  # IST time
     llm_response = db.Column(db.Text, nullable=True)
     llm_timestamp = db.Column(db.DateTime)
     mood_tag = db.Column(db.String(50), nullable=True)
@@ -145,7 +156,7 @@ class Achievement(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     badge_name = db.Column(db.String(100))
     description = db.Column(db.String(255))
-    date_awarded = db.Column(db.DateTime, default=datetime.utcnow)
+    date_awarded = db.Column(db.DateTime(timezone=True), default=get_current_ist_time)  # IST time
 
 
 # ---------------------------
@@ -156,7 +167,7 @@ class PsychometricTestResult(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     child_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    taken_at = db.Column(db.DateTime, default=datetime.utcnow)
+    taken_at = db.Column(db.DateTime(timezone=True), default=get_current_ist_time)  # IST time
 
     learning_style = db.Column(db.String(50))
     personality_type = db.Column(db.String(50))
@@ -222,7 +233,8 @@ class UserModuleProgress(db.Model):
     module_name = db.Column(db.String(100))  # add this if not already
     submodule_name = db.Column(db.String(100))
     progress = db.Column(db.Float, default=0.0)  # for tracking % 
-    completed = db.Column(db.Boolean,default=False)
+    completed = db.Column(db.Boolean, default=False)
+    updated_at = db.Column(db.DateTime(timezone=True), default=get_current_ist_time, onupdate=get_current_ist_time)  # For tracking completion dates (IST)
                           
 
 
@@ -235,7 +247,7 @@ class Notification(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
     content = db.Column(db.String(255))
     is_read = db.Column(db.Boolean, default=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime(timezone=True), default=get_current_ist_time)  # IST time
 
 
 # ---------------------------
@@ -247,7 +259,7 @@ class DashboardMetrics(db.Model):
     active_kids = db.Column(db.Integer)
     average_session_duration = db.Column(db.Float)  
     top_features = db.Column(db.Text) 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    created_at = db.Column(db.DateTime(timezone=True), default=get_current_ist_time)  # IST time
 
 
 
