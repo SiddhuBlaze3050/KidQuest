@@ -434,7 +434,7 @@ def api_login():
         user = User.query.filter_by(username=username).first()
         if user and check_password_hash(user.password_hash, password):
             # Generate JWT token
-            access_token = create_access_token(identity=user.id)
+            access_token = create_access_token(identity=str(user.id))
             
             # Update login streak for successful login
             update_login_streak(user.id)
