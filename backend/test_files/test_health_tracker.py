@@ -8,6 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app import app, db
 from models import User, HealthTask
+from flask_jwt_extended import create_access_token
 
 
 class TestHealthTracker:
@@ -34,6 +35,10 @@ class TestHealthTracker:
 
             self.test_user_id = test_user.id
             self.client = app.test_client()
+            
+            # Create JWT token for authentication
+            self.access_token = create_access_token(identity=str(self.test_user_id))
+            self.headers = {'Authorization': f'Bearer {self.access_token}'}
 
             yield
 
@@ -42,7 +47,7 @@ class TestHealthTracker:
 
     def test_get_health_tasks(self):
         """Test fetching today's health tasks for a user"""
-        response = self.client.get(f'/api/health/tasks/{self.test_user_id}')
+        response = self.client.get(f'/api/health/tasks/{self.test_user_id}', headers=self.headers)
         data = json.loads(response.data)
 
         assert response.status_code == 200

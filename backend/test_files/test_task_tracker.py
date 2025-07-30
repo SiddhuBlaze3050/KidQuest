@@ -39,6 +39,8 @@ def test_client():
         db.session.add(test_user)
         db.session.commit()
         
+        # Make test_user_id accessible globally in this module
+        global test_user_id
         test_user_id = test_user.id
         client = app.test_client()
         
