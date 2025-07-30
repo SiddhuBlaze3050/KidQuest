@@ -759,7 +759,7 @@ def toggle_task_completion(task_id):
             return jsonify({'success': False, 'error': 'Task not found'}), 404
         
         # Security check: ensure user can only toggle their own tasks
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         if task.user_id != current_user_id:
             return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
 
@@ -1182,7 +1182,7 @@ def create_test_achievement():
         user_id = data.get('user_id', get_jwt_identity())  # Use JWT identity if not provided
         
         # Security check: ensure user can only create achievements for themselves
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         if user_id != current_user_id:
             return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
         
@@ -1541,7 +1541,7 @@ def get_parent_child_links():
 def get_transactions(user_id):
     """Get financial transactions for a user - requires JWT token"""
     try:
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         current_user = User.query.get(current_user_id)
         
         # Authorization: users can only access their own transactions
@@ -1570,7 +1570,7 @@ def get_transactions(user_id):
 def add_transaction():
     """Add a new financial transaction - requires JWT token"""
     try:
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         data = request.get_json()
         
         # Ensure user can only add transactions for themselves
@@ -1605,7 +1605,7 @@ def add_transaction():
 def get_savings_goals(user_id):
     """Get savings goals for a user - requires JWT token"""
     try:
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         current_user = User.query.get(current_user_id)
         
         # Authorization: users can only access their own goals
@@ -1631,7 +1631,7 @@ def get_savings_goals(user_id):
 def add_savings_goal():
     """Add a new savings goal - requires JWT token"""
     try:
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         data = request.get_json()
         
         # Ensure user can only add goals for themselves
@@ -2143,7 +2143,7 @@ def get_teacher_students(teacher_id):
 def get_student_tasks_for_teacher(teacher_id):
     """Get all tasks created by students under a specific teacher"""
     try:
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         current_user = User.query.get(current_user_id)
         
         # Authorization: only the teacher themselves can access their students' tasks
@@ -2607,7 +2607,7 @@ def save_module_progress():
         user_id = data.get('user_id')
         
         # Security check: ensure user can only save their own progress
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         if user_id != current_user_id:
             return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
         module_type = data.get('module_type', 'Unknown Module')
@@ -3055,7 +3055,7 @@ def get_notifications(user_id):
 def mark_notifications_read():
     """Mark notifications as read"""
     try:
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         data = request.get_json()
         notification_ids = data.get('notification_ids', [])
         
@@ -3843,7 +3843,7 @@ def clear_user_data_for_testing(user_id):
     """Clear all user data for testing - DEVELOPMENT ONLY"""
     try:
         # Security check: ensure user can only clear their own data
-        current_user_id = get_jwt_identity()
+        current_user_id = int(get_jwt_identity())
         if user_id != current_user_id:
             return jsonify({'success': False, 'error': 'Can only clear your own data'}), 403
         
