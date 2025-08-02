@@ -347,46 +347,6 @@
       </div>
     </div>
 
-    <!-- Floating Chatbot Button -->
-    <div class="floating-chatbot" @click="showChatbot = true">
-      <div class="chatbot-icon">🤖</div>
-      <div class="chatbot-sparkles">✨</div>
-    </div>
-
-    <!-- Chatbot Modal -->
-    <div v-if="showChatbot" class="chatbot-modal-overlay" @click="closeChatbot">
-      <div class="chatbot-modal" @click.stop>
-        <div class="chatbot-header">
-          <div class="chatbot-title">
-            <span class="chatbot-emoji">🤖</span>
-            <span>AI Teaching Assistant</span>
-          </div>
-          <button @click="closeChatbot" class="close-btn">&times;</button>
-        </div>
-        <div class="chatbot-body">
-          <div class="chat-messages" ref="chatMessages">
-            <div v-for="message in chatMessages" :key="message.id" class="message" :class="message.sender">
-              <div class="message-content">
-                <p>{{ message.content }}</p>
-                <span class="message-time">{{ message.time }}</span>
-              </div>
-            </div>
-          </div>
-          <div class="chat-input-container">
-            <input 
-              v-model="newMessage" 
-              @keypress.enter="sendMessage" 
-              placeholder="Ask me anything about teaching, student management, or classroom strategies..." 
-              class="chat-input"
-            />
-            <button @click="sendMessage" class="send-btn">
-              <i class="fas fa-paper-plane"></i>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- Loading Overlay -->
     <div v-if="isLoading" class="loading-overlay">
       <div class="loading-content">
@@ -420,19 +380,9 @@ export default {
     const selectedStatus = ref('')
     const showAssignHomeworkModal = ref(false)
     const showRemoveHomeworkModal = ref(false)
-    const showChatbot = ref(false)
     const isAssigning = ref(false)
     const isRemoving = ref(false)
     const homeworkToRemove = ref([])
-    const newMessage = ref('')
-    const chatMessages = ref([
-      {
-        id: 1,
-        sender: 'assistant',
-        content: 'Hello! I\'m your AI Teaching Assistant. I can help you with classroom management, student engagement strategies, lesson planning ideas, and more. How can I assist you today?',
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }
-    ])
 
     // New homework form data
     const newHomework = ref({
@@ -746,46 +696,6 @@ export default {
       }
     }
 
-    const closeChatbot = () => {
-      showChatbot.value = false
-    }
-
-    const sendMessage = async () => {
-      if (!newMessage.value.trim()) return
-      
-      // Add user message
-      chatMessages.value.push({
-        id: Date.now(),
-        sender: 'user',
-        content: newMessage.value,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      })
-      
-      const userMessage = newMessage.value
-      newMessage.value = ''
-      
-      // Simulate AI response (replace with actual API call)
-      setTimeout(() => {
-        chatMessages.value.push({
-          id: Date.now() + 1,
-          sender: 'assistant',
-          content: generateTeacherResponse(userMessage),
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        })
-      }, 1000)
-    }
-
-    const generateTeacherResponse = (message) => {
-      const responses = [
-        "That's a great question! For classroom management, I recommend establishing clear expectations from day one. Consider creating visual cues and positive reinforcement systems.",
-        "Student engagement can be improved through interactive activities. Try incorporating games, group work, and real-world applications into your lessons.",
-        "For assessment strategies, consider using a mix of formative and summative assessments. Regular check-ins help identify students who need additional support.",
-        "Building strong relationships with students is key. Show genuine interest in their lives and learning. This creates a positive classroom environment.",
-        "Parent communication is crucial. Regular updates about student progress help build trust and support learning at home."
-      ]
-      return responses[Math.floor(Math.random() * responses.length)]
-    }
-
     // Initialize dashboard
     onMounted(async () => {
       try {
@@ -819,13 +729,10 @@ export default {
       selectedStatus,
       showAssignHomeworkModal,
       showRemoveHomeworkModal,
-      showChatbot,
       isAssigning,
       isRemoving,
       homeworkToRemove,
       newHomework,
-      newMessage,
-      chatMessages,
       
       // Computed
       totalStudentTasks,
@@ -848,9 +755,7 @@ export default {
       closeRemoveHomeworkModal,
       removeSelectedHomework,
       editHomework,
-      deleteHomework,
-      closeChatbot,
-      sendMessage
+      deleteHomework
     }
   }
 }
@@ -1762,209 +1667,6 @@ export default {
   color: #6c757d;
 }
 
-/* Floating Chatbot */
-.floating-chatbot {
-  position: fixed;
-  bottom: 30px;
-  right: 30px;
-  background: linear-gradient(135deg, #4CAF50, #45a049);
-  border-radius: 50%;
-  width: 70px;
-  height: 70px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 8px 25px rgba(76, 175, 80, 0.4);
-  transition: all 0.3s ease;
-  z-index: 999;
-}
-
-.floating-chatbot:hover {
-  transform: translateY(-5px) scale(1.1);
-  box-shadow: 0 15px 35px rgba(76, 175, 80, 0.6);
-}
-
-.chatbot-icon {
-  font-size: 2.5rem;
-  animation: chatbotFloat 3s ease-in-out infinite;
-}
-
-@keyframes chatbotFloat {
-  0%, 100% {
-    transform: rotate(-5deg);
-  }
-  50% {
-    transform: rotate(5deg);
-  }
-}
-
-.chatbot-sparkles {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  font-size: 1.2rem;
-  animation: sparkles 2s linear infinite;
-}
-
-@keyframes sparkles {
-  0% {
-    opacity: 0.5;
-    transform: scale(0.8) rotate(0deg);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.2) rotate(180deg);
-  }
-  100% {
-    opacity: 0.5;
-    transform: scale(0.8) rotate(360deg);
-  }
-}
-
-/* Chatbot Modal */
-.chatbot-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.8);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 2000;
-  backdrop-filter: blur(10px);
-}
-
-.chatbot-modal {
-  background: white;
-  border-radius: 20px;
-  width: 90%;
-  max-width: 500px;
-  height: 600px;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
-  display: flex;
-  flex-direction: column;
-  animation: modalSlideIn 0.4s ease-out;
-}
-
-.chatbot-header {
-  background: linear-gradient(135deg, #4CAF50, #45a049);
-  color: white;
-  padding: 20px;
-  border-radius: 20px 20px 0 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.chatbot-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-weight: 600;
-}
-
-.chatbot-emoji {
-  font-size: 1.5rem;
-}
-
-.chatbot-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 20px;
-}
-
-.chat-messages {
-  flex: 1;
-  overflow-y: auto;
-  margin-bottom: 20px;
-  padding-right: 10px;
-}
-
-.message {
-  margin-bottom: 15px;
-  display: flex;
-}
-
-.message.user {
-  justify-content: flex-end;
-}
-
-.message.assistant {
-  justify-content: flex-start;
-}
-
-.message-content {
-  max-width: 80%;
-  padding: 12px 16px;
-  border-radius: 18px;
-  position: relative;
-}
-
-.message.user .message-content {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: white;
-}
-
-.message.assistant .message-content {
-  background: #f1f3f4;
-  color: #333;
-}
-
-.message-content p {
-  margin: 0;
-  line-height: 1.4;
-}
-
-.message-time {
-  font-size: 0.7rem;
-  opacity: 0.7;
-  margin-top: 5px;
-  display: block;
-}
-
-.chat-input-container {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.chat-input {
-  flex: 1;
-  padding: 12px 16px;
-  border: 2px solid #e5e7eb;
-  border-radius: 25px;
-  outline: none;
-  transition: all 0.3s ease;
-}
-
-.chat-input:focus {
-  border-color: #4CAF50;
-  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
-}
-
-.send-btn {
-  background: linear-gradient(135deg, #4CAF50, #45a049);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 45px;
-  height: 45px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
-}
-
-.send-btn:hover {
-  transform: scale(1.1);
-  box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
-}
-
 /* Loading Overlay */
 .loading-overlay {
   position: fixed;
@@ -2026,15 +1728,6 @@ export default {
   .student-checkboxes {
     grid-template-columns: 1fr;
   }
-  
-  .floating-chatbot {
-    width: 60px;
-    height: 60px;
-  }
-  
-  .chatbot-icon {
-    font-size: 2rem;
-  }
 }
 
 @media (max-width: 480px) {
@@ -2045,12 +1738,6 @@ export default {
   
   .modal-content {
     width: 95%;
-    margin: 10px;
-  }
-  
-  .chatbot-modal {
-    width: 95%;
-    height: 80vh;
     margin: 10px;
   }
 }
