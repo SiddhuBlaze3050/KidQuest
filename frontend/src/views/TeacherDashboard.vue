@@ -80,13 +80,13 @@
             </div>
             <div class="card-content">
               <div class="task-filters">
-                <select v-model="selectedStudent" @change="filterTasks">
+                <select v-model="selectedStudent" @change="filterTasks" :disabled="myStudents.length === 0">
                   <option value="">All Students</option>
                   <option v-for="student in myStudents" :key="student.id" :value="student.id">
                     {{ student.username }}
                   </option>
                 </select>
-                <select v-model="selectedStatus" @change="filterTasks">
+                <select v-model="selectedStatus" @change="filterTasks" :disabled="filteredStudentTasks.length === 0">
                   <option value="">All Status</option>
                   <option value="pending">Pending</option>
                   <option value="in-progress">In Progress</option>
@@ -94,8 +94,20 @@
                 </select>
               </div>
               <div class="task-list">
-                <div v-if="filteredStudentTasks.length === 0" class="no-tasks">
+                <div v-if="myStudents.length === 0" class="no-tasks">
+                  <div class="no-data-icon">👥</div>
+                  <p>No students assigned</p>
+                  <small>You need students assigned to your class before you can track their tasks</small>
+                </div>
+                <div v-else-if="filteredStudentTasks.length === 0 && studentTasks.length === 0" class="no-tasks">
+                  <div class="no-data-icon">📝</div>
+                  <p>No tasks created yet</p>
+                  <small>Student tasks will appear here once they start creating tasks</small>
+                </div>
+                <div v-else-if="filteredStudentTasks.length === 0" class="no-tasks">
+                  <div class="no-data-icon">🔍</div>
                   <p>No tasks found for the selected filters</p>
+                  <small>Try adjusting your filters to see more tasks</small>
                 </div>
                 <div v-for="task in filteredStudentTasks" :key="task.id" class="task-item">
                   <div class="task-info">
@@ -117,11 +129,16 @@
           <!-- Student Progress Overview -->
           <div class="feature-card progress-card">
             <div class="card-header">
-              <div class="card-icon">�</div>
+              <div class="card-icon">📈</div>
               <h3>Student Progress</h3>
             </div>
             <div class="card-content">
               <div class="progress-list">
+                <div v-if="myStudents.length === 0" class="no-students">
+                  <div class="no-data-icon">👥</div>
+                  <p>No students assigned to you yet</p>
+                  <small>Students will appear here once they are assigned to your class</small>
+                </div>
                 <div v-for="student in myStudents" :key="student.id" class="progress-item">
                   <div class="student-info">
                     <div class="student-avatar">👨‍🎓</div>
@@ -150,17 +167,30 @@
           <!-- Homework Assignment -->
           <div class="feature-card homework-card full-width">
             <div class="card-header">
-              <div class="card-icon">�</div>
+              <div class="card-icon">✏️</div>
               <h3>Assign Homework</h3>
-              <button @click="showAssignHomeworkModal = true" class="assign-btn">
-                <i class="fas fa-plus"></i>
-                Assign
-              </button>
+              <div class="header-actions">
+                <button @click="showAssignHomeworkModal = true" class="assign-btn" :disabled="myStudents.length === 0">
+                  <i class="fas fa-plus"></i>
+                  Assign
+                </button>
+                <button @click="showRemoveHomeworkModal = true" class="remove-btn" :disabled="assignedHomework.length === 0">
+                  <i class="fas fa-trash"></i>
+                  Remove
+                </button>
+              </div>
             </div>
             <div class="card-content">
               <div class="homework-list">
-                <div v-if="assignedHomework.length === 0" class="no-homework">
+                <div v-if="myStudents.length === 0" class="no-homework">
+                  <div class="no-data-icon">👥</div>
+                  <p>No students to assign homework to</p>
+                  <small>Students need to be assigned to your class first</small>
+                </div>
+                <div v-else-if="assignedHomework.length === 0" class="no-homework">
+                  <div class="no-data-icon">📚</div>
                   <p>No homework assigned yet</p>
+                  <small>Click the "Assign" button to create homework for your students</small>
                 </div>
                 <div v-for="homework in assignedHomework" :key="homework.id" class="homework-item">
                   <div class="homework-info">
@@ -233,7 +263,11 @@
             
             <div class="form-group">
               <label>Assign to Students</label>
-              <div class="student-checkboxes">
+              <div v-if="myStudents.length === 0" class="no-students-message">
+                <p>No students available to assign homework to.</p>
+                <small>Students need to be assigned to your class first.</small>
+              </div>
+              <div v-else class="student-checkboxes">
                 <div v-for="student in myStudents" :key="student.id" class="checkbox-item">
                   <input 
                     :id="'student-' + student.id" 
@@ -263,41 +297,51 @@
       </div>
     </div>
 
-    <!-- Floating Chatbot Button -->
-    <div class="floating-chatbot" @click="showChatbot = true">
-      <div class="chatbot-icon">🤖</div>
-      <div class="chatbot-sparkles">✨</div>
-    </div>
-
-    <!-- Chatbot Modal -->
-    <div v-if="showChatbot" class="chatbot-modal-overlay" @click="closeChatbot">
-      <div class="chatbot-modal" @click.stop>
-        <div class="chatbot-header">
-          <div class="chatbot-title">
-            <span class="chatbot-emoji">🤖</span>
-            <span>AI Teaching Assistant</span>
-          </div>
-          <button @click="closeChatbot" class="close-btn">&times;</button>
+    <!-- Remove Homework Modal -->
+    <div v-if="showRemoveHomeworkModal" class="modal-overlay" @click="closeRemoveHomeworkModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>Remove Assigned Homework</h3>
+          <button @click="closeRemoveHomeworkModal" class="close-btn">&times;</button>
         </div>
-        <div class="chatbot-body">
-          <div class="chat-messages" ref="chatMessages">
-            <div v-for="message in chatMessages" :key="message.id" class="message" :class="message.sender">
-              <div class="message-content">
-                <p>{{ message.content }}</p>
-                <span class="message-time">{{ message.time }}</span>
+        <div class="modal-body">
+          <div v-if="assignedHomework.length === 0" class="no-homework-message">
+            <p>No homework assigned yet.</p>
+            <small>There's no homework to remove.</small>
+          </div>
+          <div v-else class="homework-removal-list">
+            <p class="removal-instruction">Select the homework you want to remove:</p>
+            <div class="homework-checkboxes">
+              <div v-for="homework in assignedHomework" :key="homework.id" class="checkbox-item homework-checkbox">
+                <input 
+                  :id="'homework-' + homework.id" 
+                  v-model="homeworkToRemove" 
+                  :value="homework.id" 
+                  type="checkbox" 
+                  class="checkbox"
+                />
+                <label :for="'homework-' + homework.id" class="checkbox-label homework-label">
+                  <div class="homework-info">
+                    <div class="homework-title">{{ homework.task }}</div>
+                    <div class="homework-details">
+                      <span class="homework-subject">{{ homework.subject }}</span>
+                      <span class="homework-due">Due: {{ formatDate(homework.due_date) }}</span>
+                      <span class="assigned-to">Assigned to: {{ getAssignedStudentsNames(homework.assigned_to) }}</span>
+                    </div>
+                  </div>
+                </label>
               </div>
             </div>
-          </div>
-          <div class="chat-input-container">
-            <input 
-              v-model="newMessage" 
-              @keypress.enter="sendMessage" 
-              placeholder="Ask me anything about teaching, student management, or classroom strategies..." 
-              class="chat-input"
-            />
-            <button @click="sendMessage" class="send-btn">
-              <i class="fas fa-paper-plane"></i>
-            </button>
+            
+            <div class="form-actions">
+              <button type="button" @click="closeRemoveHomeworkModal" class="btn-cancel">
+                Cancel
+              </button>
+              <button @click="removeSelectedHomework" class="btn-remove" :disabled="isRemoving || homeworkToRemove.length === 0">
+                <span v-if="!isRemoving">Remove Selected ({{ homeworkToRemove.length }})</span>
+                <span v-else>Removing...</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -335,17 +379,10 @@ export default {
     const selectedStudent = ref('')
     const selectedStatus = ref('')
     const showAssignHomeworkModal = ref(false)
-    const showChatbot = ref(false)
+    const showRemoveHomeworkModal = ref(false)
     const isAssigning = ref(false)
-    const newMessage = ref('')
-    const chatMessages = ref([
-      {
-        id: 1,
-        sender: 'assistant',
-        content: 'Hello! I\'m your AI Teaching Assistant. I can help you with classroom management, student engagement strategies, lesson planning ideas, and more. How can I assist you today?',
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      }
-    ])
+    const isRemoving = ref(false)
+    const homeworkToRemove = ref([])
 
     // New homework form data
     const newHomework = ref({
@@ -372,76 +409,60 @@ export default {
 
     const loadMyStudents = async () => {
       try {
+        console.log('🔄 Loading students for teacher:', currentUser.value.id);
         // Get students assigned to this teacher
         const response = await apiService.getTeacherStudents(currentUser.value.id)
+        console.log('📥 Students response:', response);
         if (response.success) {
           myStudents.value = response.students
+          console.log('✅ Students loaded:', myStudents.value);
+        } else {
+          console.error('❌ Failed to load students:', response.error);
+          myStudents.value = []
         }
       } catch (error) {
-        console.error('Error loading students:', error)
-        // Fallback mock data for testing
-        myStudents.value = [
-          { id: 1, username: 'Emma_Student', email: 'emma@student.com' },
-          { id: 2, username: 'Alex_Learner', email: 'alex@student.com' },
-          { id: 3, username: 'Sofia_Scholar', email: 'sofia@student.com' }
-        ]
+        console.error('❌ Error loading students:', error);
+        myStudents.value = []
       }
     }
 
     const loadStudentTasks = async () => {
       try {
-        const allTasks = []
-        for (const student of myStudents.value) {
-          const response = await apiService.getUserTasks(student.id)
-          if (response.success) {
-            allTasks.push(...response.tasks)
-          }
+        console.log('🔄 Loading student tasks for teacher:', currentUser.value.id);
+        const response = await apiService.getStudentTasksForTeacher(currentUser.value.id)
+        console.log('📥 Student tasks response:', response);
+        
+        if (response.success) {
+          studentTasks.value = response.tasks
+          filteredStudentTasks.value = response.tasks
+          console.log('✅ Total student tasks loaded:', response.tasks.length);
+        } else {
+          console.error('❌ Failed to load student tasks:', response.error);
+          studentTasks.value = []
+          filteredStudentTasks.value = []
         }
-        studentTasks.value = allTasks
-        filteredStudentTasks.value = allTasks
       } catch (error) {
-        console.error('Error loading student tasks:', error)
-        // Fallback mock data
-        studentTasks.value = [
-          {
-            id: 1,
-            user_id: 1,
-            subject: 'Mathematics',
-            task: 'Complete fraction worksheets',
-            due_date: '2025-07-25',
-            status: 'pending'
-          },
-          {
-            id: 2,
-            user_id: 2,
-            subject: 'Science',
-            task: 'Solar system project',
-            due_date: '2025-07-28',
-            status: 'in-progress'
-          }
-        ]
-        filteredStudentTasks.value = studentTasks.value
+        console.error('❌ Error loading student tasks:', error)
+        studentTasks.value = []
+        filteredStudentTasks.value = []
       }
     }
 
     const loadAssignedHomework = async () => {
       try {
+        console.log('🔄 Loading assigned homework for teacher:', currentUser.value.id);
         const response = await apiService.getTeacherHomework(currentUser.value.id)
+        console.log('📥 Homework response:', response);
         if (response.success) {
           assignedHomework.value = response.homework
+          console.log('✅ Assigned homework loaded:', assignedHomework.value);
+        } else {
+          console.error('❌ Failed to load homework:', response.error);
+          assignedHomework.value = []
         }
       } catch (error) {
-        console.error('Error loading homework:', error)
-        // Fallback mock data
-        assignedHomework.value = [
-          {
-            id: 1,
-            subject: 'English',
-            task: 'Write a short story about summer vacation',
-            due_date: '2025-07-30',
-            assigned_to: [1, 2]
-          }
-        ]
+        console.error('❌ Error loading homework:', error);
+        assignedHomework.value = []
       }
     }
 
@@ -465,14 +486,21 @@ export default {
     }
 
     const getStudentTaskCount = (studentId) => {
-      return studentTasks.value.filter(task => task.user_id === studentId).length
+      const count = studentTasks.value.filter(task => task.user_id === studentId).length
+      console.log('📊 Task count for student', studentId, ':', count);
+      return count
     }
 
     const getStudentProgress = (studentId) => {
       const tasks = studentTasks.value.filter(task => task.user_id === studentId)
-      if (tasks.length === 0) return 0
+      if (tasks.length === 0) {
+        console.log('📊 No tasks found for student', studentId);
+        return 0
+      }
       const completed = tasks.filter(task => task.status === 'completed').length
-      return Math.round((completed / tasks.length) * 100)
+      const progress = Math.round((completed / tasks.length) * 100)
+      console.log('📊 Progress for student', studentId, ':', completed, '/', tasks.length, '=', progress + '%');
+      return progress
     }
 
     const calculateCompletionRate = () => {
@@ -509,38 +537,39 @@ export default {
       isAssigning.value = true
 
       try {
-        // Create homework for each selected student
-        const homeworkPromises = newHomework.value.assigned_to.map(studentId => 
-          apiService.createTask({
-            user_id: studentId,
-            subject: newHomework.value.subject,
-            task: newHomework.value.task,
-            due_date: newHomework.value.due_date,
-            assigned_by_teacher: currentUser.value.id
+        console.log('🔄 Assigning homework to students:', newHomework.value.assigned_to);
+        
+        // Use the dedicated assignHomework API endpoint
+        const homeworkData = {
+          subject: newHomework.value.subject,
+          task: newHomework.value.task,
+          due_date: newHomework.value.due_date,
+          assigned_to: newHomework.value.assigned_to
+        }
+
+        const result = await apiService.assignHomework(homeworkData)
+        console.log('✅ Homework assignment result:', result);
+
+        if (result.success) {
+          Swal.fire({
+            icon: 'success',
+            title: 'Homework Assigned!',
+            text: result.message || 'Homework has been successfully assigned to selected students.',
+            timer: 3000,
+            showConfirmButton: false
           })
-        )
 
-        await Promise.all(homeworkPromises)
-
-        // Add to local homework list
-        assignedHomework.value.push({
-          id: Date.now(),
-          ...newHomework.value
-        })
-
-        Swal.fire({
-          icon: 'success',
-          title: 'Homework Assigned!',
-          text: 'Homework has been successfully assigned to selected students.',
-          timer: 3000,
-          showConfirmButton: false
-        })
-
-        closeAssignHomeworkModal()
-        loadStudentTasks() // Refresh tasks
+          closeAssignHomeworkModal()
+          
+          // Refresh both student tasks and assigned homework
+          await loadStudentTasks()
+          await loadAssignedHomework()
+        } else {
+          throw new Error(result.error || 'Failed to assign homework')
+        }
 
       } catch (error) {
-        console.error('Error assigning homework:', error)
+        console.error('❌ Error assigning homework:', error)
         Swal.fire({
           icon: 'error',
           title: 'Assignment Failed',
@@ -560,6 +589,76 @@ export default {
         task: '',
         due_date: '',
         assigned_to: []
+      }
+    }
+
+    const closeRemoveHomeworkModal = () => {
+      showRemoveHomeworkModal.value = false
+      homeworkToRemove.value = []
+    }
+
+    const removeSelectedHomework = async () => {
+      if (homeworkToRemove.value.length === 0) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'No Homework Selected',
+          text: 'Please select at least one homework to remove.',
+          timer: 3000,
+          showConfirmButton: false
+        })
+        return
+      }
+
+      const result = await Swal.fire({
+        title: 'Remove Selected Homework?',
+        text: `Are you sure you want to remove ${homeworkToRemove.value.length} homework assignment(s)? This action cannot be undone.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#d33',
+        cancelButtonColor: '#3085d6',
+        confirmButtonText: 'Yes, remove them!'
+      })
+
+      if (result.isConfirmed) {
+        isRemoving.value = true
+
+        try {
+          console.log('🗑️ Removing homework:', homeworkToRemove.value);
+          
+          // Create promises to delete each selected homework
+          const deletePromises = homeworkToRemove.value.map(homeworkId => 
+            apiService.deleteTask(homeworkId)
+          )
+
+          const results = await Promise.all(deletePromises)
+          console.log('✅ Homework removal results:', results);
+
+          Swal.fire({
+            icon: 'success',
+            title: 'Homework Removed!',
+            text: `${homeworkToRemove.value.length} homework assignment(s) have been successfully removed.`,
+            timer: 3000,
+            showConfirmButton: false
+          })
+
+          closeRemoveHomeworkModal()
+          
+          // Refresh both student tasks and assigned homework
+          await loadStudentTasks()
+          await loadAssignedHomework()
+
+        } catch (error) {
+          console.error('❌ Error removing homework:', error)
+          Swal.fire({
+            icon: 'error',
+            title: 'Removal Failed',
+            text: 'Failed to remove homework. Please try again.',
+            timer: 3000,
+            showConfirmButton: false
+          })
+        } finally {
+          isRemoving.value = false
+        }
       }
     }
 
@@ -597,57 +696,22 @@ export default {
       }
     }
 
-    const closeChatbot = () => {
-      showChatbot.value = false
-    }
-
-    const sendMessage = async () => {
-      if (!newMessage.value.trim()) return
-      
-      // Add user message
-      chatMessages.value.push({
-        id: Date.now(),
-        sender: 'user',
-        content: newMessage.value,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      })
-      
-      const userMessage = newMessage.value
-      newMessage.value = ''
-      
-      // Simulate AI response (replace with actual API call)
-      setTimeout(() => {
-        chatMessages.value.push({
-          id: Date.now() + 1,
-          sender: 'assistant',
-          content: generateTeacherResponse(userMessage),
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        })
-      }, 1000)
-    }
-
-    const generateTeacherResponse = (message) => {
-      const responses = [
-        "That's a great question! For classroom management, I recommend establishing clear expectations from day one. Consider creating visual cues and positive reinforcement systems.",
-        "Student engagement can be improved through interactive activities. Try incorporating games, group work, and real-world applications into your lessons.",
-        "For assessment strategies, consider using a mix of formative and summative assessments. Regular check-ins help identify students who need additional support.",
-        "Building strong relationships with students is key. Show genuine interest in their lives and learning. This creates a positive classroom environment.",
-        "Parent communication is crucial. Regular updates about student progress help build trust and support learning at home."
-      ]
-      return responses[Math.floor(Math.random() * responses.length)]
-    }
-
     // Initialize dashboard
     onMounted(async () => {
       try {
+        console.log('🚀 Initializing Teacher Dashboard for user:', currentUser.value);
         // Add a small delay to ensure token is properly set after login
         await new Promise(resolve => setTimeout(resolve, 100))
         
+        console.log('📝 Step 1: Loading students...');
         await loadMyStudents()
+        console.log('📝 Step 2: Loading student tasks...');
         await loadStudentTasks()
+        console.log('📝 Step 3: Loading assigned homework...');
         await loadAssignedHomework()
+        console.log('✅ Dashboard initialization complete');
       } catch (error) {
-        console.error('Error initializing dashboard:', error)
+        console.error('❌ Error initializing dashboard:', error)
       } finally {
         isLoading.value = false
       }
@@ -664,11 +728,11 @@ export default {
       selectedStudent,
       selectedStatus,
       showAssignHomeworkModal,
-      showChatbot,
+      showRemoveHomeworkModal,
       isAssigning,
+      isRemoving,
+      homeworkToRemove,
       newHomework,
-      newMessage,
-      chatMessages,
       
       // Computed
       totalStudentTasks,
@@ -688,10 +752,10 @@ export default {
       getAssignedStudentsNames,
       assignHomework,
       closeAssignHomeworkModal,
+      closeRemoveHomeworkModal,
+      removeSelectedHomework,
       editHomework,
-      deleteHomework,
-      closeChatbot,
-      sendMessage
+      deleteHomework
     }
   }
 }
@@ -957,10 +1021,54 @@ export default {
   gap: 5px;
 }
 
+.remove-btn {
+  background: linear-gradient(135deg, #f44336, #d32f2f);
+  border: none;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .refresh-btn:hover,
-.assign-btn:hover {
+.assign-btn:hover:not(:disabled) {
   transform: translateY(-2px);
   box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+}
+
+.remove-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(244, 67, 54, 0.3);
+}
+
+.assign-btn:disabled,
+.remove-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.assign-btn:disabled {
+  background: rgba(76, 175, 80, 0.3);
+}
+
+.remove-btn:disabled {
+  background: rgba(244, 67, 54, 0.3);
+}
+
+.assign-btn:disabled:hover,
+.remove-btn:disabled:hover {
+  transform: none;
+  box-shadow: none;
 }
 
 .card-content {
@@ -983,6 +1091,13 @@ export default {
   padding: 8px 12px;
   border-radius: 8px;
   cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.task-filters select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.1);
 }
 
 .task-filters select option {
@@ -1186,10 +1301,52 @@ export default {
 
 /* No Data States */
 .no-tasks,
-.no-homework {
+.no-homework,
+.no-students {
   text-align: center;
   padding: 40px 20px;
   color: rgba(255, 255, 255, 0.7);
+}
+
+.no-data-icon {
+  font-size: 3rem;
+  margin-bottom: 15px;
+  opacity: 0.6;
+}
+
+.no-tasks p,
+.no-homework p,
+.no-students p {
+  font-size: 1.1rem;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.no-tasks small,
+.no-homework small,
+.no-students small {
+  font-size: 0.9rem;
+  opacity: 0.8;
+  line-height: 1.4;
+}
+
+.no-students-message {
+  text-align: center;
+  padding: 20px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e9ecef;
+}
+
+.no-students-message p {
+  color: #6c757d;
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+
+.no-students-message small {
+  color: #6c757d;
+  font-size: 0.8rem;
 }
 
 /* Homework Actions */
@@ -1398,207 +1555,116 @@ export default {
   cursor: not-allowed;
 }
 
-/* Floating Chatbot */
-.floating-chatbot {
-  position: fixed;
-  bottom: 30px;
-  right: 30px;
-  background: linear-gradient(135deg, #4CAF50, #45a049);
-  border-radius: 50%;
-  width: 70px;
-  height: 70px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 8px 25px rgba(76, 175, 80, 0.4);
-  transition: all 0.3s ease;
-  z-index: 999;
-}
-
-.floating-chatbot:hover {
-  transform: translateY(-5px) scale(1.1);
-  box-shadow: 0 15px 35px rgba(76, 175, 80, 0.6);
-}
-
-.chatbot-icon {
-  font-size: 2.5rem;
-  animation: chatbotFloat 3s ease-in-out infinite;
-}
-
-@keyframes chatbotFloat {
-  0%, 100% {
-    transform: rotate(-5deg);
-  }
-  50% {
-    transform: rotate(5deg);
-  }
-}
-
-.chatbot-sparkles {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  font-size: 1.2rem;
-  animation: sparkles 2s linear infinite;
-}
-
-@keyframes sparkles {
-  0% {
-    opacity: 0.5;
-    transform: scale(0.8) rotate(0deg);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.2) rotate(180deg);
-  }
-  100% {
-    opacity: 0.5;
-    transform: scale(0.8) rotate(360deg);
-  }
-}
-
-/* Chatbot Modal */
-.chatbot-modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.8);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 2000;
-  backdrop-filter: blur(10px);
-}
-
-.chatbot-modal {
-  background: white;
-  border-radius: 20px;
-  width: 90%;
-  max-width: 500px;
-  height: 600px;
-  box-shadow: 0 25px 50px rgba(0, 0, 0, 0.3);
-  display: flex;
-  flex-direction: column;
-  animation: modalSlideIn 0.4s ease-out;
-}
-
-.chatbot-header {
-  background: linear-gradient(135deg, #4CAF50, #45a049);
+.btn-remove {
+  background: linear-gradient(135deg, #f44336, #d32f2f);
   color: white;
-  padding: 20px;
-  border-radius: 20px 20px 0 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  padding: 12px 24px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  border: none;
 }
 
-.chatbot-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+.btn-remove:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 15px rgba(244, 67, 54, 0.3);
+}
+
+.btn-remove:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Removal Modal Styles */
+.no-homework-message {
+  text-align: center;
+  padding: 40px 20px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  border: 1px solid #e9ecef;
+}
+
+.no-homework-message p {
+  color: #6c757d;
+  margin-bottom: 5px;
   font-weight: 600;
 }
 
-.chatbot-emoji {
-  font-size: 1.5rem;
+.no-homework-message small {
+  color: #6c757d;
+  font-size: 0.8rem;
 }
 
-.chatbot-body {
-  flex: 1;
+.homework-removal-list {
   display: flex;
   flex-direction: column;
-  padding: 20px;
+  gap: 20px;
 }
 
-.chat-messages {
-  flex: 1;
-  overflow-y: auto;
-  margin-bottom: 20px;
-  padding-right: 10px;
-}
-
-.message {
-  margin-bottom: 15px;
-  display: flex;
-}
-
-.message.user {
-  justify-content: flex-end;
-}
-
-.message.assistant {
-  justify-content: flex-start;
-}
-
-.message-content {
-  max-width: 80%;
-  padding: 12px 16px;
-  border-radius: 18px;
-  position: relative;
-}
-
-.message.user .message-content {
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: white;
-}
-
-.message.assistant .message-content {
-  background: #f1f3f4;
+.removal-instruction {
+  font-weight: 600;
   color: #333;
+  margin-bottom: 15px;
 }
 
-.message-content p {
-  margin: 0;
-  line-height: 1.4;
-}
-
-.message-time {
-  font-size: 0.7rem;
-  opacity: 0.7;
-  margin-top: 5px;
-  display: block;
-}
-
-.chat-input-container {
+.homework-checkboxes {
   display: flex;
-  gap: 10px;
-  align-items: center;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
 }
 
-.chat-input {
-  flex: 1;
-  padding: 12px 16px;
-  border: 2px solid #e5e7eb;
-  border-radius: 25px;
-  outline: none;
+.homework-checkbox {
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 15px;
   transition: all 0.3s ease;
 }
 
-.chat-input:focus {
-  border-color: #4CAF50;
-  box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+.homework-checkbox:hover {
+  border-color: #f44336;
+  box-shadow: 0 2px 8px rgba(244, 67, 54, 0.1);
 }
 
-.send-btn {
-  background: linear-gradient(135deg, #4CAF50, #45a049);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  width: 45px;
-  height: 45px;
+.homework-checkbox .checkbox {
+  margin-right: 12px;
+}
+
+.homework-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.3s ease;
 }
 
-.send-btn:hover {
-  transform: scale(1.1);
-  box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+.homework-label .homework-info {
+  flex: 1;
+}
+
+.homework-label .homework-title {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+}
+
+.homework-label .homework-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.homework-label .homework-subject,
+.homework-label .homework-due,
+.homework-label .assigned-to {
+  font-size: 0.8rem;
+  color: #6c757d;
 }
 
 /* Loading Overlay */
@@ -1662,15 +1728,6 @@ export default {
   .student-checkboxes {
     grid-template-columns: 1fr;
   }
-  
-  .floating-chatbot {
-    width: 60px;
-    height: 60px;
-  }
-  
-  .chatbot-icon {
-    font-size: 2rem;
-  }
 }
 
 @media (max-width: 480px) {
@@ -1681,12 +1738,6 @@ export default {
   
   .modal-content {
     width: 95%;
-    margin: 10px;
-  }
-  
-  .chatbot-modal {
-    width: 95%;
-    height: 80vh;
     margin: 10px;
   }
 }

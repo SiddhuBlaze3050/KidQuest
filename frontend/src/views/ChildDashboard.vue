@@ -386,7 +386,8 @@
         <StoryBuilder v-if="showStoryBuilder" @close="showStoryBuilder = false" />
 
         <!-- Task Tracker Modal -->
-        <TaskTracker v-if="showTaskTracker" :user="user" @close="showTaskTracker = false" />
+        <TaskTracker v-if="showTaskTracker" :user="user" @close="showTaskTracker = false"
+            @task-completed="handleTaskCompleted" />
 
 
 
@@ -404,12 +405,8 @@
 import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { userUtils, apiService } from '@/services/api'
+import authService from '@/services/authService'
 import { calculateSimpleLevel, getLevelTitle, getLevelProgress, checkForLevelUp } from '@/services/levelService'
-import {
-    calculateStars,
-    getLevelTitle as getStarLevelTitle,
-    checkForLevelUp as checkStarLevelUp
-} from '@/services/starService'
 import EnhancedChatBot from '@/components/chat/EnhancedChatBot.vue'
 import Swal from 'sweetalert2'
 import MemoryGame from '@/components/activities/MemoryGame.vue'
@@ -542,48 +539,42 @@ export default {
             }
         }
 
-        // Dashboard stats with local storage caching
+        // Dashboard stats
         const fetchDashboardStats = async () => {
             try {
                 const userId = user.value?.id
                 if (!userId) return
 
                 console.log(`🔄 Fetching dashboard stats for user ${userId}`)
-
-                // Fetch fresh stats from backend
                 const { data } = await axios.get(`/api/child/stats/${userId}`)
-
-                console.log('🌟 Backend stats response:', data)
 
                 if (data.success) {
                     // Store old stats for level-up checking
                     const oldStats = { ...userStats.value }
 
-                    // Calculate stars using new star service
-                    const starCalculation = calculateStars({
-                        totalStars: data.stats.totalStars,
-                        questsCompleted: data.stats.questsCompleted,
-                        skillsLearned: data.stats.skillsLearned
-                    })
-
                     // Update userStats with real data
-                    const newStats = {
-                        totalStars: starCalculation.totalStars,
+                    userStats.value = {
+                        totalStars: data.stats.totalStars,
                         questsCompleted: data.stats.questsCompleted,
                         skillsLearned: data.stats.skillsLearned,
                         todayGoals: data.stats.todayGoals
                     }
 
-                    console.log('🔍 New stats:', newStats)
+                    // Update streak
+                    streakDays.value = data.stats.streakDays
 
-                    userStats.value = newStats
+                    // Check for level up
+                    checkForLevelUp(
+                        { starsEarned: oldStats.totalStars || 0, skillsMastered: oldStats.skillsLearned || 0 },
+                        { starsEarned: userStats.value.totalStars || 0, skillsMastered: userStats.value.skillsLearned || 0 }
+                    )
 
                     // Update statsCards with real values
                     statsCards.value = [
                         {
                             label: "✨ Stars Collected",
                             icon: "★",
-                            value: starCalculation.totalStars,
+                            value: userStats.value.totalStars,
                             theme: "stars-theme",
                         },
                         {
@@ -606,19 +597,13 @@ export default {
                         }
                     ];
 
-                    // Check for star level up
-                    checkStarLevelUp(
-                        { totalStars: oldStats.totalStars || 0, skillsLearned: oldStats.skillsLearned || 0 },
-                        { totalStars: userStats.value.totalStars || 0, skillsLearned: userStats.value.skillsLearned || 0 }
-                    )
-
                     console.log(`✅ Dashboard stats loaded:`, userStats.value)
-                    console.log(`🌟 Star Calculation:`, starCalculation)
                 } else {
                     console.error('Failed to fetch dashboard stats:', data.error)
                 }
             } catch (error) {
                 console.error('Error fetching dashboard stats:', error)
+                // Keep default values
             }
         }
 
@@ -769,6 +754,19 @@ export default {
             }
         }
 
+        // Load special achievements
+        const loadSpecialAchievements = async () => {
+            try {
+                const response = await apiService.get(`/api/achievements/special/${user.value.id}`)
+                if (response.success) {
+                    recentAchievements.value = response.achievements
+                    console.log('✅ Loaded special achievements:', response.achievements)
+                }
+            } catch (error) {
+                console.error('Error loading special achievements:', error)
+            }
+        }
+
         const calculateCurrentSavings = () => {
             currentSavings.value = transactions.value.reduce((total, t) => {
                 return total + (t.type === 'income' ? t.amount : -t.amount)
@@ -878,50 +876,33 @@ export default {
         }
 
 
-        // Replace the existing recentAchievements ref with a dynamic fetch
-        const recentAchievements = ref([])
-
-        // Add a function to fetch achievements
-        const fetchAchievements = async () => {
-            try {
-                if (!user.value) return
-
-                // First, update achievements on the backend
-                await axios.post(`/user/${user.value.id}/achievements/update`)
-
-                // Then fetch the updated achievements
-                const { data } = await axios.get(`/user/${user.value.id}/achievements`)
-
-                if (data.success) {
-                    // Transform backend achievements into the format used in the template
-                    recentAchievements.value = [
-                        {
-                            id: 1,
-                            title: data.achievements.level_achievement.badge_name,
-                            description: data.achievements.level_achievement.description,
-                            medal: "🥇",
-                            earnedDate: new Date()
-                        },
-                        {
-                            id: 2,
-                            title: data.achievements.skill_achievement.badge_name,
-                            description: data.achievements.skill_achievement.description,
-                            medal: "🥈",
-                            earnedDate: new Date()
-                        },
-                        {
-                            id: 3,
-                            title: data.achievements.streak_achievement.badge_name,
-                            description: data.achievements.streak_achievement.description,
-                            medal: "🥉",
-                            earnedDate: new Date()
-                        }
-                    ]
-                }
-            } catch (error) {
-                console.error('Error fetching achievements:', error)
+        // Recent achievements - will be loaded dynamically
+        const recentAchievements = ref([
+            {
+                id: 1,
+                title: "🌱 Beginner",
+                description: "Welcome to your learning journey!",
+                medal: "🥇",
+                earnedDate: new Date(),
+                type: "knowledge"
+            },
+            {
+                id: 2,
+                title: "🔰 Newbie",
+                description: "Starting your adventure streak!",
+                medal: "🥈",
+                earnedDate: new Date(),
+                type: "streak"
+            },
+            {
+                id: 3,
+                title: "🏃 Starter",
+                description: "Ready to complete tasks!",
+                medal: "🥉",
+                earnedDate: new Date(),
+                type: "tasks"
             }
-        }
+        ])
 
         // Check child access
         const checkChildAccess = () => {
@@ -979,7 +960,36 @@ export default {
             console.log('Starting activity:', skill.name)
 
             if (skill.name === 'Good Touch Bad Touch') {
-                router.push('/good-touch-bad-touch')
+                // Show welcome popup before navigating to the module
+                Swal.fire({
+                    title: '🛡️ Good Touch & Bad Touch Safety',
+                    html: `
+                        <div style="text-align: center; line-height: 1.8;">
+                            <div style="font-size: 4rem; margin: 1rem 0;">🛡️👶💚</div>
+                            <p style="font-size: 1.1rem; color: #ffffff; font-weight: 600; margin: 1rem 0;">
+                                Ready to learn important safety skills about good touch and bad touch?
+                            </p>
+                            <p style="color: #ffffff; margin: 1rem 0; opacity: 0.9;">
+                                Learn to recognize safe and unsafe touches to protect yourself and stay safe!
+                            </p>
+                            <div style="font-size: 3rem; margin: 1rem 0;">🛡️👫🌟</div>
+                        </div>
+                    `,
+                    showCancelButton: true,
+                    confirmButtonText: '🛡️ Yes, Start Learning!',
+                    cancelButtonText: '🏠 Maybe Later',
+                    background: 'linear-gradient(135deg, #4CAF50 0%, #81C784 100%)',
+                    color: 'white',
+                    customClass: {
+                        popup: 'good-touch-welcome-popup',
+                        confirmButton: 'good-touch-welcome-confirm-btn',
+                        cancelButton: 'good-touch-welcome-cancel-btn'
+                    }
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        router.push('/good-touch-bad-touch')
+                    }
+                })
             } else if (skill.name === 'Safety Measures') {
                 openGeneralSafetyModule()
             } else if (skill.name === 'Science Explorer') {
@@ -1244,62 +1254,57 @@ export default {
             }
             return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })
         }
-        // Load progress from localStorage for Good Touch Bad Touch
+        // Load progress from backend for Good Touch Bad Touch
         const loadGoodTouchBadTouchProgress = async () => {
             try {
                 if (!user.value) return;
-
-                // First, try to load from backend
+                console.log('🛡️ Loading Good Touch Bad Touch progress for dashboard...');
                 const response = await apiService.getModuleProgress(user.value.id, 'good_touch_bad_touch');
-                console.log('🔍 Good Touch Bad Touch Backend Response:', response);
-
                 let progress = 0;
                 if (response.success && response.progress) {
-                    const progressData = response.progress.progress_data || response.progress;
-
-                    // Check multiple ways to determine 100% completion
-                    if (
-                        progressData.completed === true ||
-                        progressData.is_completed === true ||
-                        progressData.progress_percentage === 100
-                    ) {
-                        progress = 100;
-                        console.log(`📊 Backend: Good Touch Bad Touch confirmed 100% complete`)
-                    } else {
-                        progress = 0;
-                        console.log('📉 Good Touch Bad Touch not fully completed')
-                    }
+                    // Use is_completed from backend (same structure as other modules)
+                    progress = response.progress.is_completed ? 100 : 0;
+                    console.log(`📊 Backend: Good Touch Bad Touch is_completed=${response.progress.is_completed}, progress=${progress}%`);
+                } else {
+                    progress = 0;
+                    console.log('📉 No backend progress for Good Touch Bad Touch, showing 0%');
                 }
 
-                // Update skill area progress
-                const safetySkill = skillAreas.value.find(skill => skill.name === 'Good Touch Bad Touch')
+                const safetySkill = skillAreas.value.find(skill => skill.name === 'Good Touch Bad Touch');
                 if (safetySkill) {
                     safetySkill.progress = progress;
                     console.log(`✅ Updated Good Touch Bad Touch dashboard progress to ${progress}%`);
 
-                    // Recalculate skills mastered if module is completed
+                    // Update skills mastered count if this module was completed
                     if (progress === 100) {
                         calculateSkillsMastered();
                     }
                 }
-            } catch (error) {
-                console.error('❌ Error loading Good Touch Bad Touch progress:', error);
 
-                // Fallback to localStorage if backend fails
-                try {
-                    const moduleProgress = localStorage.getItem(`safetyModuleProgress_${user.value?.id || 'guest'}`)
+                // Fallback to localStorage for backward compatibility
+                if (progress === 0) {
+                    console.log('🔄 Fallback: Checking localStorage for Good Touch Bad Touch progress...');
+                    const moduleProgress = localStorage.getItem(`safetyModuleProgress_${user.value?.id || 'guest'}`);
                     if (moduleProgress) {
-                        const progressData = JSON.parse(moduleProgress)
-                        const progress = progressData.isCompleted ? 100 : 0
+                        const progressData = JSON.parse(moduleProgress);
+                        const localProgress = progressData.isCompleted ? 100 : 0;
 
-                        const safetySkill = skillAreas.value.find(skill => skill.name === 'Good Touch Bad Touch')
-                        if (safetySkill) {
-                            safetySkill.progress = progress
-                            console.log(`🔄 Fallback: Loaded Good Touch Bad Touch progress from localStorage: ${progress}%`)
+                        if (safetySkill && localProgress > 0) {
+                            safetySkill.progress = localProgress;
+                            console.log(`📱 Updated Good Touch Bad Touch progress from localStorage to ${localProgress}%`);
+
+                            if (localProgress === 100) {
+                                calculateSkillsMastered();
+                            }
                         }
                     }
-                } catch (localStorageError) {
-                    console.error('❌ Error loading progress from localStorage:', localStorageError)
+                }
+            } catch (error) {
+                console.error('❌ Error loading Good Touch Bad Touch progress:', error);
+                const safetySkill = skillAreas.value.find(skill => skill.name === 'Good Touch Bad Touch');
+                if (safetySkill) {
+                    safetySkill.progress = 0;
+                    console.log('🔄 Fallback: Reset Good Touch Bad Touch progress to 0%');
                 }
             }
         }
@@ -1321,7 +1326,7 @@ export default {
                 // Update the skill area progress (as percent)
                 const safetySkill = skillAreas.value.find(skill => skill.name === 'Safety Measures');
                 if (safetySkill) {
-                    safetySkill.progress = (completed / 6) * 100;
+                    safetySkill.progress = Math.round((completed / 6) * 100 * 10) / 10; // Round to 1 decimal place
                     console.log(`✅ Updated Safety Measures dashboard progress to ${completed}/6 (${safetySkill.progress}%)`);
                     if (safetySkill.progress === 100) {
                         calculateSkillsMastered();
@@ -1346,11 +1351,9 @@ export default {
                 let progress = 0;
                 if (response.success && response.progress && Array.isArray(response.progress.submodule_progress)) {
                     const submodules = response.progress.submodule_progress;
-                    progress = submodules.reduce(
-                        (sum, sub) => sum + (sub.is_completed ? 20 : 0),
-                        0
-                    );
-                    console.log(`📊 Backend: Science Explorer ${progress}% complete`);
+                    const completed = submodules.filter(sub => sub.is_completed).length;
+                    progress = Math.round((completed / 6) * 100 * 10) / 10; // Round to 1 decimal place (e.g., 16.7%)
+                    console.log(`📊 Backend: Science Explorer ${completed}/6 complete (${progress}%)`);
                 } else {
                     progress = 0;
                     console.log('📉 No backend progress for Science Explorer');
@@ -1381,28 +1384,14 @@ export default {
                 console.log('📚 Loading Word Wizard progress for dashboard...');
                 const response = await apiService.getModuleProgress(user.value.id, 'word_wizard');
                 let progress = 0;
-
-                // More robust progress checking
                 if (response.success && response.progress) {
-                    const progressData = response.progress;
-
-                    // Check for multiple completion indicators
-                    if (
-                        progressData.completed === true ||
-
-                        progressData.progress_percentage === 100
-                    ) {
-                        progress = 100;
-                        console.log(`📊 Backend: Word Wizard confirmed 100% complete`, progressData);
-                    } else {
-                        progress = 0;
-                        console.log('📉 Word Wizard not fully completed', progressData);
-                    }
+                    // Use is_completed from backend (same structure as Math Magic)
+                    progress = response.progress.is_completed ? 100 : 0;
+                    console.log(`📊 Backend: Word Wizard is_completed=${response.progress.is_completed}, progress=${progress}%`);
                 } else {
                     progress = 0;
                     console.log('📉 No backend progress for Word Wizard, showing 0%');
                 }
-
                 const wordWizardSkill = skillAreas.value.find(skill => skill.name === 'Word Wizard');
                 if (wordWizardSkill) {
                     wordWizardSkill.progress = progress;
@@ -1441,12 +1430,19 @@ export default {
                 const mathMagicSkill = skillAreas.value.find(skill => skill.name === 'Math Magic');
                 if (mathMagicSkill) {
                     mathMagicSkill.progress = progress;
+                    console.log(`✅ Updated Math Magic dashboard progress to ${progress}%`);
+
+                    // Update skills mastered count if this module was completed
+                    if (progress === 100) {
+                        calculateSkillsMastered();
+                    }
                 }
             } catch (error) {
                 console.error('❌ Error loading Math Magic progress:', error);
                 const mathMagicSkill = skillAreas.value.find(skill => skill.name === 'Math Magic');
                 if (mathMagicSkill) {
                     mathMagicSkill.progress = 0;
+                    console.log('🔄 Fallback: Reset Math Magic progress to 0%');
                 }
             }
         };
@@ -1457,12 +1453,15 @@ export default {
                 console.log('🔄 Dashboard became visible, refreshing module progress...')
                 // Add a small delay to ensure any saving operations from modules have completed
                 setTimeout(async () => {
+                    await loadSpecialAchievements()
                     await loadSafetyMeasuresProgress()
                     await loadScienceExplorerProgress()
                     await loadWordWizardProgress()
                     await loadMathMagicProgress()
                     // Update skills mastered after loading progress
                     calculateSkillsMastered()
+                    // Refresh dashboard stats to update stars and other stats
+                    await fetchDashboardStats()
                 }, 500)
             }
         }
@@ -1515,73 +1514,102 @@ export default {
                 color: 'white'
             })
 
-            try {
-                // First, update achievements which will recalculate stars
-                const achievementsResponse = await axios.post(`/user/${user.value.id}/achievements/update`)
+            await Promise.all([
+                loadSpecialAchievements(),
+                loadGoodTouchBadTouchProgress(),
+                loadSafetyMeasuresProgress(),
+                loadScienceExplorerProgress(),
+                loadWordWizardProgress(),
+                loadMathMagicProgress()
+            ])
 
-                if (achievementsResponse.data.success) {
-                    // Fetch dashboard stats to update the UI with new stars
-                    await fetchDashboardStats()
-                }
+            // Calculate and update skills mastered after loading all progress
+            calculateSkillsMastered()
 
-                await Promise.all([
-                    loadGoodTouchBadTouchProgress(),
-                    loadSafetyMeasuresProgress(),
-                    loadScienceExplorerProgress(),
-                    loadWordWizardProgress(),
-                    loadMathMagicProgress()
-                ])
+            // Refresh dashboard stats to update stars and other stats
+            await fetchDashboardStats()
 
-                // Calculate and update skills mastered after loading all progress
-                calculateSkillsMastered()
-
-                // Show success message
-                setTimeout(() => {
-                    Swal.fire({
-                        icon: 'success',
-                        title: '✅ Progress Updated!',
-                        text: 'All your learning progress has been refreshed!',
-                        timer: 2000,
-                        showConfirmButton: false,
-                        background: 'linear-gradient(135deg, #28a745, #20c997)',
-                        color: 'white'
-                    })
-                }, 1100)
-            } catch (error) {
-                console.error('Error refreshing progress:', error)
+            // Show success message
+            setTimeout(() => {
                 Swal.fire({
-                    icon: 'error',
-                    title: 'Oops...',
-                    text: 'Failed to refresh progress. Please try again.',
+                    icon: 'success',
+                    title: '✅ Progress Updated!',
+                    text: 'All your learning progress has been refreshed!',
                     timer: 2000,
-                    showConfirmButton: false
+                    showConfirmButton: false,
+                    background: 'linear-gradient(135deg, #28a745, #20c997)',
+                    color: 'white'
                 })
+            }, 1100)
+        }
+
+        // Handle task completion event from TaskTracker
+        const handleTaskCompleted = async () => {
+            console.log('🎯 Task completed event received, refreshing achievements and stats...')
+            try {
+                // Refresh special achievements and dashboard stats
+                await Promise.all([
+                    loadSpecialAchievements(),
+                    fetchDashboardStats()
+                ])
+                console.log('✅ Achievements and stats refreshed after task completion')
+            } catch (error) {
+                console.error('❌ Error refreshing achievements after task completion:', error)
             }
         }
 
         onMounted(async () => {
+            console.log('🎬 ChildDashboard: Component mounted, starting initialization...')
+            
+            // Always run these checks first (non-API operations)
             checkChildAccess()
             startScreenTimeSession()
-            fetchQuote()
-            fetchLoginStreak()
-            fetchDashboardStats()
-            await loadGoodTouchBadTouchProgress()
-            await loadSafetyMeasuresProgress()
-            await loadScienceExplorerProgress()
-            await loadWordWizardProgress()
-            await loadMathMagicProgress()
+            
+            // For authenticated users, ensure token is ready before making API calls
+            if (userUtils.getCurrentUser()) {
+                console.log('👤 ChildDashboard: User detected, ensuring authentication before API calls...')
+                
+                try {
+                    // Wait for authentication to be ready before proceeding with API calls
+                    const authReady = await authService.ensureAuthenticated()
+                    
+                    if (authReady) {
+                        console.log('✅ ChildDashboard: Authentication verified, proceeding with API calls...')
+                        
+                        // Now safe to make API calls
+                        fetchQuote()
+                        fetchLoginStreak()
+                        fetchDashboardStats()
+                        await loadSpecialAchievements()
+                        await loadGoodTouchBadTouchProgress()
+                        await loadSafetyMeasuresProgress()
+                        await loadScienceExplorerProgress()
+                        await loadWordWizardProgress()
+                        await loadMathMagicProgress()
 
-            // Calculate skills mastered after loading all module progress
-            calculateSkillsMastered()
+                        // Calculate skills mastered after loading all module progress
+                        calculateSkillsMastered()
+                        
+                        console.log('🎉 ChildDashboard: All data loaded successfully')
+                    } else {
+                        console.error('❌ ChildDashboard: Authentication verification failed')
+                        // Still allow basic dashboard functionality without API data
+                    }
+                } catch (authError) {
+                    console.error('❌ ChildDashboard: Authentication error:', authError)
+                    // Continue with basic dashboard functionality
+                }
+            } else {
+                console.log('👥 ChildDashboard: No user detected, loading basic dashboard...')
+                // For guest users, still load basic functionality
+                fetchQuote()
+            }
 
             // Add event listener for page unload
             window.addEventListener('beforeunload', logScreenTime)
 
             // Add visibility change listener to refresh progress when returning to dashboard
             document.addEventListener('visibilitychange', handleVisibilityChange)
-
-            // Call fetchAchievements
-            await fetchAchievements()
         })
 
         onBeforeUnmount(() => {
@@ -1633,17 +1661,18 @@ export default {
             loadScienceExplorerProgress,
             loadWordWizardProgress,
             loadMathMagicProgress,
+            loadSpecialAchievements,
             handleVisibilityChange,
             refreshAllProgress,
             calculateSkillsMastered,
             fetchDashboardStats,  // Export for use in template/other functions
             addTestAchievement,
+            handleTaskCompleted,
             isScrollExpanded,
             toggleScrollExpanded,
             levelInfo,
             dynamicUserLevel,
-            dynamicLevelTitle,
-            fetchAchievements  // Add this line
+            dynamicLevelTitle
         }
     }
 }
@@ -2091,7 +2120,7 @@ export default {
     bottom: 0;
     background: rgba(0, 0, 0, 0.3);
     backdrop-filter: blur(2px);
-    z-index: 999;
+    z-index: 499;
     animation: fadeIn 0.3s ease-out;
 }
 
@@ -2109,18 +2138,20 @@ export default {
 .golden-scroll {
     background: linear-gradient(145deg, #FFD700 0%, #FFA500 20%, #FFED4E 40%, #F39C12 60%, #E67E22 80%, #D35400 100%);
     border: 3px solid #B8860B;
-    border-radius: 15px;
+    border-radius: 20px;
     box-shadow:
-        0 8px 25px rgba(255, 215, 0, 0.4),
+        0 4px 15px rgba(255, 215, 0, 0.4),
         inset 0 2px 5px rgba(255, 255, 255, 0.3),
         inset 0 -2px 5px rgba(0, 0, 0, 0.2);
     cursor: pointer;
     transition: all 0.4s ease;
     position: relative;
     overflow: visible;
-    max-width: 350px;
+    max-width: none;
+    width: auto;
+    flex-shrink: 0;
     animation: scrollGlow 3s ease-in-out infinite alternate;
-    z-index: 1000;
+    z-index: 500;
 }
 
 .golden-scroll::before {
@@ -2159,14 +2190,15 @@ export default {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 1rem 1.5rem;
+    padding: 0.6rem 1.2rem;
     background: rgba(0, 0, 0, 0.1);
-    border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+    border-bottom: none;
     color: #2C1810;
-    font-weight: 700;
+    font-weight: 600;
+    font-size: 0.9rem;
     text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.3);
     cursor: pointer;
-    border-radius: 15px 15px 0 0;
+    border-radius: 20px;
     transition: all 0.3s ease;
 }
 
@@ -3521,7 +3553,8 @@ export default {
     }
 
     .scroll-header {
-        padding: 0.8rem 1rem;
+        padding: 0.6rem 1rem;
+        font-size: 0.8rem;
     }
 
     .scroll-content {
@@ -3835,6 +3868,64 @@ export default {
     gap: 1rem !important;
     justify-content: center !important;
     margin-top: 2rem !important;
+}
+
+/* Good Touch Bad Touch Welcome Popup Button Styles */
+:global(.good-touch-welcome-popup) {
+    border-radius: 25px !important;
+    padding: 2rem !important;
+}
+
+:global(.good-touch-welcome-confirm-btn) {
+    background: linear-gradient(135deg, #4CAF50, #81C784) !important;
+    color: white !important;
+    border: none !important;
+    padding: 1rem 2rem !important;
+    border-radius: 25px !important;
+    font-weight: 700 !important;
+    font-size: 1.1rem !important;
+    transition: all 0.3s ease !important;
+    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4) !important;
+    cursor: pointer !important;
+    min-width: 200px !important;
+}
+
+:global(.good-touch-welcome-confirm-btn:hover) {
+    background: linear-gradient(135deg, #81C784, #66BB6A) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.6) !important;
+}
+
+:global(.good-touch-welcome-cancel-btn) {
+    background: rgba(255, 255, 255, 0.2) !important;
+    color: white !important;
+    border: 2px solid rgba(255, 255, 255, 0.8) !important;
+    padding: 1rem 2rem !important;
+    border-radius: 25px !important;
+    font-weight: 600 !important;
+    font-size: 1.1rem !important;
+    transition: all 0.3s ease !important;
+    cursor: pointer !important;
+    min-width: 200px !important;
+    backdrop-filter: blur(10px) !important;
+}
+
+:global(.good-touch-welcome-cancel-btn:hover) {
+    background: rgba(255, 255, 255, 0.3) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 15px rgba(255, 255, 255, 0.3) !important;
+}
+
+:global(.good-touch-welcome-confirm-btn:focus),
+:global(.good-touch-welcome-confirm-btn:active) {
+    color: white !important;
+    outline: none !important;
+}
+
+:global(.good-touch-welcome-cancel-btn:focus),
+:global(.good-touch-welcome-cancel-btn:active) {
+    color: white !important;
+    outline: none !important;
 }
 
 .science-confirm-btn {

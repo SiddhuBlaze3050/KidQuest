@@ -114,6 +114,8 @@
                                             @click="markCardComplete(selectedCard.id)" class="complete-card-btn"
                                             :disabled="exploredCards.includes(selectedCard.id)">
                                             {{ exploredCards.includes(selectedCard.id) ? '✅ Mastered!' : '⭐ Master This Topic!' }}
+                                            
+
                                         </button>
                                         <div v-else class="exploration-hint">
                                             <span>💡 Discover all tips to master this topic!</span>
@@ -531,62 +533,94 @@ const markModuleComplete = async () => {
         return
     }
 
-    console.log('Marking Safety Measures module as complete...')
-    isCompleted.value = true
-    await saveProgress()
+    try {
+        const result = await Swal.fire({
+            title: '🛡️ Safety Skills Mastered!',
+            html: `
+                <div style="text-align: center; line-height: 1.8;">
+                    <div style="font-size: 4rem; margin: 1rem 0;">🛡️🏆🌟</div>
+                    <p style="font-size: 1.2rem; color: #4a5568; font-weight: 600;">
+                        Congratulations! You've mastered Safety Champions Academy!
+                    </p>
+                    <p style="color: #718096; margin: 1rem 0;">
+                        You now have essential safety skills to protect yourself and others! 🚨
+                    </p>
+                    <div style="font-size: 3rem; margin: 1rem 0;">⭐🚨⭐</div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '🛡️ Mark as Complete!',
+            cancelButtonText: '🚨 Continue Learning',
+            background: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)',
+            color: 'white',
+            customClass: {
+                popup: 'safety-measures-popup',
+                confirmButton: 'safety-confirm-btn',
+                cancelButton: 'safety-cancel-btn'
+            }
+        })
 
-    // Save to backend
-    if (user.value?.id) {
-        try {
-            const progressData = {
-                isCompleted: isCompleted.value,
-                completedAt: Date.now(),
-                lastAccessed: Date.now(),
-                exploredCards: exploredCards.value,
-                discoveredTips: discoveredTips.value
+        if (result.isConfirmed) {
+            console.log('Marking Safety Measures module as complete...')
+            isCompleted.value = true
+            await saveProgress()
+
+            // Save to backend
+            if (user.value?.id) {
+                try {
+                    const progressData = {
+                        isCompleted: isCompleted.value,
+                        completedAt: Date.now(),
+                        lastAccessed: Date.now(),
+                        exploredCards: exploredCards.value,
+                        discoveredTips: discoveredTips.value
+                    }
+
+                    console.log('Saving Safety Measures completion to backend:', progressData)
+                    const response = await apiService.saveModuleProgress(user.value.id, 'safety_measures', progressData)
+                    console.log('✅ Safety Measures module completion saved to backend successfully:', response)
+                } catch (error) {
+                    console.error('❌ Failed to save Safety Measures module completion to backend:', error)
+                }
             }
 
-            console.log('Saving Safety Measures completion to backend:', progressData)
-            const response = await apiService.saveModuleProgress(user.value.id, 'safety_measures', progressData)
-            console.log('✅ Safety Measures module completion saved to backend successfully:', response)
-        } catch (error) {
-            console.error('❌ Failed to save Safety Measures module completion to backend:', error)
+            // Success message
+            await Swal.fire({
+                title: '🏆 Safety Champion Certified!',
+                html: `
+                    <div style="text-align: center; line-height: 1.8;">
+                        <div style="font-size: 4rem; margin: 1rem 0;">🛡️🏆🌟</div>
+                        <p style="font-size: 1.2rem; color: #ffffff; font-weight: 600;">
+                            Congratulations! You are now a certified Safety Champion!
+                        </p>
+                        <p style="color: #ffffff; margin: 1rem 0; opacity: 0.9;">
+                            You've mastered essential safety skills that will help keep you and others safe. 
+                            Remember to always follow these safety rules!
+                        </p>
+                        <div style="background: rgba(255, 255, 255, 0.1); padding: 1rem; border-radius: 15px; margin: 1rem 0;">
+                            <p style="color: #ffffff; font-weight: 600; margin: 0.5rem 0;">
+                                🏅 Achievement: Safety Champion Certified
+                            </p>
+                            <p style="color: #ffffff; font-size: 0.9rem; margin: 0.5rem 0;">
+                                📚 Topics Mastered: ${exploredCards.value.length}/${safetyCategories.value.length}
+                            </p>
+                            <p style="color: #ffffff; font-size: 0.9rem; margin: 0.5rem 0;">
+                                💡 Safety Tips Learned: ${Object.values(discoveredTips.value).flat().length}
+                            </p>
+                        </div>
+                        <div style="font-size: 3rem; margin: 1rem 0;">🚨🛡️⭐</div>
+                    </div>
+                `,
+                timer: 6000,
+                showConfirmButton: true,
+                confirmButtonText: 'I\'m a Safety Champion! 🏆',
+                background: 'linear-gradient(135deg, #ff9a9e, #fecfef)',
+                color: 'white'
+            })
         }
+    } catch (error) {
+        console.error('Error in markModuleComplete:', error)
     }
-
-    Swal.fire({
-        icon: 'success',
-        title: '🏆 Safety Champion Certified!',
-        html: `
-            <div style="text-align: center; line-height: 1.8;">
-                <div style="font-size: 4rem; margin: 1rem 0;">🛡️🏆🌟</div>
-                <p style="font-size: 1.2rem; color: #ffffff; font-weight: 600;">
-                    Congratulations! You are now a certified Safety Champion!
-                </p>
-                <p style="color: #ffffff; margin: 1rem 0; opacity: 0.9;">
-                    You've mastered essential safety skills that will help keep you and others safe. 
-                    Remember to always follow these safety rules!
-                </p>
-                <div style="background: rgba(255, 255, 255, 0.1); padding: 1rem; border-radius: 15px; margin: 1rem 0;">
-                    <p style="color: #ffffff; font-weight: 600; margin: 0.5rem 0;">
-                        🏅 Achievement: Safety Champion Certified
-                    </p>
-                    <p style="color: #ffffff; font-size: 0.9rem; margin: 0.5rem 0;">
-                        📚 Topics Mastered: ${exploredCards.value.length}/${safetyCategories.value.length}
-                    </p>
-                    <p style="color: #ffffff; font-size: 0.9rem; margin: 0.5rem 0;">
-                        💡 Safety Tips Learned: ${Object.values(discoveredTips.value).flat().length}
-                    </p>
-                </div>
-                <div style="font-size: 3rem; margin: 1rem 0;">🚨🛡️⭐</div>
-            </div>
-        `,
-        timer: 6000,
-        showConfirmButton: true,
-        confirmButtonText: 'I\'m a Safety Champion! 🏆',
-        background: 'linear-gradient(135deg, #ff9a9e, #fecfef)',
-        color: 'white'
-    })
 }
 
 const resetProgress = async () => {
@@ -1386,5 +1420,61 @@ onMounted(async () => {
 
 .safety-card:hover::before {
     left: 100%;
+}
+
+/* Safety Measures Module Button Styling */
+:global(.safety-confirm-btn) {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ffa726 100%) !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 25px !important;
+    font-weight: 700 !important;
+    margin: 0 10px !important;
+    color: white !important;
+    box-shadow: 0 4px 15px rgba(255, 107, 107, 0.3) !important;
+    transition: all 0.3s ease !important;
+}
+
+:global(.safety-confirm-btn:hover) {
+    background: linear-gradient(135deg, #ff5252 0%, #ff9800 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(255, 107, 107, 0.4) !important;
+}
+
+:global(.safety-cancel-btn) {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 25px !important;
+    font-weight: 600 !important;
+    margin: 0 10px !important;
+    color: white !important;
+    transition: all 0.3s ease !important;
+}
+
+:global(.safety-cancel-btn:hover) {
+    background: rgba(255, 255, 255, 0.3) !important;
+    transform: translateY(-2px) !important;
+}
+
+/* Alternative approach with higher specificity */
+:global(.swal2-popup .safety-confirm-btn) {
+    background: linear-gradient(135deg, #ff6b6b 0%, #ffa726 100%) !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 25px !important;
+    font-weight: 700 !important;
+    margin: 0 10px !important;
+    color: white !important;
+}
+
+:global(.swal2-popup .safety-cancel-btn) {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 25px !important;
+    font-weight: 600 !important;
+    margin: 0 10px !important;
+    color: white !important;
 }
 </style>

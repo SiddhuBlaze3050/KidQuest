@@ -38,10 +38,27 @@ const router = createRouter({
       name: 'child-dashboard',
       component: ChildDashboard,
       beforeEnter: (to, from, next) => {
-        if (authService.isAuthenticated() && authService.hasRole('child')) {
+        console.log('🔍 Child dashboard route guard triggered')
+        console.log('� Route details - to:', to.path, 'from:', from.path)
+        console.log('�📋 Authentication status:', authService.isAuthenticated())
+        console.log('👤 Current user:', authService.getCurrentUser())
+        console.log('🎭 Has child role:', authService.hasRole('child'))
+        console.log('🔧 Token exists:', !!authService.getToken())
+        console.log('🔧 User data exists:', !!authService.getUser())
+        
+        const isAuth = authService.isAuthenticated()
+        const hasChildRole = authService.hasRole('child')
+        
+        console.log('🔍 Final checks - isAuth:', isAuth, 'hasChildRole:', hasChildRole)
+        
+        if (isAuth && hasChildRole) {
+          console.log('✅ Access granted: Child authenticated')
+          console.log('🎯 Proceeding to child dashboard...')
           next()
         } else {
           console.log('❌ Access denied: User is not a child or not authenticated')
+          console.log('🔍 Auth state:', { isAuth, hasChildRole })
+          console.log('🔍 Redirecting to home page')
           next('/')
         }
       },

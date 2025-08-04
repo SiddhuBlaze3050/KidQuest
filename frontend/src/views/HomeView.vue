@@ -109,27 +109,37 @@ export default {
     }
 
     const handleLoginSuccess = (userData) => {
-      console.log('Login success, userData:', userData)
+      console.log('🎉 HomeView: Login success, userData:', userData)
+      console.log('👤 HomeView: User role:', userData.user.role)
       user.value = userData.user
       showLogin.value = false
 
-      // Give a small delay to ensure auth state is properly set
+      // Give a longer delay to ensure auth state is properly set
       setTimeout(() => {
+        console.log('🔄 HomeView: Starting navigation for role:', userData.user.role)
+        console.log('🔍 HomeView: Current auth state - isAuthenticated:', authService.isAuthenticated())
+        console.log('🔍 HomeView: Current auth state - hasRole(child):', authService.hasRole('child'))
+        
         // Redirect users based on their role using Vue Router
         if (userData.user.role === 'admin') {
-          console.log('Redirecting to admin dashboard')
+          console.log('🎯 HomeView: Redirecting to admin dashboard')
           router.push('/admin')
         } else if (userData.user.role === 'child') {
-          console.log('Redirecting to child dashboard')
-          router.push('/child-dashboard')
+          console.log('🎯 HomeView: Redirecting to child dashboard')
+          console.log('🔍 HomeView: About to call router.push("/child-dashboard")')
+          router.push('/child-dashboard').then(() => {
+            console.log('✅ HomeView: Router navigation to child-dashboard completed successfully')
+          }).catch((error) => {
+            console.error('❌ HomeView: Router navigation to child-dashboard failed:', error)
+          })
         } else if (userData.user.role === 'parent') {
-          console.log('Redirecting to parent dashboard')
+          console.log('🎯 HomeView: Redirecting to parent dashboard')
           router.push('/parent-dashboard')
         } else if (userData.user.role === 'teacher') {
-          console.log('Redirecting to teacher dashboard')
+          console.log('🎯 HomeView: Redirecting to teacher dashboard')
           router.push('/teacher-dashboard')
         }
-      }, 100) // Small delay to ensure auth state is set
+      }, 500) // Increased delay to ensure auth state is set
     }
 
     const handleRegisterSuccess = (userData) => {

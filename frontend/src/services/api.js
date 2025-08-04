@@ -16,8 +16,14 @@ api.interceptors.request.use(
   (config) => {
     console.log('Making API request:', config.method?.toUpperCase(), config.url)
     
-    // The authorization header is already set by authService globally
-    // No need to add it here again to avoid conflicts
+    // Get token from authService and add to this request
+    const token = authService.getToken()
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+      console.log('🔧 API service: Authorization header added to request')
+    } else {
+      console.log('⚠️ API service: No token available for request')
+    }
     
     return config
   },
@@ -283,6 +289,16 @@ export const apiService = {
     }
   },
 
+  // Task Tracker for parents
+  async getTasksParent(userId) {
+    try {
+      const response = await api.get(`/api/tasks-for-parent/${userId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
   async createTask(taskData) {
     try {
       const response = await api.post('/api/tasks', taskData)
@@ -295,6 +311,15 @@ export const apiService = {
   async updateTaskStatus(taskId, status) {
     try {
       const response = await api.put(`/api/tasks/${taskId}/status`, { status })
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async deleteTask(taskId) {
+    try {
+      const response = await api.delete(`/api/tasks/${taskId}`)
       return response.data
     } catch (error) {
       throw error
@@ -582,17 +607,6 @@ export const apiService = {
     try {
       const response = await api.post('/api/notifications/mark-read', {
         notification_ids: notificationIds,
-      })
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
-
-  async createSampleNotifications(userId) {
-    try {
-      const response = await api.post('/api/notifications/create-sample', {
-        user_id: userId,
       })
       return response.data
     } catch (error) {

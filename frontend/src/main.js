@@ -3,9 +3,32 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
 import axios from 'axios'
+import authService from './services/authService'
 
 // Configure axios globally
 axios.defaults.baseURL = 'http://localhost:5000'
+
+// Initialize authentication on app startup
+console.log('🚀 Initializing authentication on app startup...')
+console.log('🔍 Token exists:', !!authService.getToken())
+console.log('🔍 User exists:', !!authService.getUser())
+console.log('🔍 Is authenticated:', authService.isAuthenticated())
+console.log('🔍 Token expired:', authService.isTokenExpired())
+
+// Set authorization header if valid token exists
+if (authService.isAuthenticated() && !authService.isTokenExpired()) {
+  const token = authService.getToken()
+  axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+  console.log('✅ Authorization header set on app startup')
+} else {
+  console.log('⚠️ No valid authentication found on app startup')
+  // Clear any invalid tokens
+  if (authService.getToken()) {
+    console.log('🧹 Clearing invalid/expired token')
+    authService.removeToken()
+    authService.removeUser()
+  }
+}
 
 const app = createApp(App)
 

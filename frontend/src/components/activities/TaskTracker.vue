@@ -29,28 +29,53 @@
                                         </div>
                                         <div class="analytics-item">
                                             <span class="analytics-label">Completed:</span>
-                                            <span class="analytics-value">{{ task.session_stats.completed_sessions }}</span>
+                                            <span class="analytics-value">{{ task.session_stats.completed_sessions
+                                                }}</span>
                                         </div>
                                         <div class="analytics-item">
                                             <span class="analytics-label">Focus Time:</span>
-                                            <span class="analytics-value">{{ task.session_stats.total_work_time }}m</span>
+                                            <span class="analytics-value">{{ task.session_stats.total_work_time
+                                                }}m</span>
                                         </div>
                                         <div class="analytics-item">
                                             <span class="analytics-label">Break Time:</span>
-                                            <span class="analytics-value">{{ task.session_stats.total_break_time }}m</span>
+                                            <span class="analytics-value">{{ task.session_stats.total_break_time
+                                                }}m</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                             <div class="task-actions">
                                 <span class="task-status">{{ task.status }}</span>
+
+                                <!-- Start Focus Button -->
                                 <button v-if="task.status === 'pending' || task.status === 'in-progress'"
                                     @click="startPomodoro(task)" class="action-btn start">
-                                    Start Focus
+                                    <i class="fas fa-play"></i> Start Focus
                                 </button>
+
+                                <!-- Mark In Progress Button -->
+                                <button v-if="task.status === 'pending'" @click="updateTaskStatus(task, 'in-progress')"
+                                    class="action-btn in-progress">
+                                    <i class="fas fa-hourglass-start"></i> In Progress
+                                </button>
+
+                                <!-- Mark Done Button -->
                                 <button v-if="task.status !== 'completed'" @click="updateTaskStatus(task, 'completed')"
                                     class="action-btn complete">
-                                    Mark Done
+                                    <i class="fas fa-check"></i> Mark Done
+                                </button>
+
+                                <!-- Reset to Pending Button -->
+                                <button v-if="task.status === 'in-progress'" @click="updateTaskStatus(task, 'pending')"
+                                    class="action-btn reset">
+                                    <i class="fas fa-undo"></i> Reset
+                                </button>
+
+                                <!-- Remove Task Button (only for student-created tasks) -->
+                                <button v-if="!task.assigned_by_teacher" @click="removeTask(task)"
+                                    class="action-btn remove">
+                                    <i class="fas fa-trash"></i> Remove
                                 </button>
                             </div>
                         </div>
@@ -61,18 +86,21 @@
                     <h3>Add a New Quest</h3>
                     <form @submit.prevent="addTask">
                         <div class="form-group">
-                            <label for="task-title">Quest Title</label>
-                            <input type="text" id="task-title" v-model="newTask.task" required>
+                            <label for="task-title">Quest Title *</label>
+                            <input type="text" id="task-title" v-model="newTask.task" required
+                                placeholder="Enter your quest title (required)">
                         </div>
                         <div class="form-group">
                             <label for="task-subject">Subject</label>
-                            <input type="text" id="task-subject" v-model="newTask.subject">
+                            <input type="text" id="task-subject" v-model="newTask.subject"
+                                placeholder="e.g., Math, Science, Reading (optional)">
                         </div>
                         <div class="form-group">
                             <label for="task-due-date">Due Date</label>
-                            <input type="date" id="task-due-date" v-model="newTask.due_date">
+                            <input type="date" id="task-due-date" v-model="newTask.due_date"
+                                :min="new Date().toISOString().split('T')[0]">
                         </div>
-                        <button type="submit" class="add-task-btn">Add Quest</button>
+                        <button type="submit" class="add-task-btn" :disabled="!newTask.task.trim()">Add Quest</button>
                     </form>
                 </div>
             </div>
@@ -91,6 +119,7 @@ import PomodoroTimer from './PomodoroTimer.vue';
 export default defineComponent({
     name: 'TaskTracker',
     components: { PomodoroTimer },
+    emits: ['close', 'task-completed'],
     props: {
         user: {
             type: Object,
@@ -109,34 +138,87 @@ export default defineComponent({
 
         const fetchTasks = async () => {
             try {
+                console.log('🔄 Fetching tasks for user:', props.user.id);
                 const response = await apiService.getTasks(props.user.id);
+                console.log('📥 Tasks response:', response);
+
                 if (response.success) {
                     tasks.value = response.tasks;
+                    console.log('✅ Tasks loaded successfully:', tasks.value.length, 'tasks');
+                } else {
+                    console.error('❌ Failed to fetch tasks:', response.error);
+                    alert('Failed to load tasks: ' + (response.error || 'Unknown error'));
                 }
             } catch (error) {
-                console.error('Error fetching tasks:', error);
+                console.error('❌ Error fetching tasks:', error);
+
+                // Show detailed error message
+                if (error.response) {
+                    console.error('Response error:', error.response.data);
+                    alert('Failed to load tasks: ' + (error.response.data.error || error.response.data.message || 'Server error'));
+                } else if (error.request) {
+                    console.error('Request error:', error.request);
+                    alert('Failed to load tasks: Network error. Please check your connection.');
+                } else {
+                    console.error('General error:', error.message);
+                    alert('Failed to load tasks: ' + error.message);
+                }
             }
         };
         const addTask = async () => {
             try {
+                // Validate required fields
+                if (!newTask.value.task || !newTask.value.task.trim()) {
+                    alert('Please enter a quest title! 📝');
+                    return;
+                }
+
+                if (!props.user || !props.user.id) {
+                    alert('User information is missing. Please try logging in again.');
+                    return;
+                }
+
+                console.log('🔄 Adding new task...', newTask.value);
+
                 // Filter out empty due_date before sending
                 const taskData = {
                     ...newTask.value,
                     user_id: props.user.id,
                 };
-                
+
                 // Remove due_date if it's empty
                 if (!taskData.due_date || taskData.due_date.trim() === '') {
                     delete taskData.due_date;
                 }
-                
+
+                console.log('📤 Sending task data:', taskData);
+
                 const response = await apiService.createTask(taskData);
+                console.log('📥 Response received:', response);
+
                 if (response.success) {
                     tasks.value.push(response.task);
                     newTask.value = { task: '', subject: '', due_date: '' }; // Reset form
+                    console.log('✅ Task added successfully!');
+
+                } else {
+                    console.error('❌ Task creation failed:', response.error);
+                    alert('Failed to add quest: ' + (response.error || 'Unknown error'));
                 }
             } catch (error) {
-                console.error('Error adding task:', error);
+                console.error('❌ Error adding task:', error);
+
+                // Show detailed error message
+                if (error.response) {
+                    console.error('Response error:', error.response.data);
+                    alert('Failed to add quest: ' + (error.response.data.error || error.response.data.message || 'Server error'));
+                } else if (error.request) {
+                    console.error('Request error:', error.request);
+                    alert('Failed to add quest: Network error. Please check your connection.');
+                } else {
+                    console.error('General error:', error.message);
+                    alert('Failed to add quest: ' + error.message);
+                }
             }
         };
 
@@ -144,32 +226,81 @@ export default defineComponent({
             try {
                 await apiService.updateTaskStatus(task.id, status);
                 task.status = status;
+                console.log(`✅ Task ${task.id} status updated to: ${status}`);
+
+                // If task was completed, trigger achievement refresh
+                if (status === 'completed') {
+                    console.log('🎯 Task completed, refreshing achievements...');
+                    // Emit event to parent to refresh achievements
+                    emit('task-completed');
+                }
             } catch (error) {
                 console.error('Error updating task status:', error);
+                alert('Failed to update task status. Please try again.');
             }
         };
 
-    const startPomodoro = async (task) => {
-  try {
-    const userId = props.user.id
-    const homeworkId = task.id
+        const removeTask = async (task) => {
+            try {
+                // Confirm before removing
+                const confirmRemove = confirm(`Are you sure you want to remove the quest "${task.task}"? This action cannot be undone.`);
+                if (!confirmRemove) {
+                    return;
+                }
 
-    console.log('✅ Sending to API from TaskTracker:', {
-      user_id: userId,
-      homework_id: homeworkId,
-    })
+                console.log('🗑️ Removing task:', task.id);
 
-    // Make API call
-    //await apiService.startPomodoro(userId, homeworkId)
+                const response = await apiService.deleteTask(task.id);
 
-    // Open PomodoroTimer component
-    selectedTask.value = task
-    showPomodoro.value = true
-  } catch (err) {
-    console.error('❌ Failed to start pomodoro session:', err)
-    alert('Could not start session. Please try again.')
-  }
-}
+                if (response.success) {
+                    // Remove task from local array
+                    const taskIndex = tasks.value.findIndex(t => t.id === task.id);
+                    if (taskIndex > -1) {
+                        tasks.value.splice(taskIndex, 1);
+                    }
+                    console.log('✅ Task removed successfully!');
+                } else {
+                    console.error('❌ Task removal failed:', response.error);
+                    alert('Failed to remove quest: ' + (response.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('❌ Error removing task:', error);
+
+                // Show detailed error message
+                if (error.response) {
+                    console.error('Response error:', error.response.data);
+                    alert('Failed to remove quest: ' + (error.response.data.error || error.response.data.message || 'Server error'));
+                } else if (error.request) {
+                    console.error('Request error:', error.request);
+                    alert('Failed to remove quest: Network error. Please check your connection.');
+                } else {
+                    console.error('General error:', error.message);
+                    alert('Failed to remove quest: ' + error.message);
+                }
+            }
+        };
+
+        const startPomodoro = async (task) => {
+            try {
+                const userId = props.user.id
+                const homeworkId = task.id
+
+                console.log('✅ Sending to API from TaskTracker:', {
+                    user_id: userId,
+                    homework_id: homeworkId,
+                })
+
+                // Make API call
+                //await apiService.startPomodoro(userId, homeworkId)
+
+                // Open PomodoroTimer component
+                selectedTask.value = task
+                showPomodoro.value = true
+            } catch (err) {
+                console.error('❌ Failed to start pomodoro session:', err)
+                alert('Could not start session. Please try again.')
+            }
+        }
 
         const handleSessionComplete = () => {
             fetchTasks();
@@ -184,6 +315,7 @@ export default defineComponent({
             newTask,
             addTask,
             updateTaskStatus,
+            removeTask,
             startPomodoro,
             handleSessionComplete,
         };
@@ -364,43 +496,84 @@ export default defineComponent({
 
 .task-actions {
     display: flex;
-    align-items: center;
-    gap: 1rem;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 0.8rem;
     flex-shrink: 0;
+    min-width: 200px;
 }
 
 .task-status {
     font-style: italic;
     color: #b0b8c4;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     text-transform: capitalize;
+    background: rgba(255, 255, 255, 0.1);
+    padding: 0.3rem 0.8rem;
+    border-radius: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    margin-bottom: 0.5rem;
 }
 
 .action-btn,
 .add-task-btn {
     padding: 0.6rem 1.2rem;
     border: none;
-    border-radius: 20px;
+    border-radius: 8px;
     cursor: pointer;
     font-weight: bold;
     font-family: 'Merriweather', serif;
     color: white;
     transition: all 0.3s ease;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.2);
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    white-space: nowrap;
+    min-width: 130px;
 }
 
 .action-btn:hover,
-.add-task-btn:hover {
+.add-task-btn:hover:not(:disabled) {
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+.add-task-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #ccc !important;
+}
+
+.add-task-btn:disabled:hover {
+    transform: none;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
 }
 
 .action-btn.start {
     background: linear-gradient(135deg, #667eea, #764ba2);
 }
 
+.action-btn.in-progress {
+    background: linear-gradient(135deg, #76daff, #4facfe);
+}
+
 .action-btn.complete {
     background: linear-gradient(135deg, #43b581, #389e70);
+}
+
+.action-btn.reset {
+    background: linear-gradient(135deg, #ffcc4d, #f39c12);
+}
+
+.action-btn.remove {
+    background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+}
+
+.action-btn.remove:hover {
+    background: linear-gradient(135deg, #ff5252, #d32f2f);
 }
 
 .add-task-container {
@@ -510,14 +683,31 @@ export default defineComponent({
         grid-template-columns: 1fr;
     }
 
-    .task-actions {
+    .task-item {
         flex-direction: column;
+        align-items: stretch;
+        gap: 1rem;
+    }
+
+    .task-actions {
+        align-items: stretch;
+        min-width: auto;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
         gap: 0.5rem;
     }
 
     .action-btn {
-        width: 100%;
+        flex: 1;
+        min-width: 120px;
         justify-content: center;
+    }
+
+    .task-status {
+        order: -1;
+        align-self: center;
+        margin-bottom: 0.8rem;
     }
 }
 </style>

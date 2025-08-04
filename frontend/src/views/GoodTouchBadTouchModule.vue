@@ -91,38 +91,73 @@ export default {
                 return
             }
 
-            console.log('Marking module as complete...')
-            isCompleted.value = true
-            updateModuleProgress()
+            try {
+                const result = await Swal.fire({
+                    title: '🛡️ Safety Learning Complete!',
+                    html: `
+                        <div style="text-align: center; line-height: 1.8;">
+                            <div style="font-size: 4rem; margin: 1rem 0;">🛡️🌟💚</div>
+                            <p style="font-size: 1.2rem; color: #4a5568; font-weight: 600;">
+                                Congratulations! You've learned important safety skills!
+                            </p>
+                            <p style="color: #718096; margin: 1rem 0;">
+                                You now know how to recognize good touch and bad touch to stay safe! 🛡️
+                            </p>
+                            <div style="font-size: 3rem; margin: 1rem 0;">⭐🛡️⭐</div>
+                        </div>
+                    `,
+                    showCancelButton: true,
+                    confirmButtonText: '🛡️ Mark as Complete!',
+                    cancelButtonText: '📚 Continue Learning',
+                    background: 'linear-gradient(135deg, #4CAF50 0%, #81C784 100%)',
+                    color: 'white',
+                    customClass: {
+                        popup: 'good-touch-popup',
+                        confirmButton: 'good-touch-confirm-btn',
+                        cancelButton: 'good-touch-cancel-btn'
+                    }
+                })
 
-            // Save to backend
-            if (user.value?.id) {
-                try {
-                    const progressData = {
-                        isCompleted: isCompleted.value,
-                        completedAt: Date.now(),
-                        lastAccessed: Date.now(),
-                        progress_percentage: 100  // Explicitly set progress percentage
+                if (result.isConfirmed) {
+                    console.log('Marking module as complete...')
+                    isCompleted.value = true
+                    updateModuleProgress()
+
+                    // Save to backend
+                    if (user.value?.id) {
+                        try {
+                            const progressData = {
+                                isCompleted: isCompleted.value,
+                                completed: isCompleted.value, // Also include this field for API compatibility
+                                is_completed: isCompleted.value, // Include this field as well
+                                progress_percentage: isCompleted.value ? 100 : 0,
+                                completedAt: Date.now(),
+                                lastAccessed: Date.now()
+                            }
+
+                            console.log('Saving completion to backend:', progressData)
+                            const response = await apiService.saveModuleProgress(user.value.id, 'good_touch_bad_touch', progressData)
+                            console.log('✅ Module completion saved to backend successfully:', response)
+                        } catch (error) {
+                            console.error('❌ Failed to save module completion to backend:', error)
+                        }
                     }
 
-                    console.log('Saving completion to backend:', progressData)
-                    const response = await apiService.saveModuleProgress(user.value.id, 'good_touch_bad_touch', progressData)
-                    console.log('✅ Module completion saved to backend successfully:', response)
-                } catch (error) {
-                    console.error('❌ Failed to save module completion to backend:', error)
+                    // Success message
+                    await Swal.fire({
+                        icon: 'success',
+                        title: '🎉 Safety Champion!',
+                        text: 'Excellent work! You\'ve completed the Good Touch & Bad Touch safety module. You now know important ways to stay safe and protect yourself.',
+                        timer: 4000,
+                        showConfirmButton: true,
+                        confirmButtonText: 'Great! 👍',
+                        background: 'linear-gradient(135deg, #4CAF50, #81C784)',
+                        color: 'white'
+                    })
                 }
+            } catch (error) {
+                console.error('Error in markModuleComplete:', error)
             }
-
-            Swal.fire({
-                icon: 'success',
-                title: '🎉 Module Completed!',
-                text: 'Excellent work! You\'ve completed the Good Touch & Bad Touch safety module. You now know important ways to stay safe and protect yourself.',
-                timer: 4000,
-                showConfirmButton: true,
-                confirmButtonText: 'Great! 👍',
-                background: 'linear-gradient(135deg, #4CAF50, #81C784)',
-                color: 'white'
-            })
         }
 
         const updateModuleProgress = () => {
@@ -150,15 +185,13 @@ export default {
                         const backendProgress = await apiService.getModuleProgress(user.value.id, 'good_touch_bad_touch')
                         console.log('Backend response:', backendProgress)
 
-                        if (backendProgress.success && backendProgress.progress && backendProgress.progress.progress_data) {
-                            const progressData = backendProgress.progress.progress_data
-                            console.log('Backend progress data:', progressData)
-
-                            isCompleted.value = progressData.isCompleted || false
+                        if (backendProgress.success && backendProgress.progress) {
+                            // Check for completion in the main progress object (for modules without submodules)
+                            isCompleted.value = backendProgress.progress.is_completed || false
+                            console.log(`✅ Module progress loaded from backend: completed: ${isCompleted.value}`)
 
                             // Also update localStorage with backend data
                             updateModuleProgress()
-                            console.log(`✅ Module progress loaded from backend: completed: ${isCompleted.value}`)
                             return
                         }
                     } catch (error) {
@@ -331,20 +364,22 @@ export default {
         // Lifecycle
         onMounted(async () => {
             await loadModuleProgress()
+
+            // Module loads directly since welcome popup is now handled by dashboard
             isLoadingSafety.value = true
 
-            // Show welcome message
+            // Show loading message
             const progressMessage = isCompleted.value
-                ? 'You have already completed this module! You can review the content or reset your completion status if needed.'
-                : 'Welcome to the Good Touch & Bad Touch safety module! Read through the content and mark it as complete when you\'re finished.'
+                ? 'Welcome back! You have already completed this module. You can review the content or reset your completion status if needed.'
+                : 'Loading the Good Touch & Bad Touch safety module. This will help you learn important safety skills!'
 
             Swal.fire({
                 icon: isCompleted.value ? 'success' : 'info',
-                title: '🛡️ Safety Learning Module',
+                title: '🛡️ Loading Safety Module',
                 text: progressMessage,
                 timer: 3000,
                 showConfirmButton: false,
-                background: 'linear-gradient(135deg, #fd79a8, #fdcb6e)',
+                background: 'linear-gradient(135deg, #4CAF50, #81C784)',
                 color: 'white'
             })
 
@@ -660,5 +695,117 @@ export default {
 /* Fullscreen styles */
 .good-touch-bad-touch-module:fullscreen {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* Good Touch Bad Touch Module Button Styling */
+:global(.good-touch-confirm-btn) {
+    background: linear-gradient(135deg, #4CAF50 0%, #81C784 100%) !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 25px !important;
+    font-weight: 700 !important;
+    margin: 0 10px !important;
+    color: white !important;
+    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3) !important;
+    transition: all 0.3s ease !important;
+}
+
+:global(.good-touch-confirm-btn:hover) {
+    background: linear-gradient(135deg, #45a049 0%, #66bb6a 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4) !important;
+}
+
+:global(.good-touch-cancel-btn) {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 25px !important;
+    font-weight: 600 !important;
+    margin: 0 10px !important;
+    color: white !important;
+    transition: all 0.3s ease !important;
+}
+
+:global(.good-touch-cancel-btn:hover) {
+    background: rgba(255, 255, 255, 0.3) !important;
+    transform: translateY(-2px) !important;
+}
+
+/* Alternative approach with higher specificity */
+:global(.swal2-popup .good-touch-confirm-btn) {
+    background: linear-gradient(135deg, #4CAF50 0%, #81C784 100%) !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 25px !important;
+    font-weight: 700 !important;
+    margin: 0 10px !important;
+    color: white !important;
+}
+
+:global(.swal2-popup .good-touch-cancel-btn) {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 25px !important;
+    font-weight: 600 !important;
+    margin: 0 10px !important;
+    color: white !important;
+}
+
+/* Welcome Popup Button Styling */
+:global(.good-touch-welcome-confirm-btn) {
+    background: linear-gradient(135deg, #4CAF50 0%, #81C784 100%) !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 25px !important;
+    font-weight: 700 !important;
+    margin: 0 10px !important;
+    color: white !important;
+    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3) !important;
+    transition: all 0.3s ease !important;
+}
+
+:global(.good-touch-welcome-confirm-btn:hover) {
+    background: linear-gradient(135deg, #45a049 0%, #66bb6a 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4) !important;
+}
+
+:global(.good-touch-welcome-cancel-btn) {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 25px !important;
+    font-weight: 600 !important;
+    margin: 0 10px !important;
+    color: white !important;
+    transition: all 0.3s ease !important;
+}
+
+:global(.good-touch-welcome-cancel-btn:hover) {
+    background: rgba(255, 255, 255, 0.3) !important;
+    transform: translateY(-2px) !important;
+}
+
+/* Alternative approach with higher specificity for welcome popup */
+:global(.swal2-popup .good-touch-welcome-confirm-btn) {
+    background: linear-gradient(135deg, #4CAF50 0%, #81C784 100%) !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 25px !important;
+    font-weight: 700 !important;
+    margin: 0 10px !important;
+    color: white !important;
+}
+
+:global(.swal2-popup .good-touch-welcome-cancel-btn) {
+    background: rgba(255, 255, 255, 0.2) !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 25px !important;
+    font-weight: 600 !important;
+    margin: 0 10px !important;
+    color: white !important;
 }
 </style>
