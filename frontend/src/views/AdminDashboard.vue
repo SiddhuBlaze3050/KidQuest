@@ -1,217 +1,278 @@
 <template>
-    <div class="admin-dashboard">
-        <!-- Header -->
-        <header class="admin-header">
-            <div class="container">
-                <div class="header-content">
-                    <div class="admin-logo">
-                        <span class="logo-icon">🛡️</span>
-                        <span class="logo-text">KidQuest Admin</span>
-                    </div>
-                    <div class="admin-user">
-                        <span>Welcome, {{ user?.username }}</span>
-                        <button @click="logout" class="logout-btn">
-                            <i class="fas fa-sign-out-alt"></i>
-                            Logout
-                        </button>
-                    </div>
-                </div>
+  <div class="admin-dashboard">
+    <!-- Header -->
+    <header class="admin-header">
+      <div class="container">
+        <div class="header-content">
+          <div class="admin-logo">
+            <span class="logo-icon">🛡️</span>
+            <span class="logo-text">KidQuest Admin</span>
+          </div>
+          <div class="admin-user">
+            <span>Welcome, {{ username }}</span>
+            <LogoutButton />
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="admin-main">
+      <div class="container">
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon">👥</div>
+            <div class="stat-content">
+              <h3>Total Users</h3>
+              <div class="stat-number">{{ totalUsers }}</div>
+              <div class="stat-details">
+                Parents: {{ parentCount }} | Children: {{ childCount }} | Teachers: {{ teacherCount }} | Admins: {{ adminCount }}
+              </div>
             </div>
-        </header>
+          </div>
 
-        <!-- Main Content -->
-        <main class="admin-main">
-            <div class="container">
-                <!-- Stats Cards -->
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon">👥</div>
-                        <div class="stat-content">
-                            <h3>Total Users</h3>
-                            <div class="stat-number">{{ stats.totalUsers }}</div>
-                        </div>
-                    </div>
-
-                    <div class="stat-card">
-                        <div class="stat-icon">⏱️</div>
-                        <div class="stat-content">
-                            <h3>Avg. Screen time(mins)</h3>
-                            <div class="stat-number">{{ stats.avg_screen_time_per_user }}</div>
-                        </div>
-                    </div>
-
-                    <div class="stat-card">
-                        <div class="stat-icon">🎯</div>
-                        <div class="stat-content">
-                            <h3>Chat Sessions</h3>
-                            <div class="stat-number">{{ stats.chatSessions }}</div>
-                        </div>
-                    </div>
-
-                    <div class="stat-card">
-                        <div class="stat-icon">🏆</div>
-                        <div class="stat-content">
-                            <h3>Achievements</h3>
-                            <div class="stat-number">{{ stats.achievements }}</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Quick Actions -->
-                <div class="admin-sections">
-                    <div class="section-card">
-                        <h2>🤖 AI Chatbot</h2>
-                        <p>Test and monitor the KidQuest chatbot system</p>
-                        <button @click="showChat = true" class="action-btn primary">
-                            <span class="btn-icon">🧙‍♂️</span>
-                            Open 3D Chatbot
-                        </button>
-                    </div>
-
-                    <div class="section-card">
-                        <h2>👥 User Management</h2>
-                        <p>Manage user accounts and permissions</p>
-                        <div class="action-group">
-                            <button @click="viewUsers" class="action-btn">
-                                <span class="btn-icon">👁️</span>
-                                View Users
-                            </button>
-                            <button @click="addUser" class="action-btn">
-                                <span class="btn-icon">➕</span>
-                                Add User
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="section-card">
-                        <h2>📊 Analytics</h2>
-                        <p>View usage statistics and reports</p>
-                        <div class="action-group">
-                            <button @click="viewAnalytics" class="action-btn">
-                                <span class="btn-icon">📈</span>
-                                Usage Reports
-                            </button>
-                            <button @click="exportData" class="action-btn">
-                                <span class="btn-icon">📥</span>
-                                Export Data
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="section-card">
-                        <h2>⚙️ System Settings</h2>
-                        <p>Configure system-wide settings</p>
-                        <div class="action-group">
-                            <button @click="systemSettings" class="action-btn">
-                                <span class="btn-icon">🔧</span>
-                                Settings
-                            </button>
-                            <button @click="systemHealth" class="action-btn">
-                                <span class="btn-icon">💚</span>
-                                Health Check
-                            </button>
-                        </div>
-                    </div>
-                </div>
+          <div class="stat-card">
+            <div class="stat-icon">📊</div>
+            <div class="stat-content">
+              <h3>Active Today</h3>
+              <div class="stat-number">{{ activeToday }}</div>
+              <div class="stat-details">
+                Last Hour: {{ activeLastHour }}
+              </div>
             </div>
-        </main>
+          </div>
 
-        <!-- 3D Chatbot Modal -->
-        <EnhancedChatBot v-if="showChat" @close="showChat = false" :user="user" />
-    </div>
+          <div class="stat-card">
+            <div class="stat-icon">💚</div>
+            <div class="stat-content">
+              <h3>System Status</h3>
+              <div class="stat-number" :class="{ 'status-healthy': systemStatus === 'Healthy', 'status-error': systemStatus !== 'Healthy' }">
+                {{ systemStatus }}
+              </div>
+              <div class="stat-details">
+                Last Check: {{ lastStatusCheck }}
+              </div>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon">⏱️</div>
+            <div class="stat-content">
+              <h3>Avg. Screen Time(Mins)</h3>
+              <div class="stat-number">{{ formatScreenTime(averageScreenTime) }}</div>
+              <div class="stat-details">
+                Daily average across all users
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="admin-sections">
+          <div class="section-card">
+            <h2>🤖 AI Chatbot</h2>
+            <p>Test and monitor the KidQuest chatbot system</p>
+            <button @click="showChatbot = true" class="action-btn primary">
+              <span class="btn-icon">🧙‍♂️</span>
+              Open 3D Chatbot
+            </button>
+          </div>
+
+          <div class="section-card">
+            <h2>👥 User Management</h2>
+            <p>Manage user accounts and permissions</p>
+            <div class="action-group">
+              <button @click="showUserList = true" class="action-btn">
+                <span class="btn-icon">👁️</span>
+                View Users
+              </button>
+              <button @click="showAddUser = true" class="action-btn">
+                <span class="btn-icon">➕</span>
+                Add User
+              </button>
+            </div>
+          </div>
+
+          <div class="section-card">
+            <h2>📊 Analytics</h2>
+            <p>View usage statistics and reports</p>
+            <div class="action-group">
+              <button @click="showReports" class="action-btn">
+                <span class="btn-icon">📈</span>
+                Usage Reports
+              </button>
+              <button @click="exportData" class="action-btn">
+                <span class="btn-icon">📥</span>
+                Export Data
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </main>
+
+    <!-- Modals -->
+    <UserList v-model="showUserList" @user-added="onUserAdded" />
+    <AddUserForm v-model="showAddUser" @user-added="onUserAdded" />
+    <AnalyticsModal v-model="showAnalytics" />
+    <EnhancedChatBot v-if="showChatbot" :user="currentUser" @close="showChatbot = false" />
+  </div>
 </template>
 
 <script>
-import { ref, onMounted } from 'vue'
-import { userUtils, apiService } from '@/services/api'
+import { ref, onMounted, computed } from 'vue'
+import { useRouter } from 'vue-router'
+import axios from 'axios'
+import authService from '@/services/authService'
+import LogoutButton from '@/components/LogoutButton.vue'
+import UserList from '@/components/admin/UserList.vue'
+import AddUserForm from '@/components/admin/AddUserForm.vue'
+import AnalyticsModal from '@/components/admin/AnalyticsModal.vue'
 import EnhancedChatBot from '@/components/chat/EnhancedChatBot.vue'
 
 export default {
     name: 'AdminDashboard',
     components: {
+        LogoutButton,
+        UserList,
+        AddUserForm,
+        AnalyticsModal,
         EnhancedChatBot
     },
     setup() {
-        const user = ref(null)
-        const showChat = ref(false)
+        const router = useRouter()
+        const showUserList = ref(false)
+        const showAddUser = ref(false)
+        const showChatbot = ref(false)
+        const showAnalytics = ref(false)
+        const currentUser = ref(null)
 
-        const stats = ref({
-            totalUsers: 0,
-            avg_screen_time_per_user: 0,
-            chatSessions: 0,
-            achievements: 0,
+        // Enhanced computed username from authService
+        const username = computed(() => {
+            const user = authService.getCurrentUser()
+            return user?.username || 'Admin'
         })
 
-        // Check admin access
+        // Advanced Stats
+        const totalUsers = ref(0)
+        const parentCount = ref(0)
+        const childCount = ref(0)
+        const adminCount = ref(0)
+        const teacherCount = ref(0)
+        const activeToday = ref(0)
+        const activeLastHour = ref(0)
+        const systemStatus = ref('Healthy')
+        const lastStatusCheck = ref(new Date().toLocaleTimeString())
+        const averageScreenTime = ref(0) // in minutes
+
+        // Enhanced admin access check with authService
         const checkAdminAccess = () => {
-            const currentUser = userUtils.getCurrentUser()
-            if (!currentUser || currentUser.role !== 'admin') {
-                // Redirect to home if not admin
+            if (!authService.isAuthenticated()) {
+                console.warn('🚫 AdminDashboard: User not authenticated')
                 window.location.href = '/'
                 return
             }
-            user.value = currentUser
-        }
 
-        const fetchAdminStats = async () => {
-        try {
-            const data = await apiService.getAdminStats() 
-            stats.value = {
-            totalUsers: data.totalUsers || 0,
-            chatSessions: data.chatSessions || 0,
-            achievements: data.achievements || 0,
-            avg_screen_time_per_user: data.avg_screen_time_per_user || 0,
+            const user = authService.getCurrentUser()
+            if (!user || user.role !== 'admin') {
+                console.warn('🚫 AdminDashboard: User is not admin:', user?.role)
+                window.location.href = '/'
+                return
             }
-        } catch (err) {
-            console.error('Failed to fetch stats:', err)
-        }
-        }
-
-        const logout = () => {
-            userUtils.logout()
+            
+            console.log('✅ AdminDashboard: Admin access granted for:', user.username)
+            currentUser.value = user
         }
 
-        // Action handlers (placeholder for now)
-        const viewUsers = () => {
-            console.log('View Users - TODO: Implement user management')
+        const fetchStats = async () => {
+            try {
+                const response = await axios.get('http://localhost:5000/api/admin/dashboard-stats')
+                const stats = response.data
+                totalUsers.value = stats.total_users || 0
+                parentCount.value = stats.parent_count || 0
+                childCount.value = stats.child_count || 0
+                adminCount.value = stats.admin_count || 0
+                teacherCount.value = stats.teacher_count || 0
+                activeToday.value = stats.active_today || 0
+                activeLastHour.value = stats.active_last_hour || 0
+                averageScreenTime.value = stats.average_screen_time || 0
+            } catch (error) {
+                console.error('Error fetching stats:', error)
+            }
         }
 
-        const addUser = () => {
-            console.log('Add User - TODO: Implement user creation')
+        const formatScreenTime = (minutes) => {
+            if (minutes === 0) return '00:00'
+            const hours = Math.floor(minutes / 60)
+            const mins = minutes % 60
+            return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`
         }
 
-        const viewAnalytics = () => {
-            console.log('View Analytics - TODO: Implement analytics dashboard')
+        const checkSystemStatus = async () => {
+            try {
+                await axios.get('http://localhost:5000/api/health')
+                systemStatus.value = 'Healthy'
+            } catch (error) {
+                systemStatus.value = 'Error'
+                console.error('System health check failed:', error)
+            }
+            lastStatusCheck.value = new Date().toLocaleTimeString()
+        }
+
+        const showReports = () => {
+            showAnalytics.value = true
         }
 
         const exportData = () => {
-            console.log('Export Data - TODO: Implement data export')
+            showAnalytics.value = true
         }
 
-        const systemSettings = () => {
-            console.log('System Settings - TODO: Implement settings panel')
+        const openSettings = () => {
+            // TODO: Implement settings view
+            console.log('Opening settings...')
         }
 
-        const systemHealth = () => {
-            console.log('System Health - TODO: Implement health check')
+        const onUserAdded = (user) => {
+            fetchStats()
         }
 
-        onMounted(() => {
+        onMounted(async () => {
+            // Check admin access first
             checkAdminAccess()
-            fetchAdminStats()
+
+            // Initialize dashboard
+            fetchStats()
+            checkSystemStatus()
+
+            // Set up periodic updates
+            setInterval(fetchStats, 60000) // Update stats every minute
+            setInterval(checkSystemStatus, 30000) // Check system status every 30 seconds
         })
 
         return {
-            user,
-            showChat,
-            stats,
-            logout,
-            viewUsers,
-            addUser,
-            viewAnalytics,
+            username,
+            showUserList,
+            showAddUser,
+            showChatbot,
+            showAnalytics,
+            currentUser,
+            totalUsers,
+            parentCount,
+            childCount,
+            adminCount,
+            teacherCount,
+            activeToday,
+            activeLastHour,
+            systemStatus,
+            lastStatusCheck,
+            averageScreenTime,
+            formatScreenTime,
+            showReports,
             exportData,
-            systemSettings,
-            systemHealth
+            openSettings,
+            onUserAdded
         }
     }
 }
@@ -262,20 +323,6 @@ export default {
     color: #666;
 }
 
-.logout-btn {
-    padding: 0.5rem 1rem;
-    background: #ff6b6b;
-    color: white;
-    border: none;
-    border-radius: 20px;
-    cursor: pointer;
-    transition: background 0.3s;
-}
-
-.logout-btn:hover {
-    background: #ff5252;
-}
-
 .admin-main {
     padding: 2rem 0;
 }
@@ -301,6 +348,8 @@ export default {
     box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
     display: flex;
     align-items: center;
+    justify-content: center;
+    text-align: center;
     gap: 1.5rem;
     transition: all 0.4s ease;
     border-top: 4px solid var(--theme-color);
@@ -324,18 +373,21 @@ export default {
 }
 
 .stat-card:nth-child(4) {
-    --theme-color: #222F5B;
+    --theme-color: #8B5A2B;
 }
 
 .stat-icon {
     font-size: 3rem;
     color: var(--theme-color);
     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+    flex-shrink: 0;
 }
 
 .stat-content {
     color: #3B312E;
     /* Dark charcoal */
+    flex: 1;
+    text-align: center;
 }
 
 .stat-content h3 {
@@ -344,6 +396,7 @@ export default {
     font-size: 0.9rem;
     text-transform: uppercase;
     letter-spacing: 1px;
+    text-align: center;
 }
 
 .stat-number {
@@ -351,6 +404,23 @@ export default {
     font-size: 2.5rem;
     font-weight: 700;
     color: #3B312E;
+    text-align: center;
+    margin: 0.5rem 0;
+}
+
+.stat-details {
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+    color: #5a4f4a;
+    text-align: center;
+}
+
+.status-healthy {
+    color: #2A623D;
+}
+
+.status-error {
+    color: #B91C1C;
 }
 
 .admin-sections {
@@ -424,6 +494,60 @@ export default {
 
 .btn-icon {
     font-size: 1.1rem;
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal-content {
+    background: white;
+    border-radius: 15px;
+    width: 90%;
+    max-width: 1000px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.modal-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-header h2 {
+    margin: 0;
+    color: #333;
+    font-size: 1.5rem;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    color: #666;
+    cursor: pointer;
+    padding: 0.5rem;
+    transition: color 0.3s;
+}
+
+.close-btn:hover {
+    color: #333;
+}
+
+.modal-body {
+    padding: 1.5rem;
 }
 
 @media (max-width: 768px) {
