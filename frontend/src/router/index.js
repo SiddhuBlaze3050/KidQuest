@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import AdminDashboard from '../views/AdminDashboard.vue'
 import ChildDashboard from '../views/ChildDashboard.vue'
+import ChildForm from '../views/ChildForm.vue'
 import TeacherDashboard from '../views/TeacherDashboard.vue'
 import TeacherAnalytics from '../views/TeacherAnalytics.vue'
 import ParentDashboard from '../views/ParentDashboard.vue'
@@ -62,6 +63,11 @@ const router = createRouter({
           next('/')
         }
       },
+    },
+    {
+      path: '/child-form',
+      name: 'child-form',
+      component: ChildForm
     },
     {
       path: '/parent-dashboard',

@@ -1423,6 +1423,119 @@ def api_toggle_quest(quest_id):
             'error': str(e)
         }), 500
 
+# ---------------------------
+# Child Profile Routes
+# ---------------------------
+
+@app.route('/api/child-profile', methods=['POST'])
+def create_or_update_child_profile():
+    """Create or update child profile"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['user_id', 'grade_level', 'date_of_birth', 'gender', 'interests']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'success': False, 'error': f'{field} is required'}), 400
+        
+        # Validate grade level
+        if not isinstance(data['grade_level'], int) or data['grade_level'] < 1 or data['grade_level'] > 12:
+            return jsonify({'success': False, 'error': 'Grade level must be between 1 and 12'}), 400
+        
+        # Validate gender
+        valid_genders = ['male', 'female', 'other', 'prefer_not_to_say']
+        if data['gender'] not in valid_genders:
+            return jsonify({'success': False, 'error': 'Invalid gender value'}), 400
+        
+        # Validate date of birth format
+        try:
+            dob = datetime.strptime(data['date_of_birth'], '%Y-%m-%d').date()
+        except ValueError:
+            return jsonify({'success': False, 'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+        
+        user_id = data['user_id']
+        
+        # Check if profile already exists
+        existing_profile = ChildProfile.query.filter_by(user_id=user_id).first()
+        
+        if existing_profile:
+            # Update existing profile
+            existing_profile.grade_level = data['grade_level']
+            existing_profile.date_of_birth = dob
+            existing_profile.gender = data['gender']
+            existing_profile.interests = data['interests']
+            action = 'updated'
+        else:
+            # Create new profile
+            new_profile = ChildProfile(
+                user_id=user_id,
+                grade_level=data['grade_level'],
+                date_of_birth=dob,
+                gender=data['gender'],
+                interests=data['interests']
+            )
+            db.session.add(new_profile)
+            action = 'created'
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Profile {action} successfully',
+            'profile': {
+                'user_id': user_id,
+                'grade_level': data['grade_level'],
+                'date_of_birth': data['date_of_birth'],
+                'gender': data['gender'],
+                'interests': data['interests']
+            }
+        }), 201 if action == 'created' else 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/child-profile/<int:user_id>', methods=['GET'])
+def get_child_profile(user_id):
+    """Get child profile by user ID"""
+    try:
+        # Check if user exists
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        # Get profile
+        profile = ChildProfile.query.filter_by(user_id=user_id).first()
+        
+        if not profile:
+            return jsonify({
+                'success': True,
+                'profile': None,
+                'message': 'No profile found'
+            }), 200
+        
+        return jsonify({
+            'success': True,
+            'profile': {
+                'user_id': profile.user_id,
+                'grade_level': profile.grade_level,
+                'date_of_birth': profile.date_of_birth.isoformat() if profile.date_of_birth else None,
+                'gender': profile.gender,
+                'interests': profile.interests,
+                'avatar_url': profile.avatar_url
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
 def chatbot_logic(user_id, user_message, session_id=None):
     """Extracted chatbot logic for reuse with new session-based model"""
     
@@ -3887,6 +4000,35 @@ def get_comprehensive_analytics():
         total_transactions = Transaction.query.count()
         total_saving_goals = SavingGoal.query.count()
         
+        # Age and Gender Demographics from ChildProfile
+        age_distribution = {}
+        gender_distribution = {}
+        
+        child_profiles = ChildProfile.query.all()
+        for profile in child_profiles:
+            # Calculate age if date_of_birth exists
+            if profile.date_of_birth:
+                age = today.year - profile.date_of_birth.year
+                if today.month < profile.date_of_birth.month or (today.month == profile.date_of_birth.month and today.day < profile.date_of_birth.day):
+                    age -= 1
+                
+                # Group ages into ranges for better visualization
+                if age <= 5:
+                    age_group = "3-5 years"
+                elif age <= 8:
+                    age_group = "6-8 years"
+                elif age <= 12:
+                    age_group = "9-12 years"
+                else:
+                    age_group = "13+ years"
+                
+                age_distribution[age_group] = age_distribution.get(age_group, 0) + 1
+            
+            # Gender distribution
+            if profile.gender:
+                gender = profile.gender.capitalize()
+                gender_distribution[gender] = gender_distribution.get(gender, 0) + 1
+        
         analytics_data = {
             "user_statistics": {
                 "total_users": total_users,
@@ -3915,6 +4057,11 @@ def get_comprehensive_analytics():
             "financial": {
                 "total_transactions": total_transactions,
                 "total_saving_goals": total_saving_goals
+            },
+            "demographics": {
+                "age_distribution": age_distribution,
+                "gender_distribution": gender_distribution,
+                "total_profiles": len(child_profiles)
             },
             "generated_at": datetime.now().isoformat()
         }

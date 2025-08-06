@@ -10,6 +10,9 @@
                     </div>
                     <div class="child-user">
                         <div class="user-avatar">{{ user?.username?.charAt(0)?.toUpperCase() || '👤' }}</div>
+                        <button class="c-button" @click="handleCButtonClick" title="Fill Child Form">
+                            📝
+                        </button>
                         <div class="user-info">
                             <span class="user-greeting">Hi {{ user?.username }}! 👋</span>
                             <span class="user-level">Level {{ dynamicUserLevel }} - {{ dynamicLevelTitle }}</span>
@@ -942,6 +945,25 @@ export default {
             userUtils.logout()
         }
 
+        const handleCButtonClick = () => {
+            console.log('🔘 C button clicked - redirecting to child form!')
+            console.log('📍 Current route:', router.currentRoute.value.path)
+            console.log('🎯 Attempting to navigate to: /child-form')
+            
+            // Simple navigation without promises for debugging
+            router.push('/child-form')
+            
+            // Add a timeout to check if navigation succeeded
+            setTimeout(() => {
+                console.log('📍 After navigation, current route:', router.currentRoute.value.path)
+                if (router.currentRoute.value.path === '/child-form') {
+                    console.log('✅ Navigation successful!')
+                } else {
+                    console.log('❌ Navigation may have failed')
+                }
+            }, 100)
+        }
+
         const toggleQuest = async (quest) => {
             quest.completed = !quest.completed
 
@@ -1641,6 +1663,7 @@ export default {
             sessionStartTime,
 
             logout,
+            handleCButtonClick,
             toggleQuest,
             openSkillArea,
             startActivity,
@@ -1753,6 +1776,29 @@ export default {
     color: white;
     font-weight: bold;
     font-size: 1.2rem;
+}
+
+.c-button {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 1.2rem;
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.c-button:hover {
+    background: linear-gradient(135deg, #764ba2, #667eea);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
 
 .user-info {
