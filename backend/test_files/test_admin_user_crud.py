@@ -1,6 +1,6 @@
 import requests
 import json
-import re
+import pytest
 from datetime import datetime
 import time
 
@@ -9,7 +9,25 @@ class TestAdminUserManagement:
     Comprehensive test suite for Admin User Management CRUD operations
     
     This test suite covers:
-    1. Admin authentication and authorization
+    1. Admin authentication a                    print("🔒 Testing admin creation (should be blocked)")
+        response = self.session.post(f"{self.base_url}/api/admin/users", json=admin_data)
+        print(f"📊 Status Code: {response.status_code}")
+        
+        # Admin creation should be blocked (expecting 403 Forbidden or 400 Bad Request)
+        assert response.status_code in [400, 403], f"Admin creation should be blocked, got {response.status_code}: {response.text}"
+        print("✅ Admin creation properly blocked")esting admin creation (should be blocked)")
+        response = self.session.post(f"{self.base_url}/api/admin/users", json=admin_data)
+        print(f"📊 Status Code: {response.status_code}")
+        
+        # Admin creation should be blocked (expecting 403 Forbidden or 400 Bad Request)
+        assert response.status_code in [400, 403], f"Admin creation should be blocked, got {response.status_code}: {response.text}"
+        print("✅ Admin creation properly blocked")esting admin creation (should be blocked)")
+        response = self.session.post(f"{self.base_url}/api/admin/users", json=admin_data)
+        print(f"📊 Status Code: {response.status_code}")
+        
+        # Admin creation should be blocked (expecting 403 Forbidden or 400 Bad Request)
+        assert response.status_code in [400, 403], f"Admin creation should be blocked, got {response.status_code}: {response.text}"
+        print("✅ Admin creation properly blocked")ion
     2. User creation for different roles (parent, child, teacher)
     3. User retrieval and listing
     4. User updates and modifications
@@ -17,13 +35,11 @@ class TestAdminUserManagement:
     6. Security and validation testing
     """
     
-    def __init__(self):
+    def setup_class(self):
+        """Setup class-level variables that are shared across all tests"""
         self.base_url = "http://localhost:5000"
-        self.admin_token = None
-        self.test_users = []
-        self.session = requests.Session()
         
-        # Test data templates for different user types
+        # Test data templates for different user types (excluding admin)
         self.user_templates = {
             'parent': {
                 'username': 'test_parent_{}',
@@ -42,14 +58,27 @@ class TestAdminUserManagement:
                 'email': 'teacher{}@example.com',
                 'password': 'TeacherPass123!',
                 'role': 'teacher'
-            },
-            'admin': {
-                'username': 'test_admin_{}',
-                'email': 'admin{}@example.com',
-                'password': 'AdminPass123!',
-                'role': 'admin'
             }
         }
+    
+    def setup_method(self, method):
+        """Setup method-level variables that need to be fresh for each test"""
+        self.admin_token = None
+        self.test_users = []
+        self.session = requests.Session()
+        
+        # Setup admin authentication for each test
+        self.setup_admin_auth()
+    
+    def teardown_method(self, method):
+        """Clean up after each test method"""
+        # Clean up any test users created during the test
+        if hasattr(self, 'test_users') and self.test_users:
+            self.cleanup_test_users()
+        
+        # Close the session
+        if hasattr(self, 'session'):
+            self.session.close()
     
     def setup_admin_auth(self):
         """Setup admin authentication for testing"""
@@ -81,32 +110,28 @@ class TestAdminUserManagement:
         print("🧪 TESTING: Admin Dashboard Statistics")
         print("="*60)
         
-        try:
-            response = self.session.get(f"{self.base_url}/api/admin/dashboard-stats")
-            
-            print(f"📡 Request: GET /api/admin/dashboard-stats")
-            print(f"📊 Status Code: {response.status_code}")
-            
-            if response.status_code == 200:
-                data = response.json()
-                print("✅ Dashboard stats retrieved successfully")
-                print(f"📈 Total Users: {data.get('total_users', 'N/A')}")
-                print(f"👥 Admin Count: {data.get('admin_count', 'N/A')}")
-                print(f"👨‍👩‍👧‍👦 Parent Count: {data.get('parent_count', 'N/A')}")
-                print(f"👶 Child Count: {data.get('child_count', 'N/A')}")
-                print(f"👨‍🏫 Teacher Count: {data.get('teacher_count', 'N/A')}")
-                print(f"🟢 Active Today: {data.get('active_today', 'N/A')}")
-                return True
-            else:
-                print(f"❌ Failed to get dashboard stats: {response.text}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ Dashboard stats test error: {str(e)}")
-            return False
+        response = self.session.get(f"{self.base_url}/api/admin/dashboard-stats")
+        
+        print(f"📡 Request: GET /api/admin/dashboard-stats")
+        print(f"📊 Status Code: {response.status_code}")
+        
+        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.text}"
+        
+        data = response.json()
+        assert 'total_users' in data, "total_users missing from response"
+        assert 'admin_count' in data, "admin_count missing from response"
+        assert isinstance(data['total_users'], int), "total_users should be an integer"
+        
+        print("✅ Dashboard stats retrieved successfully")
+        print(f"📈 Total Users: {data.get('total_users', 'N/A')}")
+        print(f"👥 Admin Count: {data.get('admin_count', 'N/A')}")
+        print(f"👨‍👩‍👧‍👦 Parent Count: {data.get('parent_count', 'N/A')}")
+        print(f"👶 Child Count: {data.get('child_count', 'N/A')}")
+        print(f"👨‍🏫 Teacher Count: {data.get('teacher_count', 'N/A')}")
+        print(f"🟢 Active Today: {data.get('active_today', 'N/A')}")
     
-    def test_create_user(self, user_type, user_id=None):
-        """Test user creation for different roles"""
+    def create_user_helper(self, user_type, user_id=None):
+        """Helper method for user creation (not a direct test)"""
         print(f"\n🧪 TESTING: Create {user_type.upper()} User")
         print("-" * 40)
         
@@ -156,38 +181,32 @@ class TestAdminUserManagement:
         print(f"\n🧪 TESTING: Get All Users")
         print("-" * 40)
         
-        try:
-            response = self.session.get(f"{self.base_url}/api/admin/users")
-            
-            print(f"📡 Request: GET /api/admin/users")
-            print(f"📊 Status Code: {response.status_code}")
-            
-            if response.status_code == 200:
-                data = response.json()
-                users = data['users']
-                print(f"✅ Retrieved {len(users)} users successfully")
-                
-                # Count users by role
-                role_counts = {}
-                for user in users:
-                    role = user['role']
-                    role_counts[role] = role_counts.get(role, 0) + 1
-                
-                print("📊 User Distribution:")
-                for role, count in role_counts.items():
-                    print(f"   {role.capitalize()}: {count}")
-                
-                return users
-            else:
-                print(f"❌ Failed to get users: {response.text}")
-                return None
-                
-        except Exception as e:
-            print(f"❌ Get users error: {str(e)}")
-            return None
+        response = self.session.get(f"{self.base_url}/api/admin/users")
+        
+        print(f"📡 Request: GET /api/admin/users")
+        print(f"📊 Status Code: {response.status_code}")
+        
+        assert response.status_code == 200, f"Failed to get users: {response.text}"
+        
+        data = response.json()
+        users = data['users']
+        print(f"✅ Retrieved {len(users)} users successfully")
+        
+        # Count users by role
+        role_counts = {}
+        for user in users:
+            role = user['role']
+            role_counts[role] = role_counts.get(role, 0) + 1
+        
+        print("📊 User Distribution:")
+        for role, count in role_counts.items():
+            print(f"   {role.capitalize()}: {count}")
+        
+        assert len(users) > 0, "Expected at least one user in the system"
+        assert 'users' in data, "users key missing from response"
     
-    def test_update_user(self, user_id, updates):
-        """Test user update operations"""
+    def update_user_helper(self, user_id, updates):
+        """Helper method for user update operations (not a direct test)"""
         print(f"\n🧪 TESTING: Update User {user_id}")
         print("-" * 40)
         
@@ -215,8 +234,8 @@ class TestAdminUserManagement:
             print(f"❌ User update error: {str(e)}")
             return None
     
-    def test_delete_user(self, user_id):
-        """Test user deletion"""
+    def delete_user_helper(self, user_id):
+        """Helper method for user deletion (not a direct test)"""
         print(f"\n🧪 TESTING: Delete User {user_id}")
         print("-" * 40)
         
@@ -241,12 +260,26 @@ class TestAdminUserManagement:
             return False
     
     def test_security_validations(self):
-        """Test security validations and edge cases - CURRENTLY SKIPPED"""
+        """Test security validations and edge cases"""
         print(f"\n🧪 TESTING: Security Validations")
         print("-" * 40)
-        print("⏭️ This test is currently skipped to focus on core CRUD functionality")
-        print("📝 Security validations include: email format, role validation, required fields, password strength")
-        return True  # Always return True since we're skipping
+        
+        # Test that admin creation is blocked
+        unique_id = int(time.time() * 1000) % 10000
+        admin_data = {
+            'username': f'test_admin_{unique_id}',
+            'email': f'admin{unique_id}@example.com',
+            'password': 'AdminPass123!',
+            'role': 'admin'
+        }
+        
+        print("🔒 Testing admin creation (should be blocked)")
+        response = self.session.post(f"{self.base_url}/api/admin/users", json=admin_data)
+        print(f"� Status Code: {response.status_code}")
+        
+        # Admin creation should be blocked (expecting 403 Forbidden or 400 Bad Request)
+        assert response.status_code in [400, 403], f"Admin creation should be blocked, got {response.status_code}: {response.text}"
+        print("✅ Admin creation properly blocked")
     
     def test_duplicate_user_validation(self):
         """Test duplicate username/email validation"""
@@ -255,11 +288,9 @@ class TestAdminUserManagement:
         
         # Create a user first
         unique_id = int(time.time() * 1000) % 10000
-        original_user = self.test_create_user('parent', unique_id)
+        original_user = self.create_user_helper('parent', unique_id)
         
-        if not original_user:
-            print("❌ Failed to create original user for duplicate test")
-            return False
+        assert original_user is not None, "Failed to create original user for duplicate test"
         
         # Try to create user with same username
         duplicate_username_data = {
@@ -273,11 +304,8 @@ class TestAdminUserManagement:
         response = self.session.post(f"{self.base_url}/api/admin/users", json=duplicate_username_data)
         print(f"📊 Status Code: {response.status_code}")
         
-        username_test_passed = response.status_code == 409  # Changed from 400 to 409
-        if username_test_passed:
-            print("✅ Duplicate username validation passed")
-        else:
-            print("❌ Duplicate username validation failed")
+        assert response.status_code == 409, f"Expected 409 for duplicate username, got {response.status_code}"
+        print("✅ Duplicate username validation passed")
         
         # Try to create user with same email
         duplicate_email_data = {
@@ -291,13 +319,8 @@ class TestAdminUserManagement:
         response = self.session.post(f"{self.base_url}/api/admin/users", json=duplicate_email_data)
         print(f"📊 Status Code: {response.status_code}")
         
-        email_test_passed = response.status_code == 409  # Changed from 400 to 409
-        if email_test_passed:
-            print("✅ Duplicate email validation passed")
-        else:
-            print("❌ Duplicate email validation failed")
-        
-        return username_test_passed and email_test_passed
+        assert response.status_code == 409, f"Expected 409 for duplicate email, got {response.status_code}"
+        print("✅ Duplicate email validation passed")
     
     def test_unauthorized_access(self):
         """Test unauthorized access attempts"""
@@ -317,11 +340,8 @@ class TestAdminUserManagement:
             print(f"📡 GET /api/admin/users (no auth)")
             print(f"📊 Status Code: {response.status_code}")
             
-            unauthorized_get = response.status_code == 401
-            if unauthorized_get:
-                print("✅ Unauthorized GET properly blocked")
-            else:
-                print("❌ Unauthorized GET not properly blocked")
+            assert response.status_code == 401, f"Expected 401 for unauthorized GET, got {response.status_code}"
+            print("✅ Unauthorized GET properly blocked")
             
             # Test POST user without auth
             test_data = {
@@ -335,18 +355,60 @@ class TestAdminUserManagement:
             print(f"📡 POST /api/admin/users (no auth)")
             print(f"📊 Status Code: {response.status_code}")
             
-            unauthorized_post = response.status_code == 401
-            if unauthorized_post:
-                print("✅ Unauthorized POST properly blocked")
-            else:
-                print("❌ Unauthorized POST not properly blocked")
-            
-            return unauthorized_get and unauthorized_post
+            assert response.status_code == 401, f"Expected 401 for unauthorized POST, got {response.status_code}"
+            print("✅ Unauthorized POST properly blocked")
             
         finally:
             # Restore authorization
             if current_auth:
                 self.session.headers['Authorization'] = current_auth
+
+    # Individual pytest test methods for CRUD operations
+    def test_create_parent_user(self):
+        """Test creating a parent user"""
+        user = self.create_user_helper('parent')
+        assert user is not None, "Failed to create parent user"
+        assert user['role'] == 'parent', f"Expected role 'parent', got {user['role']}"
+
+    def test_create_child_user(self):
+        """Test creating a child user"""
+        user = self.create_user_helper('child')
+        assert user is not None, "Failed to create child user"
+        assert user['role'] == 'child', f"Expected role 'child', got {user['role']}"
+
+    def test_create_teacher_user(self):
+        """Test creating a teacher user"""
+        user = self.create_user_helper('teacher')
+        assert user is not None, "Failed to create teacher user"
+        assert user['role'] == 'teacher', f"Expected role 'teacher', got {user['role']}"
+
+    def test_user_update_operations(self):
+        """Test user update functionality"""
+        # Create a user first
+        user = self.create_user_helper('parent')
+        assert user is not None, "Failed to create user for update test"
+        
+        # Update the user
+        updates = {
+            'username': f"{user['username']}_updated",
+            'email': f"updated_{user['email']}"
+        }
+        updated_user = self.update_user_helper(user['id'], updates)
+        assert updated_user is not None, "Failed to update user"
+        assert updated_user['username'] == updates['username'], "Username not updated correctly"
+
+    def test_user_deletion(self):
+        """Test user deletion functionality"""
+        # Create a user first
+        user = self.create_user_helper('parent')
+        assert user is not None, "Failed to create user for deletion test"
+        
+        # Delete the user
+        result = self.delete_user_helper(user['id'])
+        assert result is True, "Failed to delete user"
+        
+        # Remove from test_users list to avoid duplicate cleanup
+        self.test_users = [u for u in self.test_users if u['id'] != user['id']]
     
     def cleanup_test_users(self):
         """Clean up all test users created during testing"""
@@ -355,46 +417,34 @@ class TestAdminUserManagement:
         
         cleanup_count = 0
         for user in self.test_users:
-            if self.test_delete_user(user['id']):
+            if self.delete_user_helper(user['id']):
                 cleanup_count += 1
         
         print(f"🧹 Cleaned up {cleanup_count}/{len(self.test_users)} test users")
         self.test_users.clear()
     
     def run_comprehensive_tests(self):
-        """Run all admin user management tests"""
+        """Run all admin user management tests - for backwards compatibility"""
         print("\n" + "="*80)
         print("🚀 STARTING COMPREHENSIVE ADMIN USER MANAGEMENT TESTS")
         print("="*80)
         
         start_time = datetime.now()
-        
-        # Setup
-        if not self.setup_admin_auth():
-            print("❌ Failed to authenticate as admin. Aborting tests.")
-            return False
-        
         test_results = []
         
         try:
             # Test 1: Dashboard Stats
             test_results.append(('Dashboard Stats', self.test_admin_dashboard_stats()))
             
-            # Test 2: Create users of different types
-            parent_user = self.test_create_user('parent')
+            # Test 2: Create users of different types (excluding admin)
+            parent_user = self.create_user_helper('parent')
             test_results.append(('Create Parent', parent_user is not None))
             
-            child_user = self.test_create_user('child')
+            child_user = self.create_user_helper('child')
             test_results.append(('Create Child', child_user is not None))
             
-            teacher_user = self.test_create_user('teacher')
+            teacher_user = self.create_user_helper('teacher')
             test_results.append(('Create Teacher', teacher_user is not None))
-            
-            # Skip admin creation since admin already exists in database
-            print(f"\n🧪 TESTING: Create ADMIN User")
-            print("-" * 40)
-            print("⏭️ Skipping admin creation - admin user already exists in database")
-            test_results.append(('Create Admin', True))
             
             # Test 3: Get all users
             all_users = self.test_get_all_users()
@@ -406,14 +456,11 @@ class TestAdminUserManagement:
                     'username': f"{parent_user['username']}_updated",
                     'email': f"updated_{parent_user['email']}"
                 }
-                updated_user = self.test_update_user(parent_user['id'], updates)
+                updated_user = self.update_user_helper(parent_user['id'], updates)
                 test_results.append(('Update User', updated_user is not None))
             
-            # Test 5: Security validations - SKIPPED
-            print(f"\n🧪 TESTING: Security Validations")
-            print("-" * 40)
-            print("⏭️ Skipping security validations - focusing on core CRUD functionality")
-            test_results.append(('Security Validations', True))
+            # Test 5: Security validations (including admin creation blocking)
+            test_results.append(('Security Validations', self.test_security_validations()))
             
             # Test 6: Duplicate validation
             test_results.append(('Duplicate Validation', self.test_duplicate_user_validation()))
@@ -456,8 +503,57 @@ class TestAdminUserManagement:
         
         return passed == total
 
-# Main execution
+# Pytest-compatible test runner and backwards compatibility
+def run_legacy_comprehensive_tests():
+    """Run comprehensive tests in legacy mode for backwards compatibility"""
+    # Create a temporary instance for legacy testing
+    class LegacyTestRunner:
+        def __init__(self):
+            self.base_url = "http://localhost:5000"
+            self.admin_token = None
+            self.test_users = []
+            self.session = requests.Session()
+            
+            # Test data templates for different user types (excluding admin)
+            self.user_templates = {
+                'parent': {
+                    'username': 'test_parent_{}',
+                    'email': 'parent{}@example.com',
+                    'password': 'ParentPass123!',
+                    'role': 'parent'
+                },
+                'child': {
+                    'username': 'test_child_{}',
+                    'email': 'child{}@example.com',
+                    'password': 'ChildPass123!',
+                    'role': 'child'
+                },
+                'teacher': {
+                    'username': 'test_teacher_{}',
+                    'email': 'teacher{}@example.com',
+                    'password': 'TeacherPass123!',
+                    'role': 'teacher'
+                }
+            }
+    
+    # Mix in all the test methods from the main class
+    for method_name in dir(TestAdminUserManagement):
+        if not method_name.startswith('_') and callable(getattr(TestAdminUserManagement, method_name)):
+            setattr(LegacyTestRunner, method_name, getattr(TestAdminUserManagement, method_name))
+    
+    tester = LegacyTestRunner()
+    
+    # Setup admin auth
+    if not tester.setup_admin_auth():
+        print("❌ Failed to authenticate as admin. Aborting tests.")
+        assert False, "Failed to authenticate as admin"
+    
+    result = tester.run_comprehensive_tests()
+    assert result, "Comprehensive tests failed"
+
+# Main execution for backwards compatibility
 if __name__ == "__main__":
-    tester = TestAdminUserManagement()
-    success = tester.run_comprehensive_tests()
-    exit(0 if success else 1)
+    success = run_legacy_comprehensive_tests()
+    if not success:
+        exit(1)
+    exit(0)
