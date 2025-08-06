@@ -76,6 +76,28 @@ def get_mock_assessment_results():
         },
         'feedback': 'Strong visual learner with excellent creative abilities.'
     }
+def get_mock_test_questions():
+    """Return mock test questions for testing"""
+    return [
+        {
+            'question': 'What is your preferred way of learning?',
+            'options': ['Visual diagrams', 'Audio lectures', 'Hands-on practice', 'Reading text'],
+            'correct_answer': 'Visual diagrams',
+            'category': 'learning_style'
+        },
+        {
+            'question': 'How do you solve problems?',
+            'options': ['Think step by step', 'Discuss with others', 'Try different approaches', 'Research thoroughly'],
+            'correct_answer': 'Think step by step',
+            'category': 'personality'
+        },
+        {
+            'question': 'What subjects interest you most?',
+            'options': ['Mathematics', 'Science', 'Arts', 'Sports'],
+            'correct_answer': 'Science',
+            'category': 'interests'
+        }
+    ]
 
 def get_mock_responses():
     """Return mock user responses for testing"""
@@ -84,6 +106,152 @@ def get_mock_responses():
         {'question_id': 2, 'answer': 'B', 'is_correct': False},
         {'question_id': 3, 'answer': 'C', 'is_correct': True}
     ]
+# --------------------  START Route Tests  --------------------
+
+def test_start_psychometry_test_success_with_fixture_post_200(test_client):
+    """
+    GIVEN a Flask application configured for testing
+    WHEN the '/api/psychometry/start' page is requested (POST) with valid user_id
+    THEN check that the response is 200 and returns first question
+    """
+    client, test_user_id, access_token = test_client
+    
+    headers = {
+        "Content-type": "application/json",
+        "Authorization": f"Bearer {access_token}"
+    }
+    
+    mock_questions = get_mock_test_questions()
+    
+    # Mock the psychometry service
+    with patch('app.psychometry_service') as mock_service:
+        mock_service.initialize_assessment.return_value = mock_questions
+        
+        response = client.post(
+            '/api/psychometry/start',
+            headers=headers,
+            json={'user_id': test_user_id}
+        )
+        response_data = response.get_json()
+        
+        assert response.status_code == 200
+        assert 'question' in response_data
+        assert 'options' in response_data
+        assert 'question_number' in response_data
+        assert 'total_questions' in response_data
+        assert response_data['question_number'] == 1
+        assert response_data['total_questions'] == 3
+        assert response_data['progress'] == 0.0
+        
+        # Verify session was set up correctly
+        with client.session_transaction() as sess:
+            assert sess['psychometry_user_id'] == test_user_id
+            assert sess['psychometry_current_index'] == 0
+            assert len(sess['psychometry_questions']) == 3
+            assert sess['psychometry_responses'] == []
+            assert 'psychometry_start_time' in sess
+
+
+def test_start_psychometry_test_missing_user_id_with_fixture_post_400(test_client):
+    """
+    GIVEN a Flask application configured for testing
+    WHEN the '/api/psychometry/start' page is requested (POST) without user_id
+    THEN check that the response is 400 and returns user_id required error
+    """
+    client, test_user_id, access_token = test_client
+    
+    headers = {
+        "Content-type": "application/json",
+        "Authorization": f"Bearer {access_token}"
+    }
+    
+    response = client.post(
+        '/api/psychometry/start',
+        headers=headers,
+        json={}  # No user_id provided
+    )
+    response_data = response.get_json()
+    
+    assert response.status_code == 400
+    assert response_data['error'] == 'user_id is required'
+
+
+def test_start_psychometry_test_service_error_with_fixture_post_500(test_client):
+    """
+    GIVEN a Flask application configured for testing
+    WHEN the '/api/psychometry/start' page is requested (POST) and service fails
+    THEN check that the response is 500 and returns error message
+    """
+    client, test_user_id, access_token = test_client
+    
+    headers = {
+        "Content-type": "application/json",
+        "Authorization": f"Bearer {access_token}"
+    }
+    
+    # Mock the psychometry service to raise an exception
+    with patch('app.psychometry_service') as mock_service:
+        mock_service.initialize_assessment.side_effect = Exception("Service initialization failed")
+        
+        response = client.post(
+            '/api/psychometry/start',
+            headers=headers,
+            json={'user_id': test_user_id}
+        )
+        response_data = response.get_json()
+        
+        assert response.status_code == 500
+        assert response_data['error'] == 'Failed to start psychometry test'
+        assert 'Service initialization failed' in response_data['message']
+
+
+def test_start_psychometry_test_with_null_user_id_with_fixture_post_400(test_client):
+    """
+    GIVEN a Flask application configured for testing
+    WHEN the '/api/psychometry/start' page is requested (POST) with null user_id
+    THEN check that the response is 400 and returns user_id required error
+    """
+    client, test_user_id, access_token = test_client
+    
+    headers = {
+        "Content-type": "application/json",
+        "Authorization": f"Bearer {access_token}"
+    }
+    
+    response = client.post(
+        '/api/psychometry/start',
+        headers=headers,
+        json={'user_id': None}  # Null user_id
+    )
+    response_data = response.get_json()
+    
+    assert response.status_code == 400
+    assert response_data['error'] == 'user_id is required'
+
+
+def test_start_psychometry_test_with_empty_string_user_id_with_fixture_post_400(test_client):
+    """
+    GIVEN a Flask application configured for testing
+    WHEN the '/api/psychometry/start' page is requested (POST) with empty string user_id
+    THEN check that the response is 400 and returns user_id required error
+    """
+    client, test_user_id, access_token = test_client
+    
+    headers = {
+        "Content-type": "application/json",
+        "Authorization": f"Bearer {access_token}"
+    }
+    
+    response = client.post(
+        '/api/psychometry/start',
+        headers=headers,
+        json={'user_id': ''}  # Empty string user_id
+    )
+    response_data = response.get_json()
+    
+    assert response.status_code == 400
+    assert response_data['error'] == 'user_id is required'
+
 
 # --------------------  GET Route Tests  --------------------
 
