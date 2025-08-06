@@ -4293,15 +4293,27 @@ def get_child_mood_summary(user_id):
         ).order_by(ChatSession.updated_at.desc()).all()
         print("Sessions found:", sessions)
         mood_tags = []
+        mood_messages = []
         for session in sessions:
             print("Session ID:", session.id, "Interactions:", session.interactions)
             for interaction in session.interactions:
                 print("Interaction mood_tag:", getattr(interaction, 'mood_tag', None))
                 if interaction.mood_tag:
+                    mood_tag = getattr(interaction, 'mood_tag', None) #new
                     mood_tags.append(interaction.mood_tag)
+                if mood_tag and interaction.user_message:
+                    mood_tags.append(mood_tag) #new
 
+                    # Store message with mood context
+                    mood_messages.append({
+                        'mood_tag': mood_tag,
+                        'user_message': interaction.user_message,
+                        'timestamp': interaction.user_timestamp.isoformat() if interaction.user_timestamp else None,
+                        'session_id': session.id
+                    })
         # Get latest mood tag (from most recent interaction)
         latest_mood = None
+        latest_message = None
         if sessions:
             for session in sessions:
                 last_interaction = (
@@ -4312,6 +4324,7 @@ def get_child_mood_summary(user_id):
                 )
                 if last_interaction and last_interaction.mood_tag:
                     latest_mood = last_interaction.mood_tag
+                    latest_message = last_interaction.user_message
                     break
  
         # Use LLM to summarize overall mood if mood_tags exist
@@ -4332,6 +4345,21 @@ def get_child_mood_summary(user_id):
                 overall_mood = llm_response.choices[0].message.content.strip()
             except Exception as e:
                 overall_mood = "Unable to summarize mood at this time."
+        # Group mood messages by mood tag for better organization
+        mood_groups = {}
+        for msg in mood_messages:
+            mood = msg['mood_tag']
+            if mood not in mood_groups:
+                mood_groups[mood] = []
+            mood_groups[mood].append(msg)
+            # Sort messages by timestamp (most recent first)
+        for mood in mood_groups:
+            mood_groups[mood].sort(key=lambda x: x['timestamp'] or '', reverse=True)
+
+        print("Overall mood:", overall_mood)
+        print("Latest mood:", latest_mood)
+        print("Mood tags:", mood_tags)
+        print("Mood groups:", mood_groups)
 
         print(overall_mood, latest_mood, mood_tags)
         return jsonify({
@@ -4340,12 +4368,18 @@ def get_child_mood_summary(user_id):
             "date": str(today),
             "overall_mood": overall_mood,
             "latest_mood": latest_mood,
-            "mood_tags": mood_tags
+            "mood_tags": mood_tags,
+            "latest_message": latest_message,
+            "mood_messages": mood_messages,
+            "mood_groups": mood_groups,
+            "total_messages": len(mood_messages),
+            "unique_moods": len(mood_groups)
         }), 200
 
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
   
+
 
 if __name__ == '__main__':
     # Initialize database when running directly

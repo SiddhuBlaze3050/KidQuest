@@ -103,36 +103,104 @@
 </div>
 
 <!-- Emotional Modal Component -->
-<div v-if="modalComponent === 'emotional-modal'" class="emotional-modal modal-overlay" @click="closeModal">
-  <div class="transactions-popup" @click.stop>
+<div v-if="modalComponent === 'emotional-modal'" class="emotional-modal modal-overlay"  @click="closeModal">
+  <div class="transactions-popup" style="min-width:700px;text-align: center;align-items: center;" @click.stop>
     <div class="popup-header">
-      <span>Emotional Insight</span>
-      <button class="close-btn" @click="closeModal">×</button>
+      <div>Emotional Insight</div>
+      <button class="close-btn" style="margin-right:10px !important;" @click="closeModal">×</button>
     </div>
 
     <div class="popup-body">
-
-      <!-- Weekly Mood Section -->
-      <div class="transaction-item" v-for="mood in modalData.weeklyMoods" :key="mood.date">
-        <div class="transaction-date">{{ mood.date }}</div>
-        <div class="transaction-desc">
-          {{ mood.feeling }} — {{ mood.notes }}
+      <!-- Today's Mood Section -->
+      <div class="section-header">
+        <h3>📅 Today's Mood Summary</h3>
+      </div>
+      
+      <div v-if="modalData.weeklyMoods && modalData.weeklyMoods.length > 0" class="mood-section">
+        <div v-for="mood in modalData.weeklyMoods" :key="mood.date + mood.feeling" class="transaction-item mood-item">
+          <div class="transaction-date mood-date">
+            <span class="date-text">{{ mood.date }}</span>
+            <small v-if="mood.messageCount" class="message-count">{{ mood.messageCount }} messages</small>
+          </div>
+          <div class="transaction-desc mood-desc">
+            <strong>{{ mood.feeling }}</strong>
+            <p class="mood-notes">{{ mood.notes }}</p>
+          </div>
+          <div class="transaction-amount mood-emoji">{{ mood.emoji }}</div>
         </div>
-        <div class="transaction-amount">{{ mood.emoji }}</div>
+      </div>
+      
+      <div v-else class="no-data-message">
+        <p>🤔 No mood data available for today</p>
       </div>
 
-      <!-- Conversation Topics Section -->
-      <div class="transaction-item" v-for="topic in modalData.conversationTopics" :key="topic.id">
-        <div class="transaction-date">{{ topic.sentiment }}</div>
-        <div class="transaction-desc">{{ topic.title }} — {{ topic.summary }}</div>
-        <div class="transaction-amount">
-          <span v-for="keyword in topic.keywords" :key="keyword" class="keyword-tag">{{ keyword }}</span>
-        </div>
+      <!-- Conversation Analysis Section -->
+      <div class="section-header">
+        <h3>💭 Conversations & Messages</h3>
       </div>
 
+      <div v-if="modalData.conversationTopics && modalData.conversationTopics.length > 0" class="topics-section">
+        <div v-for="topic in modalData.conversationTopics" :key="topic.id" class="transaction-item topic-item">
+       <div class="transaction-date sentiment-badge" :class="getSentimentClass(topic.sentiment)" style="max-width:0px;">
+         <!--     <span class="sentiment-text">{{ getSentimentDisplay(topic.sentiment) }}</span>-->
+          </div> 
+          <div class="transaction-desc topic-desc">
+            <strong>{{ topic.title }}</strong>
+            <p class="topic-summary">{{ topic.summary }}</p>
+            
+            <!-- User Messages Section -->
+            <div v-if="topic.messages && topic.messages.length > 0" class="user-messages">
+              <div class="messages-header">
+                <span class="messages-label">💬 What your child said:</span>
+              </div>
+              <div v-for="(message, index) in topic.messages" :key="index" class="user-message-item">
+                <div class="message-content">
+                  <span class="message-text">"{{ message.text }}"</span>
+                  <div class="message-meta">
+                    <span class="message-mood">{{ moodToEmoji(message.mood) }} {{ message.mood }}</span>
+                    <span class="message-time">{{ formatMessageTime(message.timestamp) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+          <div class="transaction-amount keywords-section">
+            <div class="keywords-container">
+              <span v-for="keyword in topic.keywords" :key="keyword" class="keyword-tag">
+                {{ keyword }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div v-else class="no-data-message">
+        <p>💬 No conversation analysis available</p>
+      </div>
+
+      <!-- Tips Section -->
+      <div class="section-header">
+        <h3>💡 Insights</h3>
+      </div>
+      
+      <div class="insights-section">
+        <div class="insight-card">
+          <p v-if="getMainSentiment() === 'positive'" class="insight-text positive">
+            🌟 Your child seems to be in a positive mood today! Keep encouraging open communication.
+          </p>
+          <p v-else-if="getMainSentiment() === 'negative'" class="insight-text negative">
+            🤗 Your child might need some extra support today. Consider having a gentle check-in conversation.
+          </p>
+          <p v-else class="insight-text neutral">
+            😊 Your child's mood appears balanced today. Regular check-ins help maintain emotional well-being.
+          </p>
+        </div>
+      </div>
     </div>
   </div>
 </div>
+
 
 
     <!-- Header -->
@@ -764,14 +832,158 @@ const fetchHealthStats = async () => {
   }
 };
 
+
+
+// Helper function to format message timestamps
+const formatMessageTime = (timestamp) => {
+  if (!timestamp) return 'Unknown time'
+  
+  const date = new Date(timestamp)
+  const now = new Date()
+  const diffInMinutes = Math.floor((now - date) / (1000 * 60))
+  
+  if (diffInMinutes < 1) return 'Just now'
+  if (diffInMinutes < 60) return `${diffInMinutes}m ago`
+  
+  const diffInHours = Math.floor(diffInMinutes / 60)
+  if (diffInHours < 24) return `${diffInHours}h ago`
+  
+  const options = { hour: '2-digit', minute: '2-digit', hour12: true }
+  return date.toLocaleTimeString('en-US', options)
+}
+
+
+// Helper methods for the template
+const getSentimentClass = (sentiment) => {
+  return sentiment ? sentiment.toLowerCase() : 'neutral'
+}
+
+const getSentimentDisplay = (sentiment) => {
+  const sentimentMap = {
+    positive: '😊 Positive',
+    negative: '😔 Needs Attention', 
+    neutral: '😐 Neutral'
+  }
+  return sentimentMap[sentiment] || '😐 Neutral'
+}
+
+const getMainSentiment = () => {
+  if (!modalData.value.conversationTopics || modalData.value.conversationTopics.length === 0) {
+    return 'neutral'
+  }
+  return modalData.value.conversationTopics[0].sentiment || 'neutral'
+}
+
+// Enhanced API error handling
+const handleApiError = (error, context = 'emotional insights') => {
+  console.error(`Error fetching ${context}:`, error)
+  
+  return {
+    weeklyMoods: [
+      {
+        date: formatDate(new Date()),
+        emoji: '❌',
+        feeling: 'Error',
+        notes: `Unable to load ${context}. Please try again later.`,
+        messageCount: 0
+      }
+    ],
+    conversationTopics: [
+      {
+        id: 1,
+        sentiment: 'neutral',
+        title: 'Error Loading Data',
+        summary: 'Please check your connection and try again',
+        keywords: ['Error', 'Retry'],
+        messages: []
+      }
+    ]
+  }
+}
 // Fetch emotional insights (mood summary) for the child
 const fetchEmotionalInsights = async () => {
   if (!childId.value) return
   try {
     const res = await apiService.get(`/api/chat/mood-summary/${childId.value}`)
     if (res.success) {
+      //new
+      const moodEntries = []
+      const conversationTopics = []
+      
+      if (res.mood_groups && Object.keys(res.mood_groups).length > 0) {
+        // Create entries for each mood group
+        Object.entries(res.mood_groups).forEach(([mood, messages], index) => {
+          // Add mood summary entry
+          moodEntries.push({
+            date: formatDate(res.date),
+            emoji: moodToEmoji(mood),
+            feeling: mood,
+            notes: res.overall_mood || 'Mood analysis based on conversations',
+            messageCount: messages.length
+          })
+          
+          // Add conversation topic for each mood with associated messages
+          conversationTopics.push({
+            id: index + 1,
+            sentiment: moodToSentiment(mood),
+            title: `${mood.charAt(0).toUpperCase() + mood.slice(1)} Conversations`,
+            summary: `${messages.length} message${messages.length > 1 ? 's' : ''} showing ${mood} mood`,
+            keywords: [mood],
+            messages: messages.slice(0, 3).map(msg => ({
+              text: msg.user_message,
+              timestamp: msg.timestamp,
+              mood: msg.mood_tag
+            })) // Show up to 3 messages per mood
+          })
+        })
+      } else if (res.latest_mood) {
+        // Fallback: show latest mood info
+        moodEntries.push({
+          date: formatDate(res.date),
+          emoji: moodToEmoji(res.latest_mood),
+          feeling: res.latest_mood,
+          notes: res.overall_mood || 'Latest mood detected',
+          messageCount: res.total_messages || 0
+        })
+        
+        if (res.latest_message) {
+          conversationTopics.push({
+            id: 1,
+            sentiment: moodToSentiment(res.latest_mood),
+            title: 'Recent Conversation',
+            summary: res.overall_mood || 'Latest conversation analysis',
+            keywords: [res.latest_mood],
+            messages: [{
+              text: res.latest_message,
+              timestamp: new Date().toISOString(),
+              mood: res.latest_mood
+            }]
+          })
+        }
+      }
       // Example: Map backend response to frontend structure
       emotionalInsights.value = {
+        // Weekly Moods data for the modal
+        weeklyMoods: moodEntries.length > 0 ? moodEntries : [
+          {
+            date: formatDate(res.date),
+            emoji: '🤔',
+            feeling: 'No mood recorded',
+            notes: res.overall_mood || 'No conversations detected today',
+            messageCount: 0
+          }
+        ],
+        // Conversation Topics data for the modal
+        conversationTopics: conversationTopics.length > 0 ? conversationTopics : [
+          {
+            id: 1,
+            sentiment: 'neutral',
+            title: 'Getting Started',
+            summary: 'Start chatting to see emotional insights and mood analysis',
+            keywords: ['No data'],
+            messages: []
+          }
+        ],
         moodTrends: [
           {
             date: res.date,
@@ -788,11 +1000,69 @@ const fetchEmotionalInsights = async () => {
           }
         ]
       }
+    }else {
+      // Handle empty or failed response
+      emotionalInsights.value = {
+        weeklyMoods: [
+          {
+            date: formatDate(new Date()),
+            emoji: '🤔',
+            feeling: 'No data',
+            notes: 'No emotional data available for today'
+          }
+        ],
+        conversationTopics: [
+          {
+            id: 1,
+            sentiment: 'neutral',
+            title: 'No Analysis Available',
+            summary: 'Start a conversation to see emotional insights',
+            keywords: ['No data']
+          }
+        ],
+        moodTrends: [],
+        summaries: []
+      }
     }
   } catch (e) {
     console.error('Failed to fetch emotional insights', e)
+    // Handle error state
+    emotionalInsights.value = {
+      weeklyMoods: [
+        {
+          date: formatDate(new Date()),
+          emoji: '❌',
+          feeling: 'Error',
+          notes: 'Failed to load emotional insights'
+        }
+      ],
+      conversationTopics: [
+        {
+          id: 1,
+          sentiment: 'neutral',
+          title: 'Error Loading Data',
+          summary: 'Please try again later',
+          keywords: ['Error']
+        }
+      ],
+      moodTrends: [],
+      summaries: []
+    }
   }
 }
+
+// Helper function to format date
+function formatDate(dateStr) {
+  const date = new Date(dateStr)
+  const options = { 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric',
+    weekday: 'short'
+  }
+  return date.toLocaleDateString('en-US', options)
+}
+
 
 // Helper functions to map mood to emoji/sentiment
 function moodToEmoji(mood) {
@@ -1642,6 +1912,7 @@ const exportData = () => {
   background: rgba(30, 30, 30, 0.5);
   z-index: 9999;
   display: flex;
+
   align-items: center;
   justify-content: center;
 }
@@ -1878,5 +2149,252 @@ const exportData = () => {
     gap: 10px;
   }
 }
+.emotional-popup {
+  max-width: 80%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
 
+.section-header {
+  margin: 20px 0 10px 0;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e1e5e9;
+}
+
+.section-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.mood-section, .topics-section {
+  margin-bottom: 20px;
+}
+
+.mood-item {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-left: 4px solid #4CAF50;
+}
+
+.mood-date .date-text {
+  font-weight: 600;
+  color: #495057;
+}
+
+.message-count {
+  display: block;
+  color: #6c757d;
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.mood-desc {
+  flex-grow: 1;
+}
+
+.mood-desc strong {
+  color: #2c3e50;
+  font-size: 14px;
+}
+
+.mood-notes {
+  margin: 5px 0 0 0;
+  font-size: 13px;
+  color: #6c757d;
+  line-height: 1.4;
+}
+
+.mood-emoji {
+  font-size: 24px;
+  min-width: 40px;
+  text-align: center;
+}
+
+.topic-item {
+  background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+  border-left: 4px solid #007bff;
+}
+
+.sentiment-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  min-width: 70px;
+  text-align: center;
+}
+
+.sentiment-badge.positive {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.sentiment-badge.negative {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.sentiment-badge.neutral {
+  background-color: #e2e3e5;
+  color: #495057;
+}
+
+.topic-desc strong {
+  color: #2c3e50;
+  font-size: 14px;
+}
+
+.topic-summary {
+  margin: 5px 0 0 0;
+  font-size: 13px;
+  color: #6c757d;
+  line-height: 1.4;
+}
+
+/* User Messages Styling */
+.user-messages {
+  margin-top: 15px;
+  padding-top: 12px;
+  border-top: 1px solid #e9ecef;
+}
+
+.messages-header {
+  margin-bottom: 10px;
+}
+
+.messages-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #495057;
+  background-color: #f8f9fa;
+  padding: 4px 8px;
+  border-radius: 12px;
+}
+
+.user-message-item {
+  margin-bottom: 10px;
+  background: linear-gradient(135deg, #fff3cd 0%, #fef7e3 100%);
+  border: 1px solid #ffeaa7;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.user-message-item:last-child {
+  margin-bottom: 0;
+}
+
+.message-content {
+  width: 100%;
+}
+
+.message-text {
+  font-style: italic;
+  color: #495057;
+  font-size: 13px;
+  line-height: 1.4;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.message-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #6c757d;
+}
+
+.message-mood {
+  font-weight: 600;
+  color: #495057;
+}
+
+.message-time {
+  font-size: 10px;
+  color: #868e96;
+}
+
+.keywords-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.keyword-tag {
+  background-color: #e3f2fd;
+  color: #1565c0;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.no-data-message {
+  text-align: center;
+  padding: 20px;
+  color: #6c757d;
+  font-style: italic;
+}
+
+.insights-section {
+  margin-top: 15px;
+}
+
+.insight-card {
+  background: linear-gradient(135deg, #f1f3f4 0%, #e8eaf6 100%);
+  padding: 15px;
+  border-radius: 8px;
+  border-left: 4px solid #9c27b0;
+}
+
+.insight-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.insight-text.positive {
+  color: #2e7d32;
+}
+
+.insight-text.negative {
+  color: #c62828;
+}
+
+.insight-text.neutral {
+  color: #5e35b1;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .emotional-popup {
+    margin: 10px;
+    max-width: calc(100vw - 20px);
+  }
+  
+  .keywords-container {
+    justify-content: flex-start;
+  }
+  
+  .transaction-item {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .mood-emoji {
+    text-align: left;
+  }
+}
+.modal-content {
+  width: 800px; /* or your desired width */
+  max-width: 95vw; /* for responsiveness */
+  background: #fff; /* or your modal background */
+  border-radius: 12px; /* optional */
+  padding: 2rem;      /* optional */
+  box-shadow: 0 2px 16px rgba(0,0,0,0.2); /* optional */
+}
 </style>
