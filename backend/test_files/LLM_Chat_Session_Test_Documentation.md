@@ -219,7 +219,36 @@
 
 ---
 
-### Test Case 3.2: Unauthorized Summary Update
+### Test Case 3.3: Chat Rate Limiting
+**API being tested**: `/api/chat`
+
+**Inputs**:
+- HTTP Method: POST (multiple rapid requests)
+- Headers: `Authorization: Bearer {jwt_token}`
+- JSON Body: 10 rapid consecutive messages
+```json
+{
+  "message": "Rapid message #1",
+  "user_id": 1
+}
+```
+
+**Expected output**:
+- HTTP Status Code: 429 (Too Many Requests) for some requests
+- JSON Response:
+```json
+{
+  "success": false,
+  "error": "Rate limit exceeded. Please try again later."
+}
+```
+
+**Actual Output**: HTTP Status Code: 200 for all requests, No rate limiting implemented
+
+**Result**: FAILURE ❌
+---
+
+### Test Case 3.4: Unauthorized Summary Update
 **API being tested**: `/api/chat/session/{session_id}/summary`
 
 **Inputs**:
@@ -418,14 +447,3 @@
 **Note**: System maintains conversation context by including recent interactions in LLM prompts
 
 ---
-
-## Summary
-- **Total Test Cases**: 16 scenarios covering 7 API endpoints (including legacy endpoints)
-- **Authentication**: JWT token required for all endpoints with proper user authorization
-- **Session Management**: Create, retrieve, update, delete sessions with automatic session creation
-- **Authorization**: Strict access control - users can only access their own sessions
-- **Mood Detection**: AI-powered mood analysis with automatic extraction and storage
-- **Error Handling**: Graceful fallback for API failures with user-friendly error messages
-- **Context Preservation**: Conversation continuity maintained using last 10 interactions
-- **Data Integrity**: All database operations successful with proper timestamps and relationships
-- **Legacy Support**: Backward compatibility maintained with `/chat-history` and `/clear-chat` endpoints

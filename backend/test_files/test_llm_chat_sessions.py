@@ -278,6 +278,33 @@ class TestChatSessionAPI:
         data2 = json.loads(response2.data)
         assert data2['success'] is False
         assert 'unauthorized' in data2['error'].lower()
+
+    def test_chat_rate_limiting_scenarios(self, client, auth_headers):
+        """Test chat API rate limiting"""
+        # This test checks if the system properly implements rate limiting
+        # Send multiple rapid requests to test rate limiting
+        messages_sent = 0
+        rapid_responses = []
+        
+        for i in range(10):  # Send 10 rapid messages
+            response = client.post('/api/chat', 
+                                 headers=auth_headers,
+                                 json={
+                                     'message': f'Rapid message #{i+1}',
+                                     'user_id': 1
+                                 })
+            rapid_responses.append(response)
+            messages_sent += 1
+        
+        # Check if any requests were rate limited
+        rate_limited_responses = [r for r in rapid_responses if r.status_code == 429]
+        
+        assert len(rate_limited_responses) > 0, "Should have rate limited responses"
+        assert rate_limited_responses[0].status_code == 429, "Should return 429 Too Many Requests"
+        
+        # Check rate limit error message
+        data = json.loads(rate_limited_responses[0].data)
+        assert 'rate limit' in data.get('error', '').lower(), "Should mention rate limiting"
     
     def test_session_management_scenarios(self, client, auth_headers):
         """Test session summary updates and legacy endpoints"""
