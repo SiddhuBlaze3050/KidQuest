@@ -102,6 +102,37 @@
   </div>
 </div>
 
+<!-- Emotional Modal Component -->
+<div v-if="modalComponent === 'emotional-modal'" class="emotional-modal modal-overlay" @click="closeModal">
+  <div class="transactions-popup" @click.stop>
+    <div class="popup-header">
+      <span>Emotional Insight</span>
+      <button class="close-btn" @click="closeModal">×</button>
+    </div>
+
+    <div class="popup-body">
+
+      <!-- Weekly Mood Section -->
+      <div class="transaction-item" v-for="mood in modalData.weeklyMoods" :key="mood.date">
+        <div class="transaction-date">{{ mood.date }}</div>
+        <div class="transaction-desc">
+          {{ mood.feeling }} — {{ mood.notes }}
+        </div>
+        <div class="transaction-amount">{{ mood.emoji }}</div>
+      </div>
+
+      <!-- Conversation Topics Section -->
+      <div class="transaction-item" v-for="topic in modalData.conversationTopics" :key="topic.id">
+        <div class="transaction-date">{{ topic.sentiment }}</div>
+        <div class="transaction-desc">{{ topic.title }} — {{ topic.summary }}</div>
+        <div class="transaction-amount">
+          <span v-for="keyword in topic.keywords" :key="keyword" class="keyword-tag">{{ keyword }}</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
 
 
     <!-- Header -->
@@ -323,33 +354,52 @@
 </div>
 
           <!-- Emotional Insights -->
-          <div class="feature-card emotional-card" @click="showEmotionalModal">
-            <div class="card-header">
-              <div class="card-icon">💭</div>
-              <h3>Emotional Insights</h3>
-            </div>
-            <div class="card-content">
-              <div class="mood-tracker">
-                <div class="mood-chart">
-                  <div v-for="mood in emotionalInsights.moodTrends" :key="mood.date" class="mood-day">
-                    <div class="mood-emoji" :title="mood.feeling">{{ mood.emoji }}</div>
-                    <div class="mood-date">{{ mood.date }}</div>
-                  </div>
-                </div>
-              </div>
-              <div class="conversation-summary">
-                <div class="summary-cards">
-                  <div v-for="summary in emotionalInsights.summaries" :key="summary.id" class="summary-card">
-                    <div class="summary-topic">{{ summary.topic }}</div>
-                    <div class="summary-text">{{ summary.text }}</div>
-                    <div class="summary-sentiment" :class="[summary.sentiment, { 'highlighted': summary.sentiment === 'positive' || summary.sentiment === 'neutral' }]">
-                      {{ summary.sentiment }}
-                    </div>
-                  </div>
-                </div>
-              </div>
+          <!-- filepath: frontend/src/views/ParentDashboard.vue -->
+<!-- Emotional Insights -->
+<div class="feature-card emotional-card" @click="showEmotionalModal">
+  <div class="card-header">
+    <div class="card-icon">💭</div>
+    <h3>Emotional Insights</h3>
+  </div>
+  <div class="card-content">
+    <div class="mood-tracker">
+      <div class="mood-chart">
+        <template v-if="emotionalInsights.moodTrends && emotionalInsights.moodTrends.length">
+          <div v-for="mood in emotionalInsights.moodTrends" :key="mood.date" class="mood-day">
+            <div class="mood-emoji" :title="mood.feeling">{{ mood.emoji }}</div>
+            <div class="mood-date">{{ mood.date }}</div>
+          </div>
+        </template>
+        <template v-else>
+          <div class="mood-day">
+            <div class="mood-emoji" title="No data">🙂</div>
+            <div class="mood-date">No data</div>
+          </div>
+        </template>
+      </div>
+    </div>
+    <div class="conversation-summary">
+      <div class="summary-cards">
+        <template v-if="emotionalInsights.summaries && emotionalInsights.summaries.length">
+          <div v-for="summary in emotionalInsights.summaries" :key="summary.id" class="summary-card">
+            <div class="summary-topic">{{ summary.topic }}</div>
+            <div class="summary-text">{{ summary.text }}</div>
+            <div class="summary-sentiment" :class="[summary.sentiment, { 'highlighted': summary.sentiment === 'positive' || summary.sentiment === 'neutral' }]">
+              {{ summary.sentiment }}
             </div>
           </div>
+        </template>
+        <template v-else>
+          <div class="summary-card">
+            <div class="summary-topic">Overall Mood</div>
+            <div class="summary-text">No summary available.</div>
+            <div class="summary-sentiment neutral highlighted">neutral</div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+</div>
 
           <!-- Skill Adventures -->
           <div class="feature-card skills-card" @click="showSkillsModal">
@@ -470,39 +520,6 @@
       </div>
     </div>
 
-    <!-- Emotional Modal Component -->
-    <div v-if="modalComponent === 'emotional-modal'" class="emotional-modal">
-      <div class="emotional-detailed">
-        <div class="mood-analysis">
-          <h4>Weekly Mood Analysis</h4>
-          <div class="mood-chart-detailed">
-            <div v-for="mood in modalData.weeklyMoods" :key="mood.date" class="mood-day-detailed">
-              <div class="mood-emoji-large">{{ mood.emoji }}</div>
-              <div class="mood-label">{{ mood.feeling }}</div>
-              <div class="mood-date">{{ mood.date }}</div>
-              <div class="mood-notes">{{ mood.notes }}</div>
-            </div>
-          </div>
-        </div>
-        <div class="conversation-analysis">
-          <h4>Conversation Insights</h4>
-          <div class="conversation-topics">
-            <div v-for="topic in modalData.conversationTopics" :key="topic.id" class="topic-card">
-              <div class="topic-header">
-                <h5>{{ topic.title }}</h5>
-                <span class="topic-sentiment" :class="[topic.sentiment, { 'highlighted': topic.sentiment === 'positive' || topic.sentiment === 'neutral' }]">
-                  {{ topic.sentiment }}
-                </span>
-              </div>
-              <div class="topic-summary">{{ topic.summary }}</div>
-              <div class="topic-keywords">
-                <span v-for="keyword in topic.keywords" :key="keyword" class="keyword-tag">{{ keyword }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- Skills Modal Component -->
     <div v-if="modalComponent === 'skills-modal'" class="skills-modal">
@@ -720,6 +737,7 @@ onMounted(async () => {
     await fetchHealthStats()
     await fetchPsychometricData()
     await fetchTaskStats()
+    await fetchEmotionalInsights()
   }
 })
 
@@ -746,6 +764,60 @@ const fetchHealthStats = async () => {
   }
 };
 
+// Fetch emotional insights (mood summary) for the child
+const fetchEmotionalInsights = async () => {
+  if (!childId.value) return
+  try {
+    const res = await apiService.get(`/api/chat/mood-summary/${childId.value}`)
+    if (res.success) {
+      // Example: Map backend response to frontend structure
+      emotionalInsights.value = {
+        moodTrends: [
+          {
+            date: res.date,
+            emoji: res.latest_mood ? moodToEmoji(res.latest_mood) : '🙂',
+            feeling: res.latest_mood || 'Unknown'
+          }
+        ],
+        summaries: [
+          {
+            id: 1,
+            topic: 'Overall Mood',
+            text: res.overall_mood || 'No summary available.',
+            sentiment: moodToSentiment(res.latest_mood)
+          }
+        ]
+      }
+    }
+  } catch (e) {
+    console.error('Failed to fetch emotional insights', e)
+  }
+}
+
+// Helper functions to map mood to emoji/sentiment
+function moodToEmoji(mood) {
+  if (!mood) return '🙂'
+  const map = {
+    happy: '😊',
+    sad: '😢',
+    angry: '😠',
+    excited: '🤩',
+    anxious: '😰',
+    calm: '😌',
+    // Add more as needed
+  }
+  return map[mood.toLowerCase()] || '🙂'
+}
+
+function moodToSentiment(mood) {
+  if (!mood) return 'neutral'
+  const positive = ['happy', 'excited', 'calm']
+  const negative = ['sad', 'angry', 'anxious']
+  if (positive.includes(mood.toLowerCase())) return 'positive'
+  if (negative.includes(mood.toLowerCase())) return 'negative'
+  return 'neutral'
+}
+
 
 const doodleStats = ref({
   doodles: [
@@ -760,18 +832,8 @@ const taskStats = ref({
 })
 
 const emotionalInsights = ref({
-  moodTrends: [
-    { date: '2025-07-01', emoji: '😊', feeling: 'Happy' }
-  ],
-  summaries: [
-    { id: 1, topic: 'School', text: 'Was happy at school.', sentiment: 'positive' }
-  ],
-  weeklyMoods: [
-    { date: '2025-07-01', emoji: '😊', feeling: 'Happy', notes: 'Good day' }
-  ],
-  conversationTopics: [
-    { id: 1, title: 'Friends', sentiment: 'positive', summary: 'Made new friends', keywords: ['play', 'share'] }
-  ]
+  moodTrends: [],
+  summaries: []
 })
 
 // Methods
@@ -1566,6 +1628,15 @@ const exportData = () => {
 }
 
 .recent-tasks-modal.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(30, 30, 30, 0.5);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.emotional-modal.modal-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
   background: rgba(30, 30, 30, 0.5);

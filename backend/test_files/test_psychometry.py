@@ -224,6 +224,108 @@ def test_get_psychometry_results_nonexistent_child_id_with_fixture(test_client):
     assert response_data['error'] == 'No result found'
 
 
+def test_get_psychometry_results_not_found(test_client):
+    """
+    GIVEN a child with NO psychometric test result
+    WHEN the parent dashboard requests the latest result
+    THEN the API returns 404 with error message
+    """
+    client, test_user_id, access_token = test_client
+
+    response = client.get(f'/api/psychometry/results/{test_user_id}')
+    data = response.get_json()
+
+    assert response.status_code == 404
+    assert data['success'] is False
+    assert data['error'] == 'No result found'
+
+def test_get_psychometry_results_returns_latest_result(test_client):
+    """
+    GIVEN a child with multiple psychometric test results
+    WHEN the endpoint is called
+    THEN the API returns the most recent result (by taken_at)
+    """
+    client, test_user_id, access_token = test_client
+    headers = {
+        "Content-type": "application/json",
+        "Authorization": f"Bearer {access_token}"
+    }
+    from datetime import datetime, timedelta
+
+    # Add two results with different timestamps
+    result_old = PsychometricTestResult(
+        child_id=test_user_id,
+        taken_at=datetime.utcnow() - timedelta(days=1),
+        learning_style="Kinesthetic",
+        personality_type="Balanced",
+        top_interest="Art",
+        concentration_level=60.0,
+        memory_strength=70.0,
+        detailed_scores={"art": 9},
+        personality_breakdown={"Balanced": 100},
+        duration_seconds=100,
+        feedback="Old result"
+    )
+    result_new = PsychometricTestResult(
+        child_id=test_user_id,
+        taken_at=datetime.utcnow(),
+        learning_style="Visual",
+        personality_type="Introvert",
+        top_interest="Math",
+        concentration_level=90.0,
+        memory_strength=95.0,
+        detailed_scores={"math": 10},
+        personality_breakdown={"Introvert": 100},
+        duration_seconds=120,
+        feedback="New result"
+    )
+    db.session.add(result_old)
+    db.session.add(result_new)
+    db.session.commit()
+
+    response = client.get(
+        f'/api/psychometry/results/{test_user_id}',
+        headers=headers,
+    )
+    data = response.get_json()
+    assert response.status_code == 200
+    assert data['result']['feedback'] == "New result"
+    assert data['result']['learning_style'] == "Visual"
+
+def test_get_psychometry_results_partial_data(test_client):
+    """
+    GIVEN a child with a psychometric test result missing optional fields
+    WHEN the endpoint is called
+    THEN the API returns the result with None for missing fields
+    """
+    client, test_user_id, access_token = test_client
+    headers = {
+        "Content-type": "application/json",
+        "Authorization": f"Bearer {access_token}"
+    }
+
+    # Only required fields, omit optional ones
+    result = PsychometricTestResult(
+        child_id=test_user_id,
+        learning_style="Visual",
+        personality_type="Introvert",
+        top_interest="Math",
+        concentration_level=90.0,
+        memory_strength=95.0,
+        # No detailed_scores, personality_breakdown, duration_seconds, feedback
+    )
+    db.session.add(result)
+    db.session.commit()
+
+    response = client.get(
+        f'/api/psychometry/results/{test_user_id}',
+        headers=headers,
+    )
+    data = response.get_json()
+    assert response.status_code == 200
+    assert data['result']['learning_style'] == "Visual"
+    assert data['result']['detailed_scores'] is None or data['result']['detailed_scores'] == {}
+
 # --------------------  POST Route Tests  --------------------
 
 

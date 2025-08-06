@@ -339,6 +339,114 @@ def test_update_task_status_not_found_with_fixture_put_404(test_client):
     assert response_data['success'] == False
     assert response_data['error'] == 'Task not found'
 
+def test_get_tasks_for_parents_success(test_client):
+    """
+    GIVEN a parent user with a parent-child relationship
+    WHEN the parent requests tasks for their child
+    THEN the API returns the child's tasks with status 200
+    """
+    client, test_user_id, access_token = test_client
+
+    # Create parent user and parent-child link
+    from models import User, ParentChild, HomeworkSchedule, db
+    parent = User(
+        username='parentuser',
+        email='parent@example.com',
+        password_hash='hashed_password',
+        role='parent'
+    )
+    db.session.add(parent)
+    db.session.commit()
+
+    parent_child = ParentChild(parent_id=parent.id, child_id=test_user_id)
+    db.session.add(parent_child)
+    db.session.commit()
+
+    # Create a task for the child
+    task = HomeworkSchedule(
+        user_id=test_user_id,
+        subject='Science',
+        task='Read chapter 5',
+        status='pending'
+    )
+    db.session.add(task)
+    db.session.commit()
+
+    # Generate JWT for parent
+    from flask_jwt_extended import create_access_token
+    parent_token = create_access_token(identity=parent.id)
+    headers = {
+        "Content-type": "application/json",
+        "Authorization": f"Bearer {parent_token}"
+    }
+
+    response = client.get(
+        f'/api/tasks-for-parent/{test_user_id}',
+        headers=headers,
+    )
+    data = response.get_json()
+    assert response.status_code == 200
+    assert data['success'] is True
+    assert len(data['tasks']) == 1
+    assert data['tasks'][0]['subject'] == 'Science'
+    assert data['tasks'][0]['user_id'] == test_user_id
+
+def test_get_tasks_for_parents_unauthorized_role(test_client):
+    """
+    GIVEN a non-parent user
+    WHEN they request tasks for another user
+    THEN the API returns 403 unauthorized access
+    """
+    client, test_user_id, access_token = test_client
+
+    headers = {
+        "Content-type": "application/json",
+        "Authorization": f"Bearer {access_token}"
+    }
+
+    response = client.get(
+        f'/api/tasks-for-parent/{test_user_id}',
+        headers=headers,
+    )
+    data = response.get_json()
+    assert response.status_code == 403
+    assert data['success'] is False
+    assert 'parent role required' in data['error']
+
+def test_get_tasks_for_parents_no_relationship(test_client):
+    """
+    GIVEN a parent user with no parent-child relationship
+    WHEN the parent requests tasks for a child
+    THEN the API returns 403 unauthorized access
+    """
+    client, test_user_id, access_token = test_client
+
+    from models import User, db
+    parent = User(
+        username='parentuser2',
+        email='parent2@example.com',
+        password_hash='hashed_password',
+        role='parent'
+    )
+    db.session.add(parent)
+    db.session.commit()
+
+    from flask_jwt_extended import create_access_token
+    parent_token = create_access_token(identity=parent.id)
+    headers = {
+        "Content-type": "application/json",
+        "Authorization": f"Bearer {parent_token}"
+    }
+
+    response = client.get(
+        f'/api/tasks-for-parent/{test_user_id}',
+        headers=headers,
+    )
+    data = response.get_json()
+    assert response.status_code == 403
+    assert data['success'] is False
+    assert 'no parent-child relationship' in data['error']
+
 
 if __name__ == '__main__':
     pytest.main([__file__, '-v']) 
