@@ -380,7 +380,11 @@
         <PomodoroTimer v-if="showPomodoroTimer" @close="showPomodoroTimer = false" />
 
         <!-- Drawing Pad Modal -->
-        <DrawingPad v-if="showDrawingPad" @close="showDrawingPad = false" />
+        <DrawingPad
+            v-if="showDrawingPad"
+            :userId="user?.id"
+            @close="showDrawingPad = false"
+        />
 
         <!-- Story Builder Modal -->
         <StoryBuilder v-if="showStoryBuilder" @close="showStoryBuilder = false" />

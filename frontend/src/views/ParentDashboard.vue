@@ -368,9 +368,15 @@
                   @click.stop="viewDoodle(doodle)"
                 >
                   <div class="doodle-canvas" :style="{ backgroundColor: doodle.color }">
-                    <div class="doodle-preview-content">
-                      {{ doodle.emoji || '🎨' }}
-                    </div>
+                      <div class="doodle-preview-content">
+                        <img 
+                          v-if="doodle.file_exists && doodle.file_path" 
+                          :src="getDoodleImageUrl(doodle.file_path)" 
+                          alt="Doodle" 
+                          style="max-width: 100%; max-height: 70px; border-radius: 8px;"
+                        />
+                        <span v-else>{{ doodle.emoji || '🎨' }}</span>
+                      </div>
                   </div>
                   <div class="doodle-footer">
                     <div class="doodle-name">{{ doodle.title }}</div>
@@ -518,19 +524,29 @@
 
 
     <!-- Doodling Modal Component -->
-    <div v-if="modalComponent === 'doodling-modal'" class="doodling-modal">
-      <div class="doodling-detailed">
+    <div v-if="modalComponent === 'doodling-modal'" class="doodling-modal modal-overlay" @click="closeModal">
+      <div class="doodling-popup" @click.stop>
+      <div class="popup-header">
+        <span>Doodle View</span>
+        <button class="close-btn" @click="closeModal">×</button>
+      </div>
         <div class="doodle-gallery">
           <div v-for="(doodle, idx) in modalData.allDoodles" :key="idx" class="doodle-gallery-item">
             <div class="doodle-canvas-large" :style="{ backgroundColor: doodle.color }">
               <div class="doodle-artwork">
-                {{ doodle.emoji || '🎨' }}
+                <img 
+                  v-if="doodle.file_exists && doodle.file_path" 
+                  :src="getDoodleImageUrl(doodle.file_path)" 
+                  alt="Doodle" 
+                  style="max-width: 100%; max-height: 250px; border-radius: 12px;"
+                />
+                <span v-else>{{ doodle.emoji || '🎨' }}</span>
               </div>
             </div>
             <div class="doodle-details">
               <h4>{{ doodle.title }}</h4>
               <p class="doodle-date">{{ doodle.date }}</p>
-              <p class="doodle-duration">{{ doodle.duration }} minutes</p>
+              
               <div class="doodle-tags">
                 <span v-for="tag in doodle.tags" :key="tag" class="doodle-tag">{{ tag }}</span>
               </div>
@@ -711,6 +727,30 @@ const fetchPsychometricData = async () => {
   }
 }
 
+const fetchDoodles = async () => {
+  if (!childId.value) return
+  try {
+    const res = await apiService.get(`/api/drawings/${childId.value}`)
+    console.log('Doodle API response:', res)
+    if (res.success && Array.isArray(res.drawings)) {
+      doodleStats.value.doodles = res.drawings.map(d => ({
+        id: d.id,
+        title: d.description || 'Untitled',
+        date: d.timestamp ? d.timestamp.slice(0, 10) : '',
+        duration: d.time_taken ? Math.round(d.time_taken / 60) : 0,
+        tags: d.ref_image_title ? [d.ref_image_title] : [],
+        file_path: d.file_path,
+        file_exists: d.file_exists,
+        emoji: '🎨', // fallback if no image
+        color: '#aaf'
+      }))
+      doodleStats.value.allDoodles = doodleStats.value.doodles
+    }
+  } catch (e) {
+    console.error('Failed to fetch doodles', e)
+  }
+}
+
 const fetchTaskStats = async () => {
   if (!childId.value) return
   try {
@@ -806,6 +846,7 @@ onMounted(async () => {
     await fetchPsychometricData()
     await fetchTaskStats()
     await fetchEmotionalInsights()
+    await fetchDoodles()
   }
 })
 
@@ -1088,6 +1129,12 @@ function moodToSentiment(mood) {
   return 'neutral'
 }
 
+function getDoodleImageUrl(filePath) {
+  if (!filePath) return ''
+  // Remove 'static/' if present, then prepend '/static/'
+  const relPath = filePath.replace(/^static[\\/]/, '')
+  return `http://localhost:5000/static/${relPath}`
+}
 
 const doodleStats = ref({
   doodles: [
@@ -1129,7 +1176,7 @@ const showDoodlingModal = () => openModal('Doodling', 'doodling-modal', doodleSt
 const showTaskModal = () => openModal('Tasks', 'task-modal', taskStats.value)
 const showEmotionalModal = () => openModal('Emotions', 'emotional-modal', emotionalInsights.value)
 const showSkillsModal = () => openModal('Skills', 'skills-modal', skillProgress.value)
-const viewDoodle = (doodle) => openModal('Doodle View', 'doodling-modal', doodle)
+const viewDoodle = (doodle) => openModal('Doodle View', 'doodling-modal', { allDoodles: [doodle] })
 const showRecentTasksModal = () => {
   openModal('Recent Tasks', 'recent-tasks-modal', { allTasks: taskStats.value.recent })
 }
@@ -1667,6 +1714,66 @@ const exportData = () => {
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
 }
 
+.doodling-popup {
+  background: #fff;
+  border-radius: 18px;
+  max-width: 400px;
+  width: 90vw;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  padding: 0;
+  position: relative;
+  animation: fadeIn 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.doodling-modal.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(30, 30, 30, 0.5);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.doodle-details {
+  padding: 1.2rem 1.5rem 1.5rem 1.5rem;
+  font-family: 'Merriweather', serif;
+  color: #31417A;
+}
+
+.doodle-details h4 {
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin: 0 0 0.3rem 0;
+  color: #31417A;
+  letter-spacing: 0.5px;
+}
+
+.doodle-date {
+  font-size: 0.95rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.doodle-tags {
+  margin-top: 0.5rem;
+}
+
+.doodle-tag {
+  display: inline-block;
+  background: #f7f8fa;
+  color: #31417A;
+  border-radius: 12px;
+  padding: 3px 10px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-right: 0.5rem;
+  margin-bottom: 0.2rem;
+  border: 1px solid #e0e0e0;
+}
 .doodle-canvas {
   height: 80px;
   display: flex;
