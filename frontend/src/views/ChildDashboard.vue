@@ -383,11 +383,7 @@
         <PomodoroTimer v-if="showPomodoroTimer" @close="showPomodoroTimer = false" />
 
         <!-- Drawing Pad Modal -->
-        <DrawingPad
-            v-if="showDrawingPad"
-            :userId="user?.id"
-            @close="showDrawingPad = false"
-        />
+        <DrawingPad v-if="showDrawingPad" :userId="user?.id" @close="showDrawingPad = false" />
 
         <!-- Story Builder Modal -->
         <StoryBuilder v-if="showStoryBuilder" @close="showStoryBuilder = false" />
@@ -949,10 +945,10 @@ export default {
             console.log('🔘 C button clicked - redirecting to child form!')
             console.log('📍 Current route:', router.currentRoute.value.path)
             console.log('🎯 Attempting to navigate to: /child-form')
-            
+
             // Simple navigation without promises for debugging
             router.push('/child-form')
-            
+
             // Add a timeout to check if navigation succeeded
             setTimeout(() => {
                 console.log('📍 After navigation, current route:', router.currentRoute.value.path)
@@ -1586,22 +1582,22 @@ export default {
 
         onMounted(async () => {
             console.log('🎬 ChildDashboard: Component mounted, starting initialization...')
-            
+
             // Always run these checks first (non-API operations)
             checkChildAccess()
             startScreenTimeSession()
-            
+
             // For authenticated users, ensure token is ready before making API calls
             if (userUtils.getCurrentUser()) {
                 console.log('👤 ChildDashboard: User detected, ensuring authentication before API calls...')
-                
+
                 try {
                     // Wait for authentication to be ready before proceeding with API calls
                     const authReady = await authService.ensureAuthenticated()
-                    
+
                     if (authReady) {
                         console.log('✅ ChildDashboard: Authentication verified, proceeding with API calls...')
-                        
+
                         // Now safe to make API calls
                         fetchQuote()
                         fetchLoginStreak()
@@ -1615,7 +1611,7 @@ export default {
 
                         // Calculate skills mastered after loading all module progress
                         calculateSkillsMastered()
-                        
+
                         console.log('🎉 ChildDashboard: All data loaded successfully')
                     } else {
                         console.error('❌ ChildDashboard: Authentication verification failed')
@@ -3909,15 +3905,18 @@ export default {
 }
 
 /* Science Explorer Dialog Styling */
-.science-adventure-popup {
+:global(.science-adventure-popup) {
     border-radius: 25px !important;
     box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3) !important;
+    padding: 2rem !important;
 }
 
-.science-actions {
-    gap: 1rem !important;
+:global(.science-actions) {
+    gap: 1.5rem !important;
     justify-content: center !important;
     margin-top: 2rem !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
 }
 
 /* Good Touch Bad Touch Welcome Popup Button Styles */
@@ -3978,7 +3977,7 @@ export default {
     outline: none !important;
 }
 
-.science-confirm-btn {
+:global(.science-confirm-btn) {
     background: linear-gradient(135deg, #28a745, #20c997) !important;
     color: white !important;
     border: none !important;
@@ -3990,18 +3989,37 @@ export default {
     box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4) !important;
     cursor: pointer !important;
     min-width: 200px !important;
+    text-transform: none !important;
+    letter-spacing: 0.5px !important;
+    position: relative !important;
+    overflow: hidden !important;
 }
 
-.science-confirm-btn:hover {
+:global(.science-confirm-btn::before) {
+    content: '' !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: -100% !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent) !important;
+    transition: left 0.6s ease !important;
+}
+
+:global(.science-confirm-btn:hover::before) {
+    left: 100% !important;
+}
+
+:global(.science-confirm-btn:hover) {
     background: linear-gradient(135deg, #20c997, #17a2b8) !important;
-    transform: translateY(-2px) !important;
-    box-shadow: 0 6px 20px rgba(40, 167, 69, 0.6) !important;
+    transform: translateY(-3px) scale(1.02) !important;
+    box-shadow: 0 8px 25px rgba(40, 167, 69, 0.6) !important;
 }
 
-.science-cancel-btn {
-    background: rgba(255, 255, 255, 0.2) !important;
+:global(.science-cancel-btn) {
+    background: rgba(255, 255, 255, 0.15) !important;
     color: white !important;
-    border: 2px solid rgba(255, 255, 255, 0.3) !important;
+    border: 2px solid rgba(255, 255, 255, 0.4) !important;
     padding: 1rem 2rem !important;
     border-radius: 25px !important;
     font-weight: 600 !important;
@@ -4010,24 +4028,43 @@ export default {
     backdrop-filter: blur(10px) !important;
     cursor: pointer !important;
     min-width: 180px !important;
+    text-transform: none !important;
+    letter-spacing: 0.5px !important;
+    position: relative !important;
+    overflow: hidden !important;
 }
 
-.science-cancel-btn:hover {
-    background: rgba(255, 255, 255, 0.3) !important;
-    border-color: rgba(255, 255, 255, 0.5) !important;
-    transform: translateY(-2px) !important;
-    box-shadow: 0 4px 15px rgba(255, 255, 255, 0.2) !important;
+:global(.science-cancel-btn::before) {
+    content: '' !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: -100% !important;
+    width: 100% !important;
+    height: 100% !important;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent) !important;
+    transition: left 0.6s ease !important;
+}
+
+:global(.science-cancel-btn:hover::before) {
+    left: 100% !important;
+}
+
+:global(.science-cancel-btn:hover) {
+    background: rgba(255, 255, 255, 0.25) !important;
+    border-color: rgba(255, 255, 255, 0.6) !important;
+    transform: translateY(-3px) scale(1.02) !important;
+    box-shadow: 0 6px 20px rgba(255, 255, 255, 0.3) !important;
 }
 
 /* Ensure button text is always visible */
-.science-confirm-btn:focus,
-.science-confirm-btn:active {
+:global(.science-confirm-btn:focus),
+:global(.science-confirm-btn:active) {
     color: white !important;
     outline: none !important;
 }
 
-.science-cancel-btn:focus,
-.science-cancel-btn:active {
+:global(.science-cancel-btn:focus),
+:global(.science-cancel-btn:active) {
     color: white !important;
     outline: none !important;
 }

@@ -23,183 +23,185 @@
     </div>
     <!-- End Transactions Modal -->
 
-<!-- Psychometric Modal Component -->
-<div v-if="modalComponent === 'psychometric-modal'" class="psychometric-modal modal-overlay" @click="closeModal">
-  <div class="transactions-popup" @click.stop>
-    <div class="popup-header">
-      <span>Psychometric Test Results</span>
-      <button class="close-btn" @click="closeModal">×</button>
-    </div>
-    <div class="psychometric-detailed popup-body">
-      <div class="psycho-stats-grid">
-        <div class="psycho-stat-card">
-          <div class="stat-icon">👤</div>
-          <div class="stat-info">
-            <h4>Personality Type</h4>
-            <div class="stat-value">{{ modalData.personality }}</div>
-            <div class="personality-traits">
-              <div v-for="trait in modalData.traits" :key="trait" class="trait-tag">
-                {{ trait }}
-              </div>
-            </div>
-          </div>
+    <!-- Psychometric Modal Component -->
+    <div v-if="modalComponent === 'psychometric-modal'" class="psychometric-modal modal-overlay" @click="closeModal">
+      <div class="transactions-popup" @click.stop>
+        <div class="popup-header">
+          <span>Psychometric Test Results</span>
+          <button class="close-btn" @click="closeModal">×</button>
         </div>
-        <div class="psycho-stat-card">
-          <div class="stat-icon">🎯</div>
-          <div class="stat-info">
-            <h4>Primary Interests</h4>
-          </div>
-        </div>
-        <div class="psycho-stat-card">
-          <div class="stat-icon">🎯</div>
-          <div class="stat-info"> 
-            <h4>Concentration Level</h4>
-            <div class="stat-value">{{ modalData.concentration }}/100</div>
-          </div>
-        </div>
-        <div class="psycho-stat-card">
-          <div class="stat-icon">🧠</div>
-          <div class="stat-info">
-            <h4>Memory Strength</h4>
-            <div class="stat-value">{{ modalData.memory }}/100</div>
-            <div class="memory-types">
-              <div v-for="type in modalData.memoryTypes" :key="type.name" class="memory-type">
-                <span class="memory-emoji">{{ type.emoji }}</span>
-                <span class="memory-name">{{ type.name }}</span>
-                <span class="memory-score">{{ type.score }}/100</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="psycho-extra-info" style="margin-top:2rem;">
-        <div><strong>Taken At:</strong> {{ modalData.taken_at }}</div>
-        <div><strong>Duration:</strong> {{ modalData.duration_seconds }} seconds</div>
-        <div v-if="modalData.feedback"><strong>Feedback:</strong> {{ modalData.feedback }}</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-
-<!-- Recent Tasks Modal Component -->
-<div v-if="modalComponent === 'recent-tasks-modal'" class="recent-tasks-modal modal-overlay" @click="closeModal">
-  <div class="transactions-popup" @click.stop>
-    <div class="popup-header">
-      <span>Recent Tasks</span>
-      <button class="close-btn" @click="closeModal">×</button>
-    </div>
-    <div class="popup-body">
-      <div v-if="!modalData.allTasks || modalData.allTasks.length === 0" class="no-transactions">
-        No recent tasks.
-      </div>
-      <div v-for="task in modalData.allTasks" :key="task.id" class="transaction-item">
-        <div class="transaction-date">{{ task.due_date }}</div>
-        <div class="transaction-desc">{{ task.title }} ({{ task.subject }})</div>
-        <div class="transaction-amount">{{ task.status }}</div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- Emotional Modal Component -->
-<div v-if="modalComponent === 'emotional-modal'" class="emotional-modal modal-overlay"  @click="closeModal">
-  <div class="transactions-popup" style="min-width:700px;text-align: center;align-items: center;" @click.stop>
-    <div class="popup-header">
-      <div>Emotional Insight</div>
-      <button class="close-btn" style="margin-right:10px !important;" @click="closeModal">×</button>
-    </div>
-
-    <div class="popup-body">
-      <!-- Today's Mood Section -->
-      <div class="section-header">
-        <h3>📅 Today's Mood Summary</h3>
-      </div>
-      
-      <div v-if="modalData.weeklyMoods && modalData.weeklyMoods.length > 0" class="mood-section">
-        <div v-for="mood in modalData.weeklyMoods" :key="mood.date + mood.feeling" class="transaction-item mood-item">
-          <div class="transaction-date mood-date">
-            <span class="date-text">{{ mood.date }}</span>
-            <small v-if="mood.messageCount" class="message-count">{{ mood.messageCount }} messages</small>
-          </div>
-          <div class="transaction-desc mood-desc">
-            <strong>{{ mood.feeling }}</strong>
-            <p class="mood-notes">{{ mood.notes }}</p>
-          </div>
-          <div class="transaction-amount mood-emoji">{{ mood.emoji }}</div>
-        </div>
-      </div>
-      
-      <div v-else class="no-data-message">
-        <p>🤔 No mood data available for today</p>
-      </div>
-
-      <!-- Conversation Analysis Section -->
-      <div class="section-header">
-        <h3>💭 Conversations & Messages</h3>
-      </div>
-
-      <div v-if="modalData.conversationTopics && modalData.conversationTopics.length > 0" class="topics-section">
-        <div v-for="topic in modalData.conversationTopics" :key="topic.id" class="transaction-item topic-item">
-       <div class="transaction-date sentiment-badge" :class="getSentimentClass(topic.sentiment)" style="max-width:0px;">
-         <!--     <span class="sentiment-text">{{ getSentimentDisplay(topic.sentiment) }}</span>-->
-          </div> 
-          <div class="transaction-desc topic-desc">
-            <strong>{{ topic.title }}</strong>
-            <p class="topic-summary">{{ topic.summary }}</p>
-            
-            <!-- User Messages Section -->
-            <div v-if="topic.messages && topic.messages.length > 0" class="user-messages">
-              <div class="messages-header">
-                <span class="messages-label">💬 What your child said:</span>
-              </div>
-              <div v-for="(message, index) in topic.messages" :key="index" class="user-message-item">
-                <div class="message-content">
-                  <span class="message-text">"{{ message.text }}"</span>
-                  <div class="message-meta">
-                    <span class="message-mood">{{ moodToEmoji(message.mood) }} {{ message.mood }}</span>
-                    <span class="message-time">{{ formatMessageTime(message.timestamp) }}</span>
+        <div class="psychometric-detailed popup-body">
+          <div class="psycho-stats-grid">
+            <div class="psycho-stat-card">
+              <div class="stat-icon">👤</div>
+              <div class="stat-info">
+                <h4>Personality Type</h4>
+                <div class="stat-value">{{ modalData.personality }}</div>
+                <div class="personality-traits">
+                  <div v-for="trait in modalData.traits" :key="trait" class="trait-tag">
+                    {{ trait }}
                   </div>
                 </div>
               </div>
             </div>
-            
+            <div class="psycho-stat-card">
+              <div class="stat-icon">🎯</div>
+              <div class="stat-info">
+                <h4>Primary Interests</h4>
+              </div>
+            </div>
+            <div class="psycho-stat-card">
+              <div class="stat-icon">🎯</div>
+              <div class="stat-info">
+                <h4>Concentration Level</h4>
+                <div class="stat-value">{{ modalData.concentration }}/100</div>
+              </div>
+            </div>
+            <div class="psycho-stat-card">
+              <div class="stat-icon">🧠</div>
+              <div class="stat-info">
+                <h4>Memory Strength</h4>
+                <div class="stat-value">{{ modalData.memory }}/100</div>
+                <div class="memory-types">
+                  <div v-for="type in modalData.memoryTypes" :key="type.name" class="memory-type">
+                    <span class="memory-emoji">{{ type.emoji }}</span>
+                    <span class="memory-name">{{ type.name }}</span>
+                    <span class="memory-score">{{ type.score }}/100</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <div class="transaction-amount keywords-section">
-            <div class="keywords-container">
-              <span v-for="keyword in topic.keywords" :key="keyword" class="keyword-tag">
-                {{ keyword }}
-              </span>
+          <div class="psycho-extra-info" style="margin-top:2rem;">
+            <div><strong>Taken At:</strong> {{ modalData.taken_at }}</div>
+            <div><strong>Duration:</strong> {{ modalData.duration_seconds }} seconds</div>
+            <div v-if="modalData.feedback"><strong>Feedback:</strong> {{ modalData.feedback }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- Recent Tasks Modal Component -->
+    <div v-if="modalComponent === 'recent-tasks-modal'" class="recent-tasks-modal modal-overlay" @click="closeModal">
+      <div class="transactions-popup" @click.stop>
+        <div class="popup-header">
+          <span>Recent Tasks</span>
+          <button class="close-btn" @click="closeModal">×</button>
+        </div>
+        <div class="popup-body">
+          <div v-if="!modalData.allTasks || modalData.allTasks.length === 0" class="no-transactions">
+            No recent tasks.
+          </div>
+          <div v-for="task in modalData.allTasks" :key="task.id" class="transaction-item">
+            <div class="transaction-date">{{ task.due_date }}</div>
+            <div class="transaction-desc">{{ task.title }} ({{ task.subject }})</div>
+            <div class="transaction-amount">{{ task.status }}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Emotional Modal Component -->
+    <div v-if="modalComponent === 'emotional-modal'" class="emotional-modal modal-overlay" @click="closeModal">
+      <div class="transactions-popup" style="min-width:700px;text-align: center;align-items: center;" @click.stop>
+        <div class="popup-header">
+          <div>Emotional Insight</div>
+          <button class="close-btn" style="margin-right:10px !important;" @click="closeModal">×</button>
+        </div>
+
+        <div class="popup-body">
+          <!-- Today's Mood Section -->
+          <div class="section-header">
+            <h3>📅 Today's Mood Summary</h3>
+          </div>
+
+          <div v-if="modalData.weeklyMoods && modalData.weeklyMoods.length > 0" class="mood-section">
+            <div v-for="mood in modalData.weeklyMoods" :key="mood.date + mood.feeling"
+              class="transaction-item mood-item">
+              <div class="transaction-date mood-date">
+                <span class="date-text">{{ mood.date }}</span>
+                <small v-if="mood.messageCount" class="message-count">{{ mood.messageCount }} messages</small>
+              </div>
+              <div class="transaction-desc mood-desc">
+                <strong>{{ mood.feeling }}</strong>
+                <p class="mood-notes">{{ mood.notes }}</p>
+              </div>
+              <div class="transaction-amount mood-emoji">{{ mood.emoji }}</div>
+            </div>
+          </div>
+
+          <div v-else class="no-data-message">
+            <p>🤔 No mood data available for today</p>
+          </div>
+
+          <!-- Conversation Analysis Section -->
+          <div class="section-header">
+            <h3>💭 Conversations & Messages</h3>
+          </div>
+
+          <div v-if="modalData.conversationTopics && modalData.conversationTopics.length > 0" class="topics-section">
+            <div v-for="topic in modalData.conversationTopics" :key="topic.id" class="transaction-item topic-item">
+              <div class="transaction-date sentiment-badge" :class="getSentimentClass(topic.sentiment)"
+                style="max-width:0px;">
+                <!--     <span class="sentiment-text">{{ getSentimentDisplay(topic.sentiment) }}</span>-->
+              </div>
+              <div class="transaction-desc topic-desc">
+                <strong>{{ topic.title }}</strong>
+                <p class="topic-summary">{{ topic.summary }}</p>
+
+                <!-- User Messages Section -->
+                <div v-if="topic.messages && topic.messages.length > 0" class="user-messages">
+                  <div class="messages-header">
+                    <span class="messages-label">💬 What your child said:</span>
+                  </div>
+                  <div v-for="(message, index) in topic.messages" :key="index" class="user-message-item">
+                    <div class="message-content">
+                      <span class="message-text">"{{ message.text }}"</span>
+                      <div class="message-meta">
+                        <span class="message-mood">{{ moodToEmoji(message.mood) }} {{ message.mood }}</span>
+                        <span class="message-time">{{ formatMessageTime(message.timestamp) }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+              <div class="transaction-amount keywords-section">
+                <div class="keywords-container">
+                  <span v-for="keyword in topic.keywords" :key="keyword" class="keyword-tag">
+                    {{ keyword }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-else class="no-data-message">
+            <p>💬 No conversation analysis available</p>
+          </div>
+
+          <!-- Tips Section -->
+          <div class="section-header">
+            <h3>💡 Insights</h3>
+          </div>
+
+          <div class="insights-section">
+            <div class="insight-card">
+              <p v-if="getMainSentiment() === 'positive'" class="insight-text positive">
+                🌟 Your child seems to be in a positive mood today! Keep encouraging open communication.
+              </p>
+              <p v-else-if="getMainSentiment() === 'negative'" class="insight-text negative">
+                🤗 Your child might need some extra support today. Consider having a gentle check-in conversation.
+              </p>
+              <p v-else class="insight-text neutral">
+                😊 Your child's mood appears balanced today. Regular check-ins help maintain emotional well-being.
+              </p>
             </div>
           </div>
         </div>
       </div>
-      
-      <div v-else class="no-data-message">
-        <p>💬 No conversation analysis available</p>
-      </div>
-
-      <!-- Tips Section -->
-      <div class="section-header">
-        <h3>💡 Insights</h3>
-      </div>
-      
-      <div class="insights-section">
-        <div class="insight-card">
-          <p v-if="getMainSentiment() === 'positive'" class="insight-text positive">
-            🌟 Your child seems to be in a positive mood today! Keep encouraging open communication.
-          </p>
-          <p v-else-if="getMainSentiment() === 'negative'" class="insight-text negative">
-            🤗 Your child might need some extra support today. Consider having a gentle check-in conversation.
-          </p>
-          <p v-else class="insight-text neutral">
-            😊 Your child's mood appears balanced today. Regular check-ins help maintain emotional well-being.
-          </p>
-        </div>
-      </div>
     </div>
-  </div>
-</div>
 
 
 
@@ -211,23 +213,21 @@
             <span class="logo-icon">👨‍👩‍👧‍👦</span>
             <div class="logo-text">
               <h1>Parent Dashboard</h1>
-              <span class="subtitle">Progress Monitor</span>
+              <span class="subtitle" v-if="childName">Monitoring {{ childName }}'s Progress</span>
+              <span class="subtitle" v-else>Progress Monitor</span>
             </div>
           </div>
           <div class="header-actions">
-            <div class="date-selector">
-              <select v-model="selectedPeriod" @change="updatePeriod">
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-              </select>
+            <div class="child-info" v-if="childName">
+              <span class="child-label">👶</span>
+              <span class="child-name">{{ childName }}</span>
             </div>
             <button @click="exportData" class="export-btn">
-              <i class="fas fa-download"></i>
+              <span class="btn-icon">📥</span>
               Export
             </button>
             <button @click="logout" class="logout-btn">
-              <i class="fas fa-sign-out-alt"></i>
+              <span class="btn-icon">🚪</span>
               Logout
             </button>
           </div>
@@ -298,11 +298,7 @@
                   <div class="health-emoji">💪</div>
                   <div class="health-label">Completed Tasks</div>
                   <div class="health-value stacked-tasks">
-                    <span
-                      v-for="(task, idx) in healthStats.completedTaskNames"
-                      :key="idx"
-                      class="completed-task-name"
-                    >
+                    <span v-for="(task, idx) in healthStats.completedTaskNames" :key="idx" class="completed-task-name">
                       {{ task }}
                     </span>
                   </div>
@@ -361,22 +357,14 @@
             </div>
             <div class="card-content">
               <div class="doodle-grid">
-                <div 
-                  v-for="(doodle, idx) in doodleStats.doodles.slice(0, 4)" 
-                  :key="idx" 
-                  class="doodle-box"
-                  @click.stop="viewDoodle(doodle)"
-                >
+                <div v-for="(doodle, idx) in doodleStats.doodles.slice(0, 4)" :key="idx" class="doodle-box"
+                  @click.stop="viewDoodle(doodle)">
                   <div class="doodle-canvas" :style="{ backgroundColor: doodle.color }">
-                      <div class="doodle-preview-content">
-                        <img 
-                          v-if="doodle.file_exists && doodle.file_path" 
-                          :src="getDoodleImageUrl(doodle.file_path)" 
-                          alt="Doodle" 
-                          style="max-width: 100%; max-height: 70px; border-radius: 8px;"
-                        />
-                        <span v-else>{{ doodle.emoji || '🎨' }}</span>
-                      </div>
+                    <div class="doodle-preview-content">
+                      <img v-if="doodle.file_exists && doodle.file_path" :src="getDoodleImageUrl(doodle.file_path)"
+                        alt="Doodle" style="max-width: 100%; max-height: 70px; border-radius: 8px;" />
+                      <span v-else>{{ doodle.emoji || '🎨' }}</span>
+                    </div>
                   </div>
                   <div class="doodle-footer">
                     <div class="doodle-name">{{ doodle.title }}</div>
@@ -388,92 +376,84 @@
           </div>
 
           <!-- Task Tracker -->
-<div class="feature-card task-card">
-  <div class="card-header">
-    <div class="card-icon">🎯</div>
-    <h3>Task Tracker</h3>
-  </div>
-  <div class="card-content">
-    <div class="task-calendar">
-      <div class="calendar-header">
-        <span class="calendar-month">{{ getCurrentMonth() }}</span>
-      </div>
-      <div class="calendar-grid">
-        <div 
-          v-for="day in taskStats.calendar || []" 
-          :key="day.date" 
-          class="calendar-day"
-          :class="{ 'today': day.isToday, 'has-tasks': day.taskCount > 0 }"
-        >
-          <div class="day-number">{{ day.day }}</div>
-          <div class="day-tasks" v-if="day.taskCount > 0">
-            {{ day.completedTasks }}/{{ day.taskCount }}
+          <div class="feature-card task-card">
+            <div class="card-header">
+              <div class="card-icon">🎯</div>
+              <h3>Task Tracker</h3>
+            </div>
+            <div class="card-content">
+              <div class="task-calendar">
+                <div class="calendar-header">
+                  <span class="calendar-month">{{ getCurrentMonth() }}</span>
+                </div>
+                <div class="calendar-grid">
+                  <div v-for="day in taskStats.calendar || []" :key="day.date" class="calendar-day"
+                    :class="{ 'today': day.isToday, 'has-tasks': day.taskCount > 0 }">
+                    <div class="day-number">{{ day.day }}</div>
+                    <div class="day-tasks" v-if="day.taskCount > 0">
+                      {{ day.completedTasks }}/{{ day.taskCount }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div class="recent-tasks">
+                <div v-for="task in taskStats.recent || []" :key="task.id" class="recent-task-item"
+                  @click="showRecentTasksModal" style="cursor:pointer;">
+                  <div class="task-name">{{ task.title }}</div>
+                  <div class="task-session">{{ task.status }}</div>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
-    </div>
-    <div class="recent-tasks">
-  <div 
-    v-for="task in taskStats.recent || []" 
-    :key="task.id" 
-    class="recent-task-item"
-    @click="showRecentTasksModal"
-    style="cursor:pointer;"
-  >
-    <div class="task-name">{{ task.title }}</div>
-    <div class="task-session">{{ task.status }}</div>
-  </div>
-</div>
-  </div>
-</div>
 
           <!-- Emotional Insights -->
           <!-- filepath: frontend/src/views/ParentDashboard.vue -->
-<!-- Emotional Insights -->
-<div class="feature-card emotional-card" @click="showEmotionalModal">
-  <div class="card-header">
-    <div class="card-icon">💭</div>
-    <h3>Emotional Insights</h3>
-  </div>
-  <div class="card-content">
-    <div class="mood-tracker">
-      <div class="mood-chart">
-        <template v-if="emotionalInsights.moodTrends && emotionalInsights.moodTrends.length">
-          <div v-for="mood in emotionalInsights.moodTrends" :key="mood.date" class="mood-day">
-            <div class="mood-emoji" :title="mood.feeling">{{ mood.emoji }}</div>
-            <div class="mood-date">{{ mood.date }}</div>
-          </div>
-        </template>
-        <template v-else>
-          <div class="mood-day">
-            <div class="mood-emoji" title="No data">🙂</div>
-            <div class="mood-date">No data</div>
-          </div>
-        </template>
-      </div>
-    </div>
-    <div class="conversation-summary">
-      <div class="summary-cards">
-        <template v-if="emotionalInsights.summaries && emotionalInsights.summaries.length">
-          <div v-for="summary in emotionalInsights.summaries" :key="summary.id" class="summary-card">
-            <div class="summary-topic">{{ summary.topic }}</div>
-            <div class="summary-text">{{ summary.text }}</div>
-            <div class="summary-sentiment" :class="[summary.sentiment, { 'highlighted': summary.sentiment === 'positive' || summary.sentiment === 'neutral' }]">
-              {{ summary.sentiment }}
+          <!-- Emotional Insights -->
+          <div class="feature-card emotional-card" @click="showEmotionalModal">
+            <div class="card-header">
+              <div class="card-icon">💭</div>
+              <h3>Emotional Insights</h3>
+            </div>
+            <div class="card-content">
+              <div class="mood-tracker">
+                <div class="mood-chart">
+                  <template v-if="emotionalInsights.moodTrends && emotionalInsights.moodTrends.length">
+                    <div v-for="mood in emotionalInsights.moodTrends" :key="mood.date" class="mood-day">
+                      <div class="mood-emoji" :title="mood.feeling">{{ mood.emoji }}</div>
+                      <div class="mood-date">{{ mood.date }}</div>
+                    </div>
+                  </template>
+                  <template v-else>
+                    <div class="mood-day">
+                      <div class="mood-emoji" title="No data">🙂</div>
+                      <div class="mood-date">No data</div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+              <div class="conversation-summary">
+                <div class="summary-cards">
+                  <template v-if="emotionalInsights.summaries && emotionalInsights.summaries.length">
+                    <div v-for="summary in emotionalInsights.summaries" :key="summary.id" class="summary-card">
+                      <div class="summary-topic">{{ summary.topic }}</div>
+                      <div class="summary-text">{{ summary.text }}</div>
+                      <div class="summary-sentiment"
+                        :class="[summary.sentiment, { 'highlighted': summary.sentiment === 'positive' || summary.sentiment === 'neutral' }]">
+                        {{ summary.sentiment }}
+                      </div>
+                    </div>
+                  </template>
+                  <template v-else>
+                    <div class="summary-card">
+                      <div class="summary-topic">Overall Mood</div>
+                      <div class="summary-text">No summary available.</div>
+                      <div class="summary-sentiment neutral highlighted">neutral</div>
+                    </div>
+                  </template>
+                </div>
+              </div>
             </div>
           </div>
-        </template>
-        <template v-else>
-          <div class="summary-card">
-            <div class="summary-topic">Overall Mood</div>
-            <div class="summary-text">No summary available.</div>
-            <div class="summary-sentiment neutral highlighted">neutral</div>
-          </div>
-        </template>
-      </div>
-    </div>
-  </div>
-</div>
 
           <!-- Skill Adventures -->
           <div class="feature-card skills-card" @click="showSkillsModal">
@@ -509,7 +489,7 @@
     </main>
 
     <!-- Modals -->
- 
+
     <div v-if="showModal" class="modal-overlay" @click="closeModal">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
@@ -520,33 +500,29 @@
           <component :is="modalComponent" :data="modalData" />
         </div>
       </div>
-    </div>  
+    </div>
 
 
     <!-- Doodling Modal Component -->
     <div v-if="modalComponent === 'doodling-modal'" class="doodling-modal modal-overlay" @click="closeModal">
       <div class="doodling-popup" @click.stop>
-      <div class="popup-header">
-        <span>Doodle View</span>
-        <button class="close-btn" @click="closeModal">×</button>
-      </div>
+        <div class="popup-header">
+          <span>Doodle View</span>
+          <button class="close-btn" @click="closeModal">×</button>
+        </div>
         <div class="doodle-gallery">
           <div v-for="(doodle, idx) in modalData.allDoodles" :key="idx" class="doodle-gallery-item">
             <div class="doodle-canvas-large" :style="{ backgroundColor: doodle.color }">
               <div class="doodle-artwork">
-                <img 
-                  v-if="doodle.file_exists && doodle.file_path" 
-                  :src="getDoodleImageUrl(doodle.file_path)" 
-                  alt="Doodle" 
-                  style="max-width: 100%; max-height: 250px; border-radius: 12px;"
-                />
+                <img v-if="doodle.file_exists && doodle.file_path" :src="getDoodleImageUrl(doodle.file_path)"
+                  alt="Doodle" style="max-width: 100%; max-height: 250px; border-radius: 12px;" />
                 <span v-else>{{ doodle.emoji || '🎨' }}</span>
               </div>
             </div>
             <div class="doodle-details">
               <h4>{{ doodle.title }}</h4>
               <p class="doodle-date">{{ doodle.date }}</p>
-              
+
               <div class="doodle-tags">
                 <span v-for="tag in doodle.tags" :key="tag" class="doodle-tag">{{ tag }}</span>
               </div>
@@ -572,7 +548,8 @@
               </div>
             </div>
             <div class="calendar-dates">
-              <div v-for="date in getDetailedCalendarDays()" :key="date.date" class="calendar-date" :class="{ 'today': date.isToday, 'has-tasks': date.taskCount > 0 }">
+              <div v-for="date in getDetailedCalendarDays()" :key="date.date" class="calendar-date"
+                :class="{ 'today': date.isToday, 'has-tasks': date.taskCount > 0 }">
                 <div class="date-number">{{ date.day }}</div>
                 <div class="date-tasks" v-if="date.taskCount > 0">
                   <div class="task-indicator" :class="{ 'completed': date.completedTasks === date.taskCount }">
@@ -623,7 +600,8 @@
                   <span class="progress-percentage">{{ skill.progress }}%</span>
                 </div>
                 <div class="skill-milestones">
-                  <div v-for="milestone in skill.milestones" :key="milestone.id" class="milestone" :class="{ 'completed': milestone.completed }">
+                  <div v-for="milestone in skill.milestones" :key="milestone.id" class="milestone"
+                    :class="{ 'completed': milestone.completed }">
                     <span class="milestone-icon">{{ milestone.completed ? '✅' : '⏳' }}</span>
                     <span class="milestone-text">{{ milestone.text }}</span>
                   </div>
@@ -644,7 +622,6 @@ import { apiService } from '@/services/api' // adjust path as needed
 
 // Reactive State
 
-const selectedPeriod = ref('daily')
 const showModal = ref(false)
 const modalTitle = ref('')
 const modalComponent = ref('')
@@ -705,17 +682,17 @@ const fetchPsychometricData = async () => {
         traits: Array.isArray(r.personality_breakdown?.traits) ? r.personality_breakdown.traits : [],
         interestsList: Array.isArray(r.detailed_scores?.interests)
           ? r.detailed_scores.interests.map(i => ({
-              name: i.name,
-              emoji: i.emoji || '',
-              level: i.level || 0
-            }))
+            name: i.name,
+            emoji: i.emoji || '',
+            level: i.level || 0
+          }))
           : [],
         memoryTypes: Array.isArray(r.detailed_scores?.memory_types)
           ? r.detailed_scores.memory_types.map(m => ({
-              name: m.name,
-              emoji: m.emoji || '',
-              score: m.score || 0
-            }))
+            name: m.name,
+            emoji: m.emoji || '',
+            score: m.score || 0
+          }))
           : [],
         taken_at: r.taken_at || '',
         duration_seconds: r.duration_seconds || 0,
@@ -810,6 +787,7 @@ const skillProgress = ref([
 
 const financeStats = ref({ savings: 0, recent: [] })
 const childId = ref(null)
+const childName = ref('')
 
 // Get the childId for this parent from ParentChild table
 const fetchChildId = async () => {
@@ -818,11 +796,30 @@ const fetchChildId = async () => {
     console.log('apiService.get(/api/parentchild) result:', res)
     const parentId = userUtils.getCurrentUser()?.id
     const link = Array.isArray(res.links) ? res.links.find(l => l.parent_id === parentId) : null
-    if (link) childId.value = link.child_id
+    if (link) {
+      childId.value = link.child_id
+      // Fetch child's name after getting the ID
+      await fetchChildName()
+    }
     console.log('Current parentId:', parentId)
     console.log('Links:', res.links)
   } catch (e) {
     console.error('Failed to fetch childId', e)
+  }
+}
+
+// Fetch child's name from user profile
+const fetchChildName = async () => {
+  if (!childId.value) return
+  try {
+    const res = await apiService.get(`/api/user/profile/${childId.value}`)
+    if (res.success && res.user) {
+      childName.value = res.user.username || res.user.name || 'Child'
+      console.log('Child name fetched:', childName.value)
+    }
+  } catch (e) {
+    console.error('Failed to fetch child name', e)
+    childName.value = 'Child' // Fallback name
   }
 }
 
@@ -883,7 +880,7 @@ const fetchSkillProgress = async () => {
     const res = await apiService.getChildSkillProgress(childId.value)
     if (res.success && res.skill_progress) {
       const skillData = res.skill_progress
-      
+
       // Convert skill data to array format with all modules
       skillProgress.value = Object.keys(skillData).map((skillName, index) => ({
         id: index + 1,
@@ -893,7 +890,7 @@ const fetchSkillProgress = async () => {
         level: Math.floor((skillData[skillName].progress || 0) / 50) + 1,
         milestones: []
       }))
-      
+
       console.log('Skill progress fetched:', skillProgress.value)
     }
   } catch (e) {
@@ -945,17 +942,17 @@ const fetchHealthStats = async () => {
 // Helper function to format message timestamps
 const formatMessageTime = (timestamp) => {
   if (!timestamp) return 'Unknown time'
-  
+
   const date = new Date(timestamp)
   const now = new Date()
   const diffInMinutes = Math.floor((now - date) / (1000 * 60))
-  
+
   if (diffInMinutes < 1) return 'Just now'
   if (diffInMinutes < 60) return `${diffInMinutes}m ago`
-  
+
   const diffInHours = Math.floor(diffInMinutes / 60)
   if (diffInHours < 24) return `${diffInHours}h ago`
-  
+
   const options = { hour: '2-digit', minute: '2-digit', hour12: true }
   return date.toLocaleTimeString('en-US', options)
 }
@@ -969,7 +966,7 @@ const getSentimentClass = (sentiment) => {
 const getSentimentDisplay = (sentiment) => {
   const sentimentMap = {
     positive: '😊 Positive',
-    negative: '😔 Needs Attention', 
+    negative: '😔 Needs Attention',
     neutral: '😐 Neutral'
   }
   return sentimentMap[sentiment] || '😐 Neutral'
@@ -985,7 +982,7 @@ const getMainSentiment = () => {
 // Enhanced API error handling
 const handleApiError = (error, context = 'emotional insights') => {
   console.error(`Error fetching ${context}:`, error)
-  
+
   return {
     weeklyMoods: [
       {
@@ -1017,7 +1014,7 @@ const fetchEmotionalInsights = async () => {
       //new
       const moodEntries = []
       const conversationTopics = []
-      
+
       if (res.mood_groups && Object.keys(res.mood_groups).length > 0) {
         // Create entries for each mood group
         Object.entries(res.mood_groups).forEach(([mood, messages], index) => {
@@ -1029,7 +1026,7 @@ const fetchEmotionalInsights = async () => {
             notes: res.overall_mood || 'Mood analysis based on conversations',
             messageCount: messages.length
           })
-          
+
           // Add conversation topic for each mood with associated messages
           conversationTopics.push({
             id: index + 1,
@@ -1053,7 +1050,7 @@ const fetchEmotionalInsights = async () => {
           notes: res.overall_mood || 'Latest mood detected',
           messageCount: res.total_messages || 0
         })
-        
+
         if (res.latest_message) {
           conversationTopics.push({
             id: 1,
@@ -1108,7 +1105,7 @@ const fetchEmotionalInsights = async () => {
           }
         ]
       }
-    }else {
+    } else {
       // Handle empty or failed response
       emotionalInsights.value = {
         weeklyMoods: [
@@ -1162,9 +1159,9 @@ const fetchEmotionalInsights = async () => {
 // Helper function to format date
 function formatDate(dateStr) {
   const date = new Date(dateStr)
-  const options = { 
-    year: 'numeric', 
-    month: 'short', 
+  const options = {
+    year: 'numeric',
+    month: 'short',
     day: 'numeric',
     weekday: 'short'
   }
@@ -1237,7 +1234,7 @@ const showProgressModal = () => openModal('Overall Progress', 'progress-modal', 
 const showScreenTimeModal = () => openModal('Screen Time', 'screentime-modal', screenTimeData.value)
 const showAchievementModal = () => openModal('Achievement', 'achievement-modal', todayAchievement.value)
 const showFinanceModal = () => openModal('Recent Transactions', 'transactions-modal', financeStats.value)
-const showHealthModal = () => openModal('Health', 'health-modal', {...healthStats.value, completedTaskNames: healthStats.value.completedTaskNames});
+const showHealthModal = () => openModal('Health', 'health-modal', { ...healthStats.value, completedTaskNames: healthStats.value.completedTaskNames });
 const showPsychometricModal = () => openModal('Psychometric', 'psychometric-modal', psychometricData.value)
 const showDoodlingModal = () => openModal('Doodling', 'doodling-modal', doodleStats.value)
 const showTaskModal = () => openModal('Tasks', 'task-modal', taskStats.value)
@@ -1253,9 +1250,6 @@ const logout = () => {
   console.log('Logged out')
 }
 
-const updatePeriod = () => {
-  console.log('Period changed:', selectedPeriod.value)
-}
 const exportData = () => {
   console.log('Exporting data...')
 }
@@ -1271,10 +1265,10 @@ const exportData = () => {
 }
 
 .parent-dashboard {
-    min-height: 100vh;
-    background: linear-gradient(135deg, #31417A 0%, #667eea 100%);
-    position: relative;
-    font-family: 'Merriweather', serif;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #31417A 0%, #667eea 100%);
+  position: relative;
+  font-family: 'Merriweather', serif;
 }
 
 /* Header */
@@ -1312,8 +1306,15 @@ const exportData = () => {
 }
 
 @keyframes sparkle {
-  0%, 100% { transform: scale(1); }
-  50% { transform: scale(1.1); }
+
+  0%,
+  100% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.1);
+  }
 }
 
 .logo-text h1 {
@@ -1383,6 +1384,29 @@ const exportData = () => {
   gap: 15px;
 }
 
+.child-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  padding: 8px 16px;
+  border-radius: 20px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.child-label {
+  font-size: 1.2rem;
+}
+
+.child-name {
+  color: white;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
 .date-selector select {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
@@ -1399,33 +1423,74 @@ const exportData = () => {
   border-color: #ffd93d;
 }
 
-.export-btn, .logout-btn {
-  background: rgba(255, 255, 255, 0.1);
+.export-btn,
+.logout-btn {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05));
   border: 1px solid rgba(255, 255, 255, 0.2);
   color: white;
-  padding: 10px 20px;
-  border-radius: 10px;
+  padding: 12px 18px;
+  border-radius: 12px;
   cursor: pointer;
   font-size: 0.9rem;
+  font-weight: 500;
   display: flex;
   align-items: center;
   gap: 8px;
   transition: all 0.3s ease;
-  backdrop-filter: blur(5px);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
 }
 
-.export-btn:hover, .logout-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
+.export-btn:hover,
+.logout-btn:hover {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.25), rgba(255, 255, 255, 0.1));
   transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.export-btn {
+  background: linear-gradient(135deg, rgba(0, 123, 255, 0.2), rgba(0, 123, 255, 0.1));
+  border-color: rgba(0, 123, 255, 0.3);
+}
+
+.export-btn:hover {
+  background: linear-gradient(135deg, rgba(0, 123, 255, 0.3), rgba(0, 123, 255, 0.15));
+  border-color: rgba(0, 123, 255, 0.4);
 }
 
 .logout-btn {
-  background: rgba(255, 107, 107, 0.2);
+  background: linear-gradient(135deg, rgba(255, 107, 107, 0.2), rgba(255, 107, 107, 0.1));
   border-color: rgba(255, 107, 107, 0.3);
 }
 
 .logout-btn:hover {
-  background: rgba(255, 107, 107, 0.3);
+  background: linear-gradient(135deg, rgba(255, 107, 107, 0.3), rgba(255, 107, 107, 0.15));
+  border-color: rgba(255, 107, 107, 0.4);
+}
+
+.btn-icon {
+  font-size: 1.1rem;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.export-btn::before,
+.logout-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  transition: left 0.6s ease;
+}
+
+.export-btn:hover::before,
+.logout-btn:hover::before {
+  left: 100%;
 }
 
 /* =========================
@@ -1786,7 +1851,7 @@ const exportData = () => {
   border-radius: 18px;
   max-width: 400px;
   width: 90vw;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   padding: 0;
   position: relative;
   animation: fadeIn 0.2s;
@@ -1796,7 +1861,10 @@ const exportData = () => {
 
 .doodling-modal.modal-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: rgba(30, 30, 30, 0.5);
   z-index: 9999;
   display: flex;
@@ -1841,6 +1909,7 @@ const exportData = () => {
   margin-bottom: 0.2rem;
   border: 1px solid #e0e0e0;
 }
+
 .doodle-canvas {
   height: 80px;
   display: flex;
@@ -2053,7 +2122,10 @@ const exportData = () => {
 
 .transactions-modal.modal-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: rgba(30, 30, 30, 0.5);
   z-index: 9999;
   display: flex;
@@ -2063,7 +2135,10 @@ const exportData = () => {
 
 .psychometric-modal.modal-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: rgba(30, 30, 30, 0.5);
   z-index: 9999;
   display: flex;
@@ -2073,16 +2148,23 @@ const exportData = () => {
 
 .recent-tasks-modal.modal-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: rgba(30, 30, 30, 0.5);
   z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
 }
+
 .emotional-modal.modal-overlay {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   background: rgba(30, 30, 30, 0.5);
   z-index: 9999;
   display: flex;
@@ -2096,7 +2178,7 @@ const exportData = () => {
   border-radius: 18px;
   max-width: 400px;
   width: 90vw;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   padding: 0;
   position: relative;
   animation: fadeIn 0.2s;
@@ -2122,6 +2204,7 @@ const exportData = () => {
   cursor: pointer;
   transition: color 0.2s;
 }
+
 .close-btn:hover {
   color: #ff5252;
 }
@@ -2159,13 +2242,36 @@ const exportData = () => {
   border-left-color: #ff5252;
 }
 
-.transaction-date { opacity: 0.8; font-size: 0.9rem; }
-.transaction-desc { font-weight: bold; }
-.transaction-amount { font-weight: bold; font-size: 1.1rem; }
-.no-transactions { color: #888; text-align: center; padding: 1.5rem 0; }
+.transaction-date {
+  opacity: 0.8;
+  font-size: 0.9rem;
+}
+
+.transaction-desc {
+  font-weight: bold;
+}
+
+.transaction-amount {
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.no-transactions {
+  color: #888;
+  text-align: center;
+  padding: 1.5rem 0;
+}
+
 @keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.95);}
-  to { opacity: 1; transform: scale(1);}
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 /* Skills Card */
@@ -2285,10 +2391,23 @@ const exportData = () => {
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0px) rotate(0deg); }
-  25% { transform: translateY(-20px) rotate(90deg); }
-  50% { transform: translateY(-10px) rotate(180deg); }
-  75% { transform: translateY(-15px) rotate(270deg); }
+
+  0%,
+  100% {
+    transform: translateY(0px) rotate(0deg);
+  }
+
+  25% {
+    transform: translateY(-20px) rotate(90deg);
+  }
+
+  50% {
+    transform: translateY(-10px) rotate(180deg);
+  }
+
+  75% {
+    transform: translateY(-15px) rotate(270deg);
+  }
 }
 
 /* =========================
@@ -2305,23 +2424,50 @@ const exportData = () => {
     flex-direction: column;
     text-align: center;
   }
-  
+
+  .header-actions {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .export-btn,
+  .logout-btn {
+    padding: 10px 16px;
+    font-size: 0.85rem;
+    min-width: 120px;
+    justify-content: center;
+  }
+
+  .child-info {
+    order: -1;
+    margin-bottom: 10px;
+    padding: 10px 20px;
+    border-radius: 25px;
+  }
+
+  .child-name {
+    font-size: 1rem;
+    font-weight: 700;
+  }
+
   .overview-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .main-features-grid {
     grid-template-columns: 1fr;
   }
-  
-  .health-grid, .psychometric-grid, .doodle-grid {
+
+  .health-grid,
+  .psychometric-grid,
+  .doodle-grid {
     grid-template-columns: 1fr;
   }
-  
+
   .calendar-grid {
     grid-template-columns: repeat(3, 1fr);
   }
-  
+
   .mood-chart {
     flex-wrap: wrap;
     gap: 10px;
@@ -2332,21 +2478,34 @@ const exportData = () => {
   .container {
     padding: 0 15px;
   }
-  
+
   .feature-card {
     min-height: auto;
     padding: 20px;
   }
-  
+
   .logo-text h1 {
     font-size: 1.5rem;
   }
-  
+
   .header-actions {
     flex-direction: column;
     gap: 10px;
   }
+
+  .export-btn,
+  .logout-btn {
+    width: 100%;
+    max-width: 200px;
+    padding: 12px 16px;
+    justify-content: center;
+  }
+
+  .date-selector {
+    order: -1;
+  }
 }
+
 .emotional-popup {
   max-width: 80%;
   max-height: 80vh;
@@ -2366,7 +2525,8 @@ const exportData = () => {
   color: #2c3e50;
 }
 
-.mood-section, .topics-section {
+.mood-section,
+.topics-section {
   margin-bottom: 20px;
 }
 
@@ -2573,26 +2733,33 @@ const exportData = () => {
     margin: 10px;
     max-width: calc(100vw - 20px);
   }
-  
+
   .keywords-container {
     justify-content: flex-start;
   }
-  
+
   .transaction-item {
     flex-direction: column;
     gap: 10px;
   }
-  
+
   .mood-emoji {
     text-align: left;
   }
 }
+
 .modal-content {
-  width: 800px; /* or your desired width */
-  max-width: 95vw; /* for responsiveness */
-  background: #fff; /* or your modal background */
-  border-radius: 12px; /* optional */
-  padding: 2rem;      /* optional */
-  box-shadow: 0 2px 16px rgba(0,0,0,0.2); /* optional */
+  width: 800px;
+  /* or your desired width */
+  max-width: 95vw;
+  /* for responsiveness */
+  background: #fff;
+  /* or your modal background */
+  border-radius: 12px;
+  /* optional */
+  padding: 2rem;
+  /* optional */
+  box-shadow: 0 2px 16px rgba(0, 0, 0, 0.2);
+  /* optional */
 }
 </style>

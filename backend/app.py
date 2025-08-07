@@ -2792,11 +2792,17 @@ def get_child_skill_progress(user_id):
                 ).all()
                 
                 if science_records:
-                    # Calculate average progress for all science submodules
-                    total_progress = sum(record.progress for record in science_records)
-                    avg_progress = total_progress / len(science_records)
+                    # Calculate progress based on submodule completion using progress weights
+                    total_weight_completed = 0
+                    expected_submodules = SUBMODULE_MAPPING.get('science_explorer', {})
+                    
+                    for record in science_records:
+                        if record.completed and record.submodule_name in expected_submodules:
+                            submodule_info = expected_submodules[record.submodule_name]
+                            total_weight_completed += submodule_info['progress_weight']
+                    
                     skill_progress[display_name] = {
-                        'progress': avg_progress,
+                        'progress': round(total_weight_completed, 1),
                         'icon': module_info['icon']
                     }
                 else:
@@ -2813,11 +2819,17 @@ def get_child_skill_progress(user_id):
                 ).all()
                 
                 if safety_records:
-                    # Calculate average progress for all safety submodules
-                    total_progress = sum(record.progress for record in safety_records)
-                    avg_progress = total_progress / len(safety_records)
+                    # Calculate progress based on submodule completion using progress weights
+                    total_weight_completed = 0
+                    expected_submodules = SUBMODULE_MAPPING.get('safety_measures', {})
+                    
+                    for record in safety_records:
+                        if record.completed and record.submodule_name in expected_submodules:
+                            submodule_info = expected_submodules[record.submodule_name]
+                            total_weight_completed += submodule_info['progress_weight']
+                    
                     skill_progress[display_name] = {
-                        'progress': avg_progress,
+                        'progress': round(total_weight_completed, 1),
                         'icon': module_info['icon']
                     }
                 else:
@@ -2833,10 +2845,10 @@ def get_child_skill_progress(user_id):
                     module_name=module_key
                 ).first()
                 
-                if module_progress:
-                    progress_value = module_progress.progress if module_progress.completed else 0
+                if module_progress and module_progress.completed:
+                    # For single modules, show 100% if completed, 0% otherwise
                     skill_progress[display_name] = {
-                        'progress': progress_value,
+                        'progress': 100,
                         'icon': module_info['icon']
                     }
                 else:
