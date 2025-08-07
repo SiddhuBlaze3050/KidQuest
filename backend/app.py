@@ -2652,6 +2652,207 @@ def log_screen_time():
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/screen-time/<int:user_id>', methods=['GET'])
+@jwt_required()
+def get_screen_time(user_id):
+    """Get screen time data for a user"""
+    try:
+        today = date.today()
+        
+        # Get today's screen time
+        today_record = ScreenTime.query.filter_by(user_id=user_id, date=today).first()
+        today_hours = today_record.hours if today_record else 0
+        
+        # Get this week's average (last 7 days)
+        from datetime import timedelta
+        week_ago = today - timedelta(days=7)
+        week_records = ScreenTime.query.filter(
+            ScreenTime.user_id == user_id,
+            ScreenTime.date >= week_ago,
+            ScreenTime.date <= today
+        ).all()
+        
+        week_hours = sum(record.hours for record in week_records) if week_records else 0
+        week_average = week_hours / 7  # Daily average for the week
+        
+        # Convert to hours and minutes
+        def hours_to_display(hours):
+            if hours < 1:
+                minutes = int(hours * 60)
+                return f"{minutes}m"
+            else:
+                h = int(hours)
+                m = int((hours - h) * 60)
+                return f"{h}h {m}m" if m > 0 else f"{h}h"
+        
+        # Determine status
+        status = "Within limits"
+        if today_hours > 3:  # More than 3 hours
+            status = "Above recommended"
+        elif today_hours > 5:  # More than 5 hours
+            status = "Excessive usage"
+        
+        return jsonify({
+            'success': True,
+            'screen_time': {
+                'today_hours': today_hours,
+                'today_display': hours_to_display(today_hours),
+                'week_average_hours': week_average,
+                'week_average_display': hours_to_display(week_average),
+                'status': status,
+                'total_days_tracked': len(week_records)
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/child/progress/<int:user_id>', methods=['GET'])
+@jwt_required()
+def get_child_progress(user_id):
+    """Calculate overall progress for a child based on completed activities"""
+    try:
+        # Get module progress
+        module_progress = UserModuleProgress.query.filter_by(user_id=user_id).all()
+        completed_modules = [m for m in module_progress if m.completed]
+        total_modules = 5  # Math Magic, Science Explorer, Word Wizard, Good Touch Bad Touch, Safety Measures
+        
+        # Get task completion
+        tasks = HomeworkSchedule.query.filter_by(user_id=user_id).all()
+        completed_tasks = [t for t in tasks if t.status == 'completed']
+        
+        # Get achievement count (non-module achievements)
+        achievements = Achievement.query.filter_by(user_id=user_id).all()
+        non_module_achievements = [a for a in achievements if not (a.badge_name and a.badge_name.startswith('module_'))]
+        
+        # Get health task completion today
+        today = get_today_ist()
+        today_health_tasks = HealthTask.query.filter_by(user_id=user_id, completed=True, date=today).count()
+        
+        # Calculate weighted progress
+        progress_components = {
+            'modules': len(completed_modules) / max(total_modules, 1) * 40,  # 40% weight for modules
+            'tasks': min(len(completed_tasks) / max(10, 1), 1) * 30,  # 30% weight for tasks (cap at 10)
+            'achievements': min(len(non_module_achievements) / max(20, 1), 1) * 20,  # 20% weight for achievements (cap at 20)
+            'health': min(today_health_tasks / 3, 1) * 10  # 10% weight for today's health tasks (cap at 3)
+        }
+        
+        overall_progress = sum(progress_components.values())
+        overall_progress = min(round(overall_progress), 100)  # Cap at 100%
+        
+        return jsonify({
+            'success': True,
+            'progress': {
+                'overall_percentage': overall_progress,
+                'components': progress_components,
+                'details': {
+                    'completed_modules': len(completed_modules),
+                    'total_modules': total_modules,
+                    'completed_tasks': len(completed_tasks),
+                    'total_achievements': len(non_module_achievements),
+                    'today_health_tasks': today_health_tasks
+                }
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/child/skill-progress/<int:user_id>', methods=['GET'])
+@jwt_required()
+def get_child_skill_progress(user_id):
+    """Get skill progress for child dashboard and parent dashboard"""
+    try:
+        # Check if user exists
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        skill_progress = {}
+        
+        # Define all available modules with their display names and icons
+        all_modules = {
+            'math_magic': {'display_name': 'Math Magic', 'icon': '🔢'},
+            'science_explorer': {'display_name': 'Science Lab', 'icon': '🔬'},
+            'word_wizard': {'display_name': 'Word Wizard', 'icon': '📚'},
+            'safety_measures': {'display_name': 'Safety Measures', 'icon': '🛡️'},
+            'good_touch_bad_touch': {'display_name': 'Good Touch Bad Touch', 'icon': '👥'},
+            'psychometric_assessment': {'display_name': 'Psychometric Test', 'icon': '🧠'}
+        }
+        
+        # Process each module
+        for module_key, module_info in all_modules.items():
+            display_name = module_info['display_name']
+            
+            if module_key == 'science_explorer':
+                # Handle Science Explorer (has submodules)
+                science_records = UserModuleProgress.query.filter_by(
+                    user_id=user_id, 
+                    module_name='science_explorer'
+                ).all()
+                
+                if science_records:
+                    # Calculate average progress for all science submodules
+                    total_progress = sum(record.progress for record in science_records)
+                    avg_progress = total_progress / len(science_records)
+                    skill_progress[display_name] = {
+                        'progress': avg_progress,
+                        'icon': module_info['icon']
+                    }
+                else:
+                    skill_progress[display_name] = {
+                        'progress': 0,
+                        'icon': module_info['icon']
+                    }
+                    
+            elif module_key == 'safety_measures':
+                # Handle Safety Measures (has submodules)
+                safety_records = UserModuleProgress.query.filter_by(
+                    user_id=user_id, 
+                    module_name='safety_measures'
+                ).all()
+                
+                if safety_records:
+                    # Calculate average progress for all safety submodules
+                    total_progress = sum(record.progress for record in safety_records)
+                    avg_progress = total_progress / len(safety_records)
+                    skill_progress[display_name] = {
+                        'progress': avg_progress,
+                        'icon': module_info['icon']
+                    }
+                else:
+                    skill_progress[display_name] = {
+                        'progress': 0,
+                        'icon': module_info['icon']
+                    }
+                    
+            else:
+                # Handle single modules (math_magic, word_wizard, good_touch_bad_touch, psychometric_assessment)
+                module_progress = UserModuleProgress.query.filter_by(
+                    user_id=user_id, 
+                    module_name=module_key
+                ).first()
+                
+                if module_progress:
+                    progress_value = module_progress.progress if module_progress.completed else 0
+                    skill_progress[display_name] = {
+                        'progress': progress_value,
+                        'icon': module_info['icon']
+                    }
+                else:
+                    skill_progress[display_name] = {
+                        'progress': 0,
+                        'icon': module_info['icon']
+                    }
+        
+        return jsonify({
+            'success': True,
+            'skill_progress': skill_progress
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # ---------------------------
 # Module Progress Routes
 # ---------------------------
