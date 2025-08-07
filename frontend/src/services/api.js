@@ -15,7 +15,7 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     console.log('Making API request:', config.method?.toUpperCase(), config.url)
-
+    
     // Get token from authService and add to this request
     const token = authService.getToken()
     if (token) {
@@ -24,7 +24,7 @@ api.interceptors.request.use(
     } else {
       console.log('⚠️ API service: No token available for request')
     }
-
+    
     return config
   },
   (error) => {
@@ -451,36 +451,6 @@ export const apiService = {
       })
       return response.data
     } catch (error) {
-      throw error
-    }
-  },
-
-  async getScreenTime(userId) {
-    try {
-      const response = await api.get(`/api/screen-time/${userId}`)
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
-
-  async getChildProgress(userId) {
-    try {
-      const response = await api.get(`/api/child/progress/${userId}`)
-      return response.data
-    } catch (error) {
-      throw error
-    }
-  },
-
-  async getChildSkillProgress(userId) {
-    try {
-      console.log(`🔄 Loading skill progress for child ${userId}`)
-      const response = await api.get(`/api/child/skill-progress/${userId}`)
-      console.log('✅ Skill progress response:', response.data)
-      return response.data
-    } catch (error) {
-      console.error('❌ Failed to load skill progress:', error.response?.data || error.message)
       throw error
     }
   },
