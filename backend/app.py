@@ -2541,8 +2541,8 @@ def log_screen_time():
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
-<<<<<<< HEAD
-=======
+
+
 @app.route('/api/screen-time/<int:user_id>', methods=['GET'])
 @jwt_required()
 def get_screen_time(user_id):
@@ -2756,7 +2756,6 @@ def get_child_skill_progress(user_id):
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
->>>>>>> 292a465e72d79f3a657c527463b4b1c64a912a70
 # ---------------------------
 # Module Progress Routes
 # ---------------------------
