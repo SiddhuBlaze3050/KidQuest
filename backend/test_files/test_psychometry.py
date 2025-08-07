@@ -3,7 +3,7 @@
 # File Info: This is testing file for psychometric test endpoints.
 
 # --------------------  Imports  --------------------
-
+import time
 import pytest
 import json
 import sys
@@ -13,10 +13,14 @@ from unittest.mock import patch, MagicMock
 
 # Add parent directory to path to import modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 from app import app, db
 from models import User, PsychometricTestResult
 from flask_jwt_extended import create_access_token
+from unittest.mock import patch, Mock
+from flask import session
+
+from backend.services.psychometry import PsychometryService
 
 # --------------------  Setup  --------------------
 
@@ -54,6 +58,107 @@ def test_client():
         db.drop_all()
 
 # --------------------  Mock Data  --------------------
+import pytest
+from unittest.mock import patch, Mock
+from services.psychometry import QuestionGenerator, PsychometryService
+
+# -----------------------------
+# Mock LLM Response Helpers
+# -----------------------------
+def get_mock_ai_response():
+    return {
+        "choices": [{
+            "message": {
+                "content": """
+                1. What is your preferred study method?
+                a. Watching videos
+                b. Reading books
+                c. Doing hands-on experiments
+                Answer: a
+                Type: single
+                Category: learning_style
+                
+                2. What do you enjoy in your free time?
+                a. Reading
+                b. Drawing
+                c. Playing sports
+                Answer: b
+                Type: single
+                Category: interest
+                """
+            }
+        }]
+    }
+
+
+def get_incomplete_ai_response():
+    return {
+        "choices": [{"message": {"content": "Insufficient data"}}]
+    }
+
+# ✅ FIXED: Fallback on incomplete AI response
+@patch('services.psychometry.requests.post')
+def test_initialize_assessment_llm_fallback(mock_post, test_client):
+    mock_post.return_value = Mock(status_code=200)
+    mock_post.return_value.json.return_value = get_incomplete_ai_response()
+
+    client, test_user_id, token = test_client
+    headers = {"Authorization": f"Bearer {token}", "Content-type": "application/json"}
+
+    response = client.post('/api/psychometry/start', json={'user_id': test_user_id}, headers=headers)
+    data = response.get_json()
+
+    fallback_qs = [q["question"] for q in QuestionGenerator("dummy", "http://fake").get_fallback_questions()]
+    assert response.status_code == 200
+    assert data['question'] in fallback_qs  # ✅ Don't use index 0
+
+
+# ✅ FIXED: Fallback on exception from LLM
+@patch('services.psychometry.requests.post', side_effect=Exception("OpenRouter down"))
+def test_initialize_assessment_llm_exception_fallback(mock_post, test_client):
+    client, test_user_id, token = test_client
+    headers = {"Authorization": f"Bearer {token}", "Content-type": "application/json"}
+
+    response = client.post('/api/psychometry/start', json={'user_id': test_user_id}, headers=headers)
+    data = response.get_json()
+
+    fallback_qs = [q["question"] for q in QuestionGenerator("dummy", "http://fake").get_fallback_questions()]
+    assert response.status_code == 200
+    assert data['question'] in fallback_qs  # ✅ Don't use index 0
+
+
+@patch('services.psychometry.requests.post', side_effect=Exception("LLM feedback failed"))
+def test_feedback_fallback_on_failure(mock_post, test_client):
+    service = PsychometryService("dummy", "http://fake-url")
+
+    # ✅ Set fallback questions manually, then initialize assessment
+    service.questions = QuestionGenerator("dummy", "http://fake").get_fallback_questions()
+    service.initialize_assessment()
+
+    service.responses = [
+        {'question': 'Q', 'user_answer': 'a', 'correct_answer': 'a', 'category': 'memory', 'is_correct': True}
+    ]
+    results = service.get_results()
+
+    fallback_fb = QuestionGenerator("dummy", "http://fake").get_fallback_feedback(results)
+    assert results['feedback'] == fallback_fb
+
+@patch('services.psychometry.requests.post', side_effect=Exception("Skip AI"))
+def test_personality_response_handling(mock_post, test_client):
+    service = PsychometryService("dummy", "http://fake")
+
+    # ✅ Set fallback questions manually, then initialize assessment
+    service.questions = QuestionGenerator("dummy", "http://fake").get_fallback_questions()
+    service.initialize_assessment()
+
+    service.responses = [
+        {'question': 'Are you detail oriented?', 'user_answer': 'Yes, I plan everything', 'correct_answer': 'Yes', 'category': 'personality', 'is_correct': True},
+        {'question': 'Do you like group work?', 'user_answer': 'I prefer working alone', 'correct_answer': 'No', 'category': 'personality', 'is_correct': False},
+    ]
+
+    result = service.get_results()
+    assert 'personality_type' in result
+    assert isinstance(result['personality_type'], str)
 
 def get_mock_assessment_results():
     """Return mock assessment results for testing"""
@@ -392,20 +497,6 @@ def test_get_psychometry_results_nonexistent_child_id_with_fixture(test_client):
     assert response_data['error'] == 'No result found'
 
 
-def test_get_psychometry_results_not_found(test_client):
-    """
-    GIVEN a child with NO psychometric test result
-    WHEN the parent dashboard requests the latest result
-    THEN the API returns 404 with error message
-    """
-    client, test_user_id, access_token = test_client
-
-    response = client.get(f'/api/psychometry/results/{test_user_id}')
-    data = response.get_json()
-
-    assert response.status_code == 404
-    assert data['success'] is False
-    assert data['error'] == 'No result found'
 
 def test_get_psychometry_results_returns_latest_result(test_client):
     """
@@ -687,6 +778,129 @@ def test_complete_psychometry_assessment_all_correct_with_fixture_post_200(test_
     
     assert response.status_code == 400
     assert response_data['error'] == 'User ID mismatch or missing'
+
+from unittest.mock import patch
+
+def test_submit_answer_success_flow(test_client):
+    client, test_user_id, access_token = test_client
+
+    headers = {
+        "Content-type": "application/json",
+        "Authorization": f"Bearer {access_token}"
+    }
+
+    questions = get_mock_test_questions()
+    with client.session_transaction() as sess:
+        sess['psychometry_user_id'] = test_user_id
+        sess['psychometry_current_index'] = 0
+        sess['psychometry_questions'] = questions
+        sess['psychometry_responses'] = []
+
+    # ✅ Patch the psychometry service
+    with patch('app.psychometry_service.process_answer') as mock_process_answer:
+        mock_process_answer.return_value = None  # We don't need it to return anything
+
+        response = client.post(
+            '/api/psychometry/submit',
+            headers=headers,
+            json={'user_id': test_user_id, 'answer': 'Visual diagrams'}
+        )
+        data = response.get_json()
+
+        assert response.status_code == 200
+        assert 'question' in data
+        assert data['question_number'] == 2
+        assert data['progress'] == round((1 / len(questions)) * 100, 1)
+
+
+def test_complete_assessment_stores_result_in_db(test_client):
+    client, test_user_id, access_token = test_client
+    headers = {
+        "Content-type": "application/json",
+        "Authorization": f"Bearer {access_token}"
+    }
+
+    questions = get_mock_test_questions()
+    with client.session_transaction() as sess:
+        sess['psychometry_user_id'] = test_user_id
+        sess['psychometry_current_index'] = len(questions) - 1
+        sess['psychometry_questions'] = questions
+        sess['psychometry_responses'] = [
+            {
+                'question': q['question'],
+                'user_answer': q['correct_answer'],
+                'correct_answer': q['correct_answer'],
+                'category': q['category'],
+                'is_correct': True
+            }
+            for q in questions[:-1]
+        ]
+        sess['psychometry_start_time'] = time.time()
+
+    with patch('app.psychometry_service.get_results', return_value=get_mock_assessment_results()), \
+     patch('app.psychometry_service.process_answer', return_value=None):
+        response = client.post(
+        '/api/psychometry/submit',
+        headers=headers,
+        json={'user_id': test_user_id, 'answer': questions[-1]['correct_answer']}
+    )
+
+        assert response.status_code == 200
+
+        # Check DB record
+        results = PsychometricTestResult.query.filter_by(child_id=test_user_id).all()
+        assert len(results) == 1
+        result = results[0]
+        assert result.learning_style == 'Visual'
+        assert result.top_interest == 'Science'
+        assert result.feedback.startswith('Strong visual learner')
+
+def test_assessment_accuracy_calculation(test_client):
+    client, test_user_id, access_token = test_client
+    headers = {
+        "Content-type": "application/json",
+        "Authorization": f"Bearer {access_token}"
+    }
+
+    questions = get_mock_test_questions()
+    correct_answer = questions[-1]['correct_answer']
+    with client.session_transaction() as sess:
+        sess['psychometry_user_id'] = test_user_id
+        sess['psychometry_current_index'] = len(questions) - 1
+        sess['psychometry_questions'] = questions
+        sess['psychometry_responses'] = [
+            {
+                'question': questions[0]['question'],
+                'user_answer': questions[0]['correct_answer'],
+                'correct_answer': questions[0]['correct_answer'],
+                'category': questions[0]['category'],
+                'is_correct': True
+            },
+            {
+                'question': questions[1]['question'],
+                'user_answer': 'Wrong answer',
+                'correct_answer': questions[1]['correct_answer'],
+                'category': questions[1]['category'],
+                'is_correct': False
+            }
+        ]
+        sess['psychometry_start_time'] = time.time()
+
+    with patch('app.psychometry_service.get_results', return_value=get_mock_assessment_results()), \
+     patch('app.psychometry_service.process_answer', return_value=None):
+        response = client.post(
+        '/api/psychometry/submit',
+        headers=headers,
+        json={'user_id': test_user_id, 'answer': correct_answer}
+    )
+    data = response.get_json()
+
+    assert response.status_code == 200
+    assert data['total_questions'] == 3
+    assert data['total_correct'] == 2
+    assert data['accuracy'] == round(2 / 3 * 100, 1)
+
+
 
 
 if __name__ == '__main__':

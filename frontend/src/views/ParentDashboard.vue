@@ -799,8 +799,12 @@ const fetchTaskStats = async () => {
 }
 
 const skillProgress = ref([
-  { id: 1, name: 'Math Magic', icon: '🔢', progress: 80, level: 2, milestones: [] },
-  { id: 2, name: 'Science Lab', icon: '🔬', progress: 60, level: 1, milestones: [] }
+  { id: 1, name: 'Math Magic', icon: '🔢', progress: 0, level: 1, milestones: [] },
+  { id: 2, name: 'Science Lab', icon: '🔬', progress: 0, level: 1, milestones: [] },
+  { id: 3, name: 'Word Wizard', icon: '📚', progress: 0, level: 1, milestones: [] },
+  { id: 4, name: 'Safety Measures', icon: '🛡️', progress: 0, level: 1, milestones: [] },
+  { id: 5, name: 'Good Touch Bad Touch', icon: '👥', progress: 0, level: 1, milestones: [] },
+  { id: 6, name: 'Psychometric Test', icon: '🧠', progress: 0, level: 1, milestones: [] }
 ])
 
 
@@ -838,6 +842,66 @@ const fetchFinanceStats = async () => {
   }
 }
 
+// Fetch screen time data from API
+const fetchScreenTimeData = async () => {
+  if (!childId.value) return
+  try {
+    const res = await apiService.getScreenTime(childId.value)
+    if (res.success && res.screen_time) {
+      screenTimeData.value = {
+        total: res.screen_time.today_display,
+        status: res.screen_time.status,
+        week_average: res.screen_time.week_average_display
+      }
+      console.log('Screen time data fetched:', screenTimeData.value)
+    }
+  } catch (e) {
+    console.error('Failed to fetch screen time data', e)
+    // Keep default fake data on error
+  }
+}
+
+// Fetch overall progress from API
+const fetchOverallProgress = async () => {
+  if (!childId.value) return
+  try {
+    const res = await apiService.getChildProgress(childId.value)
+    if (res.success && res.progress) {
+      overallProgress.value = res.progress.overall_percentage
+      console.log('Overall progress fetched:', overallProgress.value + '%')
+    }
+  } catch (e) {
+    console.error('Failed to fetch overall progress', e)
+    // Keep default fake data on error
+  }
+}
+
+// Fetch skill progress from API
+const fetchSkillProgress = async () => {
+  if (!childId.value) return
+  try {
+    const res = await apiService.getChildSkillProgress(childId.value)
+    if (res.success && res.skill_progress) {
+      const skillData = res.skill_progress
+      
+      // Convert skill data to array format with all modules
+      skillProgress.value = Object.keys(skillData).map((skillName, index) => ({
+        id: index + 1,
+        name: skillName,
+        icon: skillData[skillName].icon || '🎯',
+        progress: Math.round(skillData[skillName].progress || 0),
+        level: Math.floor((skillData[skillName].progress || 0) / 50) + 1,
+        milestones: []
+      }))
+      
+      console.log('Skill progress fetched:', skillProgress.value)
+    }
+  } catch (e) {
+    console.error('Failed to fetch skill progress', e)
+    // Keep default fake data on error
+  }
+}
+
 onMounted(async () => {
   await fetchChildId()
   if (childId.value) {
@@ -847,6 +911,9 @@ onMounted(async () => {
     await fetchTaskStats()
     await fetchEmotionalInsights()
     await fetchDoodles()
+    await fetchScreenTimeData()  // Add screen time fetch
+    await fetchOverallProgress()  // Add progress fetch
+    await fetchSkillProgress()  // Add skill progress fetch
   }
 })
 
@@ -2105,37 +2172,61 @@ const exportData = () => {
 .skills-grid {
   display: flex;
   flex-direction: column;
-  gap: 15px;
+  gap: 12px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 5px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
+}
+
+.skills-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+.skills-grid::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+}
+
+.skills-grid::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 3px;
+}
+
+.skills-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.5);
 }
 
 .skill-box {
   background: rgba(255, 255, 255, 0.4);
-  border-radius: 15px;
-  padding: 20px;
+  border-radius: 12px;
+  padding: 15px;
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 12px;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+  min-height: 60px;
 }
 
 .skill-box:hover {
   background: rgba(255, 255, 255, 0.6);
-  transform: translateX(5px);
+  transform: translateX(3px);
 }
 
 .skill-icon {
-  font-size: 2rem;
+  font-size: 1.5rem;
   background: linear-gradient(135deg, #667eea, #764ba2);
   border-radius: 50%;
-  padding: 10px;
-  min-width: 50px;
-  height: 50px;
+  padding: 8px;
+  min-width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   color: white;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
 }
 
 .skill-info {
@@ -2145,28 +2236,28 @@ const exportData = () => {
 .skill-name {
   color: #333;
   font-weight: 600;
-  font-size: 1rem;
-  margin-bottom: 8px;
+  font-size: 0.9rem;
+  margin-bottom: 6px;
 }
 
 .skill-progress-bar {
   background: rgba(255, 255, 255, 0.6);
-  border-radius: 10px;
-  height: 8px;
+  border-radius: 8px;
+  height: 6px;
   overflow: hidden;
-  margin-bottom: 5px;
+  margin-bottom: 4px;
 }
 
 .skill-progress-fill {
   height: 100%;
   background: linear-gradient(90deg, #4ecdc4, #45b7d1);
-  border-radius: 10px;
+  border-radius: 8px;
   transition: width 0.3s ease;
 }
 
 .skill-progress-text {
   color: #666;
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
 }
 
