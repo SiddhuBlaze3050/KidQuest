@@ -257,7 +257,7 @@
           </div>
 
           <div class="overview-card achievement-card" @click="showAchievementModal">
-            <div class="card-icon">🏆</div>
+            <div class="card-icon">⚡</div>
             <div class="card-content">
               <h3>Today's Achievement</h3>
               <div class="achievement-text">{{ todayAchievement.text }}</div>
@@ -629,8 +629,8 @@ const screenTimeData = ref({
   status: 'Within limits'
 })
 const todayAchievement = ref({
-  text: 'Earned pocket money',
-  amount: '₹20'
+  text: 'Login Streak',
+  amount: '0 days'
 })
 const getCurrentMonth = () => 'July 2025'
 
@@ -907,6 +907,7 @@ onMounted(async () => {
     await fetchScreenTimeData()  // Add screen time fetch
     await fetchOverallProgress()  // Add progress fetch
     await fetchSkillProgress()  // Add skill progress fetch
+    await fetchLoginStreak()  // Add login streak fetch for achievement card
   }
 })
 
@@ -932,6 +933,26 @@ const fetchHealthStats = async () => {
     console.error('Failed to fetch health stats', e);
   }
 };
+
+// Fetch login streak for achievement card
+const fetchLoginStreak = async () => {
+  if (!childId.value) return;
+
+  try {
+    const res = await apiService.get(`/api/login-streak/${childId.value}`)
+    if (res.success) {
+      const streakCount = res.current_streak || 0
+      todayAchievement.value = {
+        text: 'Login Streak',
+        amount: `${streakCount} ${streakCount === 1 ? 'day' : 'days'}`
+      }
+      console.log('Login streak fetched:', streakCount)
+    }
+  } catch (e) {
+    console.error('Failed to fetch login streak', e)
+    // Keep default values on error
+  }
+}
 
 
 
