@@ -222,10 +222,6 @@
               <span class="child-label">👶</span>
               <span class="child-name">{{ childName }}</span>
             </div>
-            <button @click="exportData" class="export-btn">
-              <span class="btn-icon">📥</span>
-              Export
-            </button>
             <button @click="logout" class="logout-btn">
               <span class="btn-icon">🚪</span>
               Logout
@@ -1248,10 +1244,6 @@ const showRecentTasksModal = () => {
 const logout = () => {
   userUtils.logout()
   console.log('Logged out')
-}
-
-const exportData = () => {
-  console.log('Exporting data...')
 }
 </script>
 
