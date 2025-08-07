@@ -2,8 +2,8 @@ from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, Achievement, ChatSession,ChildProfile, DoodleSession, LLMInteractions, ParentChild, SavingGoal, Transaction, HomeworkSchedule, PomodoroSession, ScreenTime, Notification, HealthTask, HealthStreak, WaterLog, LoginStreak, PsychometricTestResult, UserModuleProgress, get_current_ist_time, IST
-import re
-import requests
+import re, requests
+import PIL
 import os
 import random
 import glob
@@ -13,6 +13,8 @@ import traceback
 from config import Config
 from openai import OpenAI
 import secrets
+import time
+import traceback
 from datetime import datetime, date, UTC
 import json
 from collections import defaultdict
@@ -1417,119 +1419,6 @@ def api_toggle_quest(quest_id):
             'message': 'Quest status updated',
             'starsEarned': 10  # Mock stars earned
         }), 200
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-# ---------------------------
-# Child Profile Routes
-# ---------------------------
-
-@app.route('/api/child-profile', methods=['POST'])
-def create_or_update_child_profile():
-    """Create or update child profile"""
-    try:
-        data = request.get_json()
-        
-        # Validate required fields
-        required_fields = ['user_id', 'grade_level', 'date_of_birth', 'gender', 'interests']
-        for field in required_fields:
-            if not data.get(field):
-                return jsonify({'success': False, 'error': f'{field} is required'}), 400
-        
-        # Validate grade level
-        if not isinstance(data['grade_level'], int) or data['grade_level'] < 1 or data['grade_level'] > 12:
-            return jsonify({'success': False, 'error': 'Grade level must be between 1 and 12'}), 400
-        
-        # Validate gender
-        valid_genders = ['male', 'female', 'other', 'prefer_not_to_say']
-        if data['gender'] not in valid_genders:
-            return jsonify({'success': False, 'error': 'Invalid gender value'}), 400
-        
-        # Validate date of birth format
-        try:
-            dob = datetime.strptime(data['date_of_birth'], '%Y-%m-%d').date()
-        except ValueError:
-            return jsonify({'success': False, 'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
-        
-        user_id = data['user_id']
-        
-        # Check if profile already exists
-        existing_profile = ChildProfile.query.filter_by(user_id=user_id).first()
-        
-        if existing_profile:
-            # Update existing profile
-            existing_profile.grade_level = data['grade_level']
-            existing_profile.date_of_birth = dob
-            existing_profile.gender = data['gender']
-            existing_profile.interests = data['interests']
-            action = 'updated'
-        else:
-            # Create new profile
-            new_profile = ChildProfile(
-                user_id=user_id,
-                grade_level=data['grade_level'],
-                date_of_birth=dob,
-                gender=data['gender'],
-                interests=data['interests']
-            )
-            db.session.add(new_profile)
-            action = 'created'
-        
-        db.session.commit()
-        
-        return jsonify({
-            'success': True,
-            'message': f'Profile {action} successfully',
-            'profile': {
-                'user_id': user_id,
-                'grade_level': data['grade_level'],
-                'date_of_birth': data['date_of_birth'],
-                'gender': data['gender'],
-                'interests': data['interests']
-            }
-        }), 201 if action == 'created' else 200
-        
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-@app.route('/api/child-profile/<int:user_id>', methods=['GET'])
-def get_child_profile(user_id):
-    """Get child profile by user ID"""
-    try:
-        # Check if user exists
-        user = User.query.get(user_id)
-        if not user:
-            return jsonify({'success': False, 'error': 'User not found'}), 404
-        
-        # Get profile
-        profile = ChildProfile.query.filter_by(user_id=user_id).first()
-        
-        if not profile:
-            return jsonify({
-                'success': True,
-                'profile': None,
-                'message': 'No profile found'
-            }), 200
-        
-        return jsonify({
-            'success': True,
-            'profile': {
-                'user_id': profile.user_id,
-                'grade_level': profile.grade_level,
-                'date_of_birth': profile.date_of_birth.isoformat() if profile.date_of_birth else None,
-                'gender': profile.gender,
-                'interests': profile.interests,
-                'avatar_url': profile.avatar_url
-            }
-        }), 200
-        
     except Exception as e:
         return jsonify({
             'success': False,
@@ -3303,13 +3192,17 @@ def generate_notifications(user_id):
 # ---------------------------
 
 @app.route('/api/drawings/save', methods=['POST'])
+@jwt_required()
 def save_drawing():
     """Save a drawing to both local storage and database"""
     try:
+        current_user_id = int(get_jwt_identity())
         data = request.get_json()
-        user_id = data.get('user_id', 1)  # Default to user 1 for testing
+        user_id = data.get('user_id', current_user_id)
         
-        # For now, allow any user_id for testing (remove security check)
+        # Security check: users can only save drawings for themselves
+        if user_id != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized: Can only save drawings for yourself'}), 403
         image_data = data.get('image_data')
         description = data.get('description', 'Untitled Drawing')
         time_taken = data.get('time_taken', 0)
@@ -3393,7 +3286,7 @@ def save_drawing():
 
 # Update the existing get_user_drawings function:
 @app.route('/api/drawings/<int:user_id>', methods=['GET'])
-# @jwt_required()
+@jwt_required()
 def get_user_drawings(user_id):
     """Get all drawings for a specific user"""
     try:
@@ -3481,12 +3374,19 @@ def get_drawing_image(drawing_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/drawings/delete/<int:drawing_id>', methods=['DELETE'])
+@jwt_required()
 def delete_drawing(drawing_id):
     """Delete a drawing from both database and file system"""
     try:
+        current_user_id = int(get_jwt_identity())
+        
         drawing = db.session.get(DoodleSession, drawing_id)
         if not drawing:
             return jsonify({'success': False, 'error': 'Drawing not found'}), 404
+        
+        # Authorization: users can only delete their own drawings
+        if drawing.user_id != current_user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized: Can only delete your own drawings'}), 403
         
         # Delete file if it exists
         if drawing.save_image_path and os.path.exists(drawing.save_image_path):
@@ -4000,35 +3900,6 @@ def get_comprehensive_analytics():
         total_transactions = Transaction.query.count()
         total_saving_goals = SavingGoal.query.count()
         
-        # Age and Gender Demographics from ChildProfile
-        age_distribution = {}
-        gender_distribution = {}
-        
-        child_profiles = ChildProfile.query.all()
-        for profile in child_profiles:
-            # Calculate age if date_of_birth exists
-            if profile.date_of_birth:
-                age = today.year - profile.date_of_birth.year
-                if today.month < profile.date_of_birth.month or (today.month == profile.date_of_birth.month and today.day < profile.date_of_birth.day):
-                    age -= 1
-                
-                # Group ages into ranges for better visualization
-                if age <= 5:
-                    age_group = "3-5 years"
-                elif age <= 8:
-                    age_group = "6-8 years"
-                elif age <= 12:
-                    age_group = "9-12 years"
-                else:
-                    age_group = "13+ years"
-                
-                age_distribution[age_group] = age_distribution.get(age_group, 0) + 1
-            
-            # Gender distribution
-            if profile.gender:
-                gender = profile.gender.capitalize()
-                gender_distribution[gender] = gender_distribution.get(gender, 0) + 1
-        
         analytics_data = {
             "user_statistics": {
                 "total_users": total_users,
@@ -4057,11 +3928,6 @@ def get_comprehensive_analytics():
             "financial": {
                 "total_transactions": total_transactions,
                 "total_saving_goals": total_saving_goals
-            },
-            "demographics": {
-                "age_distribution": age_distribution,
-                "gender_distribution": gender_distribution,
-                "total_profiles": len(child_profiles)
             },
             "generated_at": datetime.now().isoformat()
         }
@@ -4414,119 +4280,6 @@ def clear_user_data_for_testing(user_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
-
-
-
-@app.route('/api/chat/mood-summary/<int:user_id>', methods=['GET'])
-def get_child_mood_summary(user_id):
-    """
-    Get the overall mood summary and latest mood tag for a child (user_id) for today.
-    - overall_mood: Uses LLM to summarize all mood tags for today.
-    - latest_mood: Most recent mood tag from today's chat sessions.
-    """
-    try:
-        from datetime import datetime, time, timedelta
-
-        # Get today's IST date and start/end datetime
-        today = get_today_ist()
-        start_dt = datetime.combine(today, time.min).replace(tzinfo=IST)
-        end_dt = datetime.combine(today, time.max).replace(tzinfo=IST)
-
-        # Get all chat sessions for the user created today (IST)
-        sessions = ChatSession.query.filter(
-            ChatSession.user_id == user_id,
-            ChatSession.created_at >= start_dt,
-            ChatSession.created_at <= end_dt
-        ).order_by(ChatSession.updated_at.desc()).all()
-        print("Sessions found:", sessions)
-        mood_tags = []
-        mood_messages = []
-        for session in sessions:
-            print("Session ID:", session.id, "Interactions:", session.interactions)
-            for interaction in session.interactions:
-                print("Interaction mood_tag:", getattr(interaction, 'mood_tag', None))
-                if interaction.mood_tag:
-                    mood_tag = getattr(interaction, 'mood_tag', None) #new
-                    mood_tags.append(interaction.mood_tag)
-                if mood_tag and interaction.user_message:
-                    mood_tags.append(mood_tag) #new
-
-                    # Store message with mood context
-                    mood_messages.append({
-                        'mood_tag': mood_tag,
-                        'user_message': interaction.user_message,
-                        'timestamp': interaction.user_timestamp.isoformat() if interaction.user_timestamp else None,
-                        'session_id': session.id
-                    })
-        # Get latest mood tag (from most recent interaction)
-        latest_mood = None
-        latest_message = None
-        if sessions:
-            for session in sessions:
-                last_interaction = (
-                    LLMInteractions.query
-                    .filter_by(session_id=session.id)
-                    .order_by(LLMInteractions.user_timestamp.desc())
-                    .first()
-                )
-                if last_interaction and last_interaction.mood_tag:
-                    latest_mood = last_interaction.mood_tag
-                    latest_message = last_interaction.user_message
-                    break
- 
-        # Use LLM to summarize overall mood if mood_tags exist
-        overall_mood = None
-        if mood_tags:
-            prompt = (
-                "Given the following list of mood tags for a child throughout the day, "
-                "summarize the child's overall mood in short sentence [happy,sad or neutral] with a small indication to what is the reason for that,avoid special characters,just plain text "
-                f"Mood tags: {', '.join(mood_tags)}."
-            )
-            try:
-                llm_response = client.chat.completions.create(
-                    model="meta-llama/llama-4-maverick-17b-128e-instruct",
-                    messages=[{"role": "system", "content": prompt}],
-                    max_tokens=60,
-                    temperature=0.5
-                )
-                overall_mood = llm_response.choices[0].message.content.strip()
-            except Exception as e:
-                overall_mood = "Unable to summarize mood at this time."
-        # Group mood messages by mood tag for better organization
-        mood_groups = {}
-        for msg in mood_messages:
-            mood = msg['mood_tag']
-            if mood not in mood_groups:
-                mood_groups[mood] = []
-            mood_groups[mood].append(msg)
-            # Sort messages by timestamp (most recent first)
-        for mood in mood_groups:
-            mood_groups[mood].sort(key=lambda x: x['timestamp'] or '', reverse=True)
-
-        print("Overall mood:", overall_mood)
-        print("Latest mood:", latest_mood)
-        print("Mood tags:", mood_tags)
-        print("Mood groups:", mood_groups)
-
-        print(overall_mood, latest_mood, mood_tags)
-        return jsonify({
-            "success": True,
-            "user_id": user_id,
-            "date": str(today),
-            "overall_mood": overall_mood,
-            "latest_mood": latest_mood,
-            "mood_tags": mood_tags,
-            "latest_message": latest_message,
-            "mood_messages": mood_messages,
-            "mood_groups": mood_groups,
-            "total_messages": len(mood_messages),
-            "unique_moods": len(mood_groups)
-        }), 200
-
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-  
-
 
 if __name__ == '__main__':
     # Initialize database when running directly
