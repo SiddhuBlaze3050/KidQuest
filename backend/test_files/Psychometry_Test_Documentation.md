@@ -286,3 +286,91 @@
 **Actual Output**: HTTP Status Code: 400, User ID mismatch validation error returned
 
 **Result**: Success ✅
+
+
+
+### Test Case 3.1: Get Results - No Results for Child
+**API being tested**: `/api/psychometry/results/{child_id}`
+
+**Inputs**:
+- HTTP Method: GET
+- URL: `/api/psychometry/results/{child_id}` (where child has no results)
+- Headers: `Authorization: Bearer {jwt_token}`
+
+**Expected output**:
+- HTTP Status Code: 404
+- JSON Response:
+```json
+{
+  "success": false,
+  "error": "No result found"
+}
+```
+
+**Actual Output**: HTTP Status Code: 404, No result found error returned
+
+**Result**: Success ✅
+
+---
+
+### Test Case 3.2: Get Results - Returns Latest Result
+**API being tested**: `/api/psychometry/results/{child_id}`
+
+**Inputs**:
+- HTTP Method: GET
+- URL: `/api/psychometry/results/{child_id}` (child has multiple results)
+- Headers: `Authorization: Bearer {jwt_token}`
+- Database: Two results for the same child, with different timestamps
+
+**Expected output**:
+- HTTP Status Code: 200
+- JSON Response contains the most recent result (by `taken_at`), e.g.:
+```json
+{
+  "success": true,
+  "result": {
+    "learning_style": "Visual",
+    "personality_type": "Introvert",
+    "top_interest": "Math",
+    "concentration_level": 90.0,
+    "memory_strength": 95.0,
+    "feedback": "New result"
+  }
+}
+```
+
+**Actual Output**: HTTP Status Code: 200, Most recent result returned
+
+**Result**: Success ✅
+
+---
+
+### Test Case 3.3: Get Results - Partial Data (Missing Optional Fields)
+**API being tested**: `/api/psychometry/results/{child_id}`
+
+**Inputs**:
+- HTTP Method: GET
+- URL: `/api/psychometry/results/{child_id}` (child has a result with only required fields)
+- Headers: `Authorization: Bearer {jwt_token}`
+- Database: Result missing optional fields like `detailed_scores`, `personality_breakdown`, `duration_seconds`, `feedback`
+
+**Expected output**:
+- HTTP Status Code: 200
+- JSON Response contains the result, with missing fields as `null` or empty:
+```json
+{
+  "success": true,
+  "result": {
+    "learning_style": "Visual",
+    "personality_type": "Introvert",
+    "top_interest": "Math",
+    "concentration_level": 90.0,
+    "memory_strength": 95.0,
+    "detailed_scores": null
+  }
+}
+```
+
+**Actual Output**: HTTP Status Code: 200, Result returned with missing fields as `null` or `{}`
+
+**Result**: Success ✅

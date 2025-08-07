@@ -102,6 +102,105 @@
   </div>
 </div>
 
+<!-- Emotional Modal Component -->
+<div v-if="modalComponent === 'emotional-modal'" class="emotional-modal modal-overlay"  @click="closeModal">
+  <div class="transactions-popup" style="min-width:700px;text-align: center;align-items: center;" @click.stop>
+    <div class="popup-header">
+      <div>Emotional Insight</div>
+      <button class="close-btn" style="margin-right:10px !important;" @click="closeModal">×</button>
+    </div>
+
+    <div class="popup-body">
+      <!-- Today's Mood Section -->
+      <div class="section-header">
+        <h3>📅 Today's Mood Summary</h3>
+      </div>
+      
+      <div v-if="modalData.weeklyMoods && modalData.weeklyMoods.length > 0" class="mood-section">
+        <div v-for="mood in modalData.weeklyMoods" :key="mood.date + mood.feeling" class="transaction-item mood-item">
+          <div class="transaction-date mood-date">
+            <span class="date-text">{{ mood.date }}</span>
+            <small v-if="mood.messageCount" class="message-count">{{ mood.messageCount }} messages</small>
+          </div>
+          <div class="transaction-desc mood-desc">
+            <strong>{{ mood.feeling }}</strong>
+            <p class="mood-notes">{{ mood.notes }}</p>
+          </div>
+          <div class="transaction-amount mood-emoji">{{ mood.emoji }}</div>
+        </div>
+      </div>
+      
+      <div v-else class="no-data-message">
+        <p>🤔 No mood data available for today</p>
+      </div>
+
+      <!-- Conversation Analysis Section -->
+      <div class="section-header">
+        <h3>💭 Conversations & Messages</h3>
+      </div>
+
+      <div v-if="modalData.conversationTopics && modalData.conversationTopics.length > 0" class="topics-section">
+        <div v-for="topic in modalData.conversationTopics" :key="topic.id" class="transaction-item topic-item">
+       <div class="transaction-date sentiment-badge" :class="getSentimentClass(topic.sentiment)" style="max-width:0px;">
+         <!--     <span class="sentiment-text">{{ getSentimentDisplay(topic.sentiment) }}</span>-->
+          </div> 
+          <div class="transaction-desc topic-desc">
+            <strong>{{ topic.title }}</strong>
+            <p class="topic-summary">{{ topic.summary }}</p>
+            
+            <!-- User Messages Section -->
+            <div v-if="topic.messages && topic.messages.length > 0" class="user-messages">
+              <div class="messages-header">
+                <span class="messages-label">💬 What your child said:</span>
+              </div>
+              <div v-for="(message, index) in topic.messages" :key="index" class="user-message-item">
+                <div class="message-content">
+                  <span class="message-text">"{{ message.text }}"</span>
+                  <div class="message-meta">
+                    <span class="message-mood">{{ moodToEmoji(message.mood) }} {{ message.mood }}</span>
+                    <span class="message-time">{{ formatMessageTime(message.timestamp) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+          </div>
+          <div class="transaction-amount keywords-section">
+            <div class="keywords-container">
+              <span v-for="keyword in topic.keywords" :key="keyword" class="keyword-tag">
+                {{ keyword }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div v-else class="no-data-message">
+        <p>💬 No conversation analysis available</p>
+      </div>
+
+      <!-- Tips Section -->
+      <div class="section-header">
+        <h3>💡 Insights</h3>
+      </div>
+      
+      <div class="insights-section">
+        <div class="insight-card">
+          <p v-if="getMainSentiment() === 'positive'" class="insight-text positive">
+            🌟 Your child seems to be in a positive mood today! Keep encouraging open communication.
+          </p>
+          <p v-else-if="getMainSentiment() === 'negative'" class="insight-text negative">
+            🤗 Your child might need some extra support today. Consider having a gentle check-in conversation.
+          </p>
+          <p v-else class="insight-text neutral">
+            😊 Your child's mood appears balanced today. Regular check-ins help maintain emotional well-being.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 
 
     <!-- Header -->
@@ -269,9 +368,15 @@
                   @click.stop="viewDoodle(doodle)"
                 >
                   <div class="doodle-canvas" :style="{ backgroundColor: doodle.color }">
-                    <div class="doodle-preview-content">
-                      {{ doodle.emoji || '🎨' }}
-                    </div>
+                      <div class="doodle-preview-content">
+                        <img 
+                          v-if="doodle.file_exists && doodle.file_path" 
+                          :src="getDoodleImageUrl(doodle.file_path)" 
+                          alt="Doodle" 
+                          style="max-width: 100%; max-height: 70px; border-radius: 8px;"
+                        />
+                        <span v-else>{{ doodle.emoji || '🎨' }}</span>
+                      </div>
                   </div>
                   <div class="doodle-footer">
                     <div class="doodle-name">{{ doodle.title }}</div>
@@ -323,33 +428,52 @@
 </div>
 
           <!-- Emotional Insights -->
-          <div class="feature-card emotional-card" @click="showEmotionalModal">
-            <div class="card-header">
-              <div class="card-icon">💭</div>
-              <h3>Emotional Insights</h3>
-            </div>
-            <div class="card-content">
-              <div class="mood-tracker">
-                <div class="mood-chart">
-                  <div v-for="mood in emotionalInsights.moodTrends" :key="mood.date" class="mood-day">
-                    <div class="mood-emoji" :title="mood.feeling">{{ mood.emoji }}</div>
-                    <div class="mood-date">{{ mood.date }}</div>
-                  </div>
-                </div>
-              </div>
-              <div class="conversation-summary">
-                <div class="summary-cards">
-                  <div v-for="summary in emotionalInsights.summaries" :key="summary.id" class="summary-card">
-                    <div class="summary-topic">{{ summary.topic }}</div>
-                    <div class="summary-text">{{ summary.text }}</div>
-                    <div class="summary-sentiment" :class="[summary.sentiment, { 'highlighted': summary.sentiment === 'positive' || summary.sentiment === 'neutral' }]">
-                      {{ summary.sentiment }}
-                    </div>
-                  </div>
-                </div>
-              </div>
+          <!-- filepath: frontend/src/views/ParentDashboard.vue -->
+<!-- Emotional Insights -->
+<div class="feature-card emotional-card" @click="showEmotionalModal">
+  <div class="card-header">
+    <div class="card-icon">💭</div>
+    <h3>Emotional Insights</h3>
+  </div>
+  <div class="card-content">
+    <div class="mood-tracker">
+      <div class="mood-chart">
+        <template v-if="emotionalInsights.moodTrends && emotionalInsights.moodTrends.length">
+          <div v-for="mood in emotionalInsights.moodTrends" :key="mood.date" class="mood-day">
+            <div class="mood-emoji" :title="mood.feeling">{{ mood.emoji }}</div>
+            <div class="mood-date">{{ mood.date }}</div>
+          </div>
+        </template>
+        <template v-else>
+          <div class="mood-day">
+            <div class="mood-emoji" title="No data">🙂</div>
+            <div class="mood-date">No data</div>
+          </div>
+        </template>
+      </div>
+    </div>
+    <div class="conversation-summary">
+      <div class="summary-cards">
+        <template v-if="emotionalInsights.summaries && emotionalInsights.summaries.length">
+          <div v-for="summary in emotionalInsights.summaries" :key="summary.id" class="summary-card">
+            <div class="summary-topic">{{ summary.topic }}</div>
+            <div class="summary-text">{{ summary.text }}</div>
+            <div class="summary-sentiment" :class="[summary.sentiment, { 'highlighted': summary.sentiment === 'positive' || summary.sentiment === 'neutral' }]">
+              {{ summary.sentiment }}
             </div>
           </div>
+        </template>
+        <template v-else>
+          <div class="summary-card">
+            <div class="summary-topic">Overall Mood</div>
+            <div class="summary-text">No summary available.</div>
+            <div class="summary-sentiment neutral highlighted">neutral</div>
+          </div>
+        </template>
+      </div>
+    </div>
+  </div>
+</div>
 
           <!-- Skill Adventures -->
           <div class="feature-card skills-card" @click="showSkillsModal">
@@ -400,19 +524,29 @@
 
 
     <!-- Doodling Modal Component -->
-    <div v-if="modalComponent === 'doodling-modal'" class="doodling-modal">
-      <div class="doodling-detailed">
+    <div v-if="modalComponent === 'doodling-modal'" class="doodling-modal modal-overlay" @click="closeModal">
+      <div class="doodling-popup" @click.stop>
+      <div class="popup-header">
+        <span>Doodle View</span>
+        <button class="close-btn" @click="closeModal">×</button>
+      </div>
         <div class="doodle-gallery">
           <div v-for="(doodle, idx) in modalData.allDoodles" :key="idx" class="doodle-gallery-item">
             <div class="doodle-canvas-large" :style="{ backgroundColor: doodle.color }">
               <div class="doodle-artwork">
-                {{ doodle.emoji || '🎨' }}
+                <img 
+                  v-if="doodle.file_exists && doodle.file_path" 
+                  :src="getDoodleImageUrl(doodle.file_path)" 
+                  alt="Doodle" 
+                  style="max-width: 100%; max-height: 250px; border-radius: 12px;"
+                />
+                <span v-else>{{ doodle.emoji || '🎨' }}</span>
               </div>
             </div>
             <div class="doodle-details">
               <h4>{{ doodle.title }}</h4>
               <p class="doodle-date">{{ doodle.date }}</p>
-              <p class="doodle-duration">{{ doodle.duration }} minutes</p>
+              
               <div class="doodle-tags">
                 <span v-for="tag in doodle.tags" :key="tag" class="doodle-tag">{{ tag }}</span>
               </div>
@@ -470,39 +604,6 @@
       </div>
     </div>
 
-    <!-- Emotional Modal Component -->
-    <div v-if="modalComponent === 'emotional-modal'" class="emotional-modal">
-      <div class="emotional-detailed">
-        <div class="mood-analysis">
-          <h4>Weekly Mood Analysis</h4>
-          <div class="mood-chart-detailed">
-            <div v-for="mood in modalData.weeklyMoods" :key="mood.date" class="mood-day-detailed">
-              <div class="mood-emoji-large">{{ mood.emoji }}</div>
-              <div class="mood-label">{{ mood.feeling }}</div>
-              <div class="mood-date">{{ mood.date }}</div>
-              <div class="mood-notes">{{ mood.notes }}</div>
-            </div>
-          </div>
-        </div>
-        <div class="conversation-analysis">
-          <h4>Conversation Insights</h4>
-          <div class="conversation-topics">
-            <div v-for="topic in modalData.conversationTopics" :key="topic.id" class="topic-card">
-              <div class="topic-header">
-                <h5>{{ topic.title }}</h5>
-                <span class="topic-sentiment" :class="[topic.sentiment, { 'highlighted': topic.sentiment === 'positive' || topic.sentiment === 'neutral' }]">
-                  {{ topic.sentiment }}
-                </span>
-              </div>
-              <div class="topic-summary">{{ topic.summary }}</div>
-              <div class="topic-keywords">
-                <span v-for="keyword in topic.keywords" :key="keyword" class="keyword-tag">{{ keyword }}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
 
     <!-- Skills Modal Component -->
     <div v-if="modalComponent === 'skills-modal'" class="skills-modal">
@@ -626,6 +727,30 @@ const fetchPsychometricData = async () => {
   }
 }
 
+const fetchDoodles = async () => {
+  if (!childId.value) return
+  try {
+    const res = await apiService.get(`/api/drawings/${childId.value}`)
+    console.log('Doodle API response:', res)
+    if (res.success && Array.isArray(res.drawings)) {
+      doodleStats.value.doodles = res.drawings.map(d => ({
+        id: d.id,
+        title: d.description || 'Untitled',
+        date: d.timestamp ? d.timestamp.slice(0, 10) : '',
+        duration: d.time_taken ? Math.round(d.time_taken / 60) : 0,
+        tags: d.ref_image_title ? [d.ref_image_title] : [],
+        file_path: d.file_path,
+        file_exists: d.file_exists,
+        emoji: '🎨', // fallback if no image
+        color: '#aaf'
+      }))
+      doodleStats.value.allDoodles = doodleStats.value.doodles
+    }
+  } catch (e) {
+    console.error('Failed to fetch doodles', e)
+  }
+}
+
 const fetchTaskStats = async () => {
   if (!childId.value) return
   try {
@@ -720,6 +845,8 @@ onMounted(async () => {
     await fetchHealthStats()
     await fetchPsychometricData()
     await fetchTaskStats()
+    await fetchEmotionalInsights()
+    await fetchDoodles()
   }
 })
 
@@ -747,6 +874,268 @@ const fetchHealthStats = async () => {
 };
 
 
+
+// Helper function to format message timestamps
+const formatMessageTime = (timestamp) => {
+  if (!timestamp) return 'Unknown time'
+  
+  const date = new Date(timestamp)
+  const now = new Date()
+  const diffInMinutes = Math.floor((now - date) / (1000 * 60))
+  
+  if (diffInMinutes < 1) return 'Just now'
+  if (diffInMinutes < 60) return `${diffInMinutes}m ago`
+  
+  const diffInHours = Math.floor(diffInMinutes / 60)
+  if (diffInHours < 24) return `${diffInHours}h ago`
+  
+  const options = { hour: '2-digit', minute: '2-digit', hour12: true }
+  return date.toLocaleTimeString('en-US', options)
+}
+
+
+// Helper methods for the template
+const getSentimentClass = (sentiment) => {
+  return sentiment ? sentiment.toLowerCase() : 'neutral'
+}
+
+const getSentimentDisplay = (sentiment) => {
+  const sentimentMap = {
+    positive: '😊 Positive',
+    negative: '😔 Needs Attention', 
+    neutral: '😐 Neutral'
+  }
+  return sentimentMap[sentiment] || '😐 Neutral'
+}
+
+const getMainSentiment = () => {
+  if (!modalData.value.conversationTopics || modalData.value.conversationTopics.length === 0) {
+    return 'neutral'
+  }
+  return modalData.value.conversationTopics[0].sentiment || 'neutral'
+}
+
+// Enhanced API error handling
+const handleApiError = (error, context = 'emotional insights') => {
+  console.error(`Error fetching ${context}:`, error)
+  
+  return {
+    weeklyMoods: [
+      {
+        date: formatDate(new Date()),
+        emoji: '❌',
+        feeling: 'Error',
+        notes: `Unable to load ${context}. Please try again later.`,
+        messageCount: 0
+      }
+    ],
+    conversationTopics: [
+      {
+        id: 1,
+        sentiment: 'neutral',
+        title: 'Error Loading Data',
+        summary: 'Please check your connection and try again',
+        keywords: ['Error', 'Retry'],
+        messages: []
+      }
+    ]
+  }
+}
+// Fetch emotional insights (mood summary) for the child
+const fetchEmotionalInsights = async () => {
+  if (!childId.value) return
+  try {
+    const res = await apiService.get(`/api/chat/mood-summary/${childId.value}`)
+    if (res.success) {
+      //new
+      const moodEntries = []
+      const conversationTopics = []
+      
+      if (res.mood_groups && Object.keys(res.mood_groups).length > 0) {
+        // Create entries for each mood group
+        Object.entries(res.mood_groups).forEach(([mood, messages], index) => {
+          // Add mood summary entry
+          moodEntries.push({
+            date: formatDate(res.date),
+            emoji: moodToEmoji(mood),
+            feeling: mood,
+            notes: res.overall_mood || 'Mood analysis based on conversations',
+            messageCount: messages.length
+          })
+          
+          // Add conversation topic for each mood with associated messages
+          conversationTopics.push({
+            id: index + 1,
+            sentiment: moodToSentiment(mood),
+            title: `${mood.charAt(0).toUpperCase() + mood.slice(1)} Conversations`,
+            summary: `${messages.length} message${messages.length > 1 ? 's' : ''} showing ${mood} mood`,
+            keywords: [mood],
+            messages: messages.slice(0, 3).map(msg => ({
+              text: msg.user_message,
+              timestamp: msg.timestamp,
+              mood: msg.mood_tag
+            })) // Show up to 3 messages per mood
+          })
+        })
+      } else if (res.latest_mood) {
+        // Fallback: show latest mood info
+        moodEntries.push({
+          date: formatDate(res.date),
+          emoji: moodToEmoji(res.latest_mood),
+          feeling: res.latest_mood,
+          notes: res.overall_mood || 'Latest mood detected',
+          messageCount: res.total_messages || 0
+        })
+        
+        if (res.latest_message) {
+          conversationTopics.push({
+            id: 1,
+            sentiment: moodToSentiment(res.latest_mood),
+            title: 'Recent Conversation',
+            summary: res.overall_mood || 'Latest conversation analysis',
+            keywords: [res.latest_mood],
+            messages: [{
+              text: res.latest_message,
+              timestamp: new Date().toISOString(),
+              mood: res.latest_mood
+            }]
+          })
+        }
+      }
+      // Example: Map backend response to frontend structure
+      emotionalInsights.value = {
+        // Weekly Moods data for the modal
+        weeklyMoods: moodEntries.length > 0 ? moodEntries : [
+          {
+            date: formatDate(res.date),
+            emoji: '🤔',
+            feeling: 'No mood recorded',
+            notes: res.overall_mood || 'No conversations detected today',
+            messageCount: 0
+          }
+        ],
+        // Conversation Topics data for the modal
+        conversationTopics: conversationTopics.length > 0 ? conversationTopics : [
+          {
+            id: 1,
+            sentiment: 'neutral',
+            title: 'Getting Started',
+            summary: 'Start chatting to see emotional insights and mood analysis',
+            keywords: ['No data'],
+            messages: []
+          }
+        ],
+        moodTrends: [
+          {
+            date: res.date,
+            emoji: res.latest_mood ? moodToEmoji(res.latest_mood) : '🙂',
+            feeling: res.latest_mood || 'Unknown'
+          }
+        ],
+        summaries: [
+          {
+            id: 1,
+            topic: 'Overall Mood',
+            text: res.overall_mood || 'No summary available.',
+            sentiment: moodToSentiment(res.latest_mood)
+          }
+        ]
+      }
+    }else {
+      // Handle empty or failed response
+      emotionalInsights.value = {
+        weeklyMoods: [
+          {
+            date: formatDate(new Date()),
+            emoji: '🤔',
+            feeling: 'No data',
+            notes: 'No emotional data available for today'
+          }
+        ],
+        conversationTopics: [
+          {
+            id: 1,
+            sentiment: 'neutral',
+            title: 'No Analysis Available',
+            summary: 'Start a conversation to see emotional insights',
+            keywords: ['No data']
+          }
+        ],
+        moodTrends: [],
+        summaries: []
+      }
+    }
+  } catch (e) {
+    console.error('Failed to fetch emotional insights', e)
+    // Handle error state
+    emotionalInsights.value = {
+      weeklyMoods: [
+        {
+          date: formatDate(new Date()),
+          emoji: '❌',
+          feeling: 'Error',
+          notes: 'Failed to load emotional insights'
+        }
+      ],
+      conversationTopics: [
+        {
+          id: 1,
+          sentiment: 'neutral',
+          title: 'Error Loading Data',
+          summary: 'Please try again later',
+          keywords: ['Error']
+        }
+      ],
+      moodTrends: [],
+      summaries: []
+    }
+  }
+}
+
+// Helper function to format date
+function formatDate(dateStr) {
+  const date = new Date(dateStr)
+  const options = { 
+    year: 'numeric', 
+    month: 'short', 
+    day: 'numeric',
+    weekday: 'short'
+  }
+  return date.toLocaleDateString('en-US', options)
+}
+
+
+// Helper functions to map mood to emoji/sentiment
+function moodToEmoji(mood) {
+  if (!mood) return '🙂'
+  const map = {
+    happy: '😊',
+    sad: '😢',
+    angry: '😠',
+    excited: '🤩',
+    anxious: '😰',
+    calm: '😌',
+    // Add more as needed
+  }
+  return map[mood.toLowerCase()] || '🙂'
+}
+
+function moodToSentiment(mood) {
+  if (!mood) return 'neutral'
+  const positive = ['happy', 'excited', 'calm']
+  const negative = ['sad', 'angry', 'anxious']
+  if (positive.includes(mood.toLowerCase())) return 'positive'
+  if (negative.includes(mood.toLowerCase())) return 'negative'
+  return 'neutral'
+}
+
+function getDoodleImageUrl(filePath) {
+  if (!filePath) return ''
+  // Remove 'static/' if present, then prepend '/static/'
+  const relPath = filePath.replace(/^static[\\/]/, '')
+  return `http://localhost:5000/static/${relPath}`
+}
+
 const doodleStats = ref({
   doodles: [
     { title: 'My Cat', date: '2025-07-03', duration: 10, tags: ['fun'], color: '#aaf', emoji: '🐱' }
@@ -760,18 +1149,8 @@ const taskStats = ref({
 })
 
 const emotionalInsights = ref({
-  moodTrends: [
-    { date: '2025-07-01', emoji: '😊', feeling: 'Happy' }
-  ],
-  summaries: [
-    { id: 1, topic: 'School', text: 'Was happy at school.', sentiment: 'positive' }
-  ],
-  weeklyMoods: [
-    { date: '2025-07-01', emoji: '😊', feeling: 'Happy', notes: 'Good day' }
-  ],
-  conversationTopics: [
-    { id: 1, title: 'Friends', sentiment: 'positive', summary: 'Made new friends', keywords: ['play', 'share'] }
-  ]
+  moodTrends: [],
+  summaries: []
 })
 
 // Methods
@@ -797,7 +1176,7 @@ const showDoodlingModal = () => openModal('Doodling', 'doodling-modal', doodleSt
 const showTaskModal = () => openModal('Tasks', 'task-modal', taskStats.value)
 const showEmotionalModal = () => openModal('Emotions', 'emotional-modal', emotionalInsights.value)
 const showSkillsModal = () => openModal('Skills', 'skills-modal', skillProgress.value)
-const viewDoodle = (doodle) => openModal('Doodle View', 'doodling-modal', doodle)
+const viewDoodle = (doodle) => openModal('Doodle View', 'doodling-modal', { allDoodles: [doodle] })
 const showRecentTasksModal = () => {
   openModal('Recent Tasks', 'recent-tasks-modal', { allTasks: taskStats.value.recent })
 }
@@ -1335,6 +1714,66 @@ const exportData = () => {
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
 }
 
+.doodling-popup {
+  background: #fff;
+  border-radius: 18px;
+  max-width: 400px;
+  width: 90vw;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+  padding: 0;
+  position: relative;
+  animation: fadeIn 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.doodling-modal.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(30, 30, 30, 0.5);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.doodle-details {
+  padding: 1.2rem 1.5rem 1.5rem 1.5rem;
+  font-family: 'Merriweather', serif;
+  color: #31417A;
+}
+
+.doodle-details h4 {
+  font-size: 1.1rem;
+  font-weight: bold;
+  margin: 0 0 0.3rem 0;
+  color: #31417A;
+  letter-spacing: 0.5px;
+}
+
+.doodle-date {
+  font-size: 0.95rem;
+  color: #666;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+}
+
+.doodle-tags {
+  margin-top: 0.5rem;
+}
+
+.doodle-tag {
+  display: inline-block;
+  background: #f7f8fa;
+  color: #31417A;
+  border-radius: 12px;
+  padding: 3px 10px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-right: 0.5rem;
+  margin-bottom: 0.2rem;
+  border: 1px solid #e0e0e0;
+}
 .doodle-canvas {
   height: 80px;
   display: flex;
@@ -1574,6 +2013,16 @@ const exportData = () => {
   align-items: center;
   justify-content: center;
 }
+.emotional-modal.modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(30, 30, 30, 0.5);
+  z-index: 9999;
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+}
 
 .transactions-popup {
   background: #fff;
@@ -1807,5 +2256,252 @@ const exportData = () => {
     gap: 10px;
   }
 }
+.emotional-popup {
+  max-width: 80%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
 
+.section-header {
+  margin: 20px 0 10px 0;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e1e5e9;
+}
+
+.section-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.mood-section, .topics-section {
+  margin-bottom: 20px;
+}
+
+.mood-item {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-left: 4px solid #4CAF50;
+}
+
+.mood-date .date-text {
+  font-weight: 600;
+  color: #495057;
+}
+
+.message-count {
+  display: block;
+  color: #6c757d;
+  font-size: 10px;
+  margin-top: 2px;
+}
+
+.mood-desc {
+  flex-grow: 1;
+}
+
+.mood-desc strong {
+  color: #2c3e50;
+  font-size: 14px;
+}
+
+.mood-notes {
+  margin: 5px 0 0 0;
+  font-size: 13px;
+  color: #6c757d;
+  line-height: 1.4;
+}
+
+.mood-emoji {
+  font-size: 24px;
+  min-width: 40px;
+  text-align: center;
+}
+
+.topic-item {
+  background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+  border-left: 4px solid #007bff;
+}
+
+.sentiment-badge {
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  min-width: 70px;
+  text-align: center;
+}
+
+.sentiment-badge.positive {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.sentiment-badge.negative {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.sentiment-badge.neutral {
+  background-color: #e2e3e5;
+  color: #495057;
+}
+
+.topic-desc strong {
+  color: #2c3e50;
+  font-size: 14px;
+}
+
+.topic-summary {
+  margin: 5px 0 0 0;
+  font-size: 13px;
+  color: #6c757d;
+  line-height: 1.4;
+}
+
+/* User Messages Styling */
+.user-messages {
+  margin-top: 15px;
+  padding-top: 12px;
+  border-top: 1px solid #e9ecef;
+}
+
+.messages-header {
+  margin-bottom: 10px;
+}
+
+.messages-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #495057;
+  background-color: #f8f9fa;
+  padding: 4px 8px;
+  border-radius: 12px;
+}
+
+.user-message-item {
+  margin-bottom: 10px;
+  background: linear-gradient(135deg, #fff3cd 0%, #fef7e3 100%);
+  border: 1px solid #ffeaa7;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.user-message-item:last-child {
+  margin-bottom: 0;
+}
+
+.message-content {
+  width: 100%;
+}
+
+.message-text {
+  font-style: italic;
+  color: #495057;
+  font-size: 13px;
+  line-height: 1.4;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.message-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: #6c757d;
+}
+
+.message-mood {
+  font-weight: 600;
+  color: #495057;
+}
+
+.message-time {
+  font-size: 10px;
+  color: #868e96;
+}
+
+.keywords-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.keyword-tag {
+  background-color: #e3f2fd;
+  color: #1565c0;
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.no-data-message {
+  text-align: center;
+  padding: 20px;
+  color: #6c757d;
+  font-style: italic;
+}
+
+.insights-section {
+  margin-top: 15px;
+}
+
+.insight-card {
+  background: linear-gradient(135deg, #f1f3f4 0%, #e8eaf6 100%);
+  padding: 15px;
+  border-radius: 8px;
+  border-left: 4px solid #9c27b0;
+}
+
+.insight-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.insight-text.positive {
+  color: #2e7d32;
+}
+
+.insight-text.negative {
+  color: #c62828;
+}
+
+.insight-text.neutral {
+  color: #5e35b1;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .emotional-popup {
+    margin: 10px;
+    max-width: calc(100vw - 20px);
+  }
+  
+  .keywords-container {
+    justify-content: flex-start;
+  }
+  
+  .transaction-item {
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .mood-emoji {
+    text-align: left;
+  }
+}
+.modal-content {
+  width: 800px; /* or your desired width */
+  max-width: 95vw; /* for responsiveness */
+  background: #fff; /* or your modal background */
+  border-radius: 12px; /* optional */
+  padding: 2rem;      /* optional */
+  box-shadow: 0 2px 16px rgba(0,0,0,0.2); /* optional */
+}
 </style>
