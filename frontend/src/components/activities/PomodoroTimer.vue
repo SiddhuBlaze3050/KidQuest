@@ -128,7 +128,8 @@ import { apiService } from '@/services/api';
 const props = defineProps({
     task: {
         type: Object,
-        required: true,
+        required: false,
+        default: null,
     },
     userId: {
         type: Number,
@@ -239,8 +240,8 @@ const playBeep = () => {
 const startTimer = async () => {
     if (isRunning.value) return;
 
-    // Start new session if in work mode and no active session
-    if (currentMode.value.id === 'work' && !activeSessionId.value) {
+    // Start new session if in work mode, no active session, and we have a task
+    if (currentMode.value.id === 'work' && !activeSessionId.value && props.task?.id) {
         try {
             console.log(props.task);
             const response = await apiService.startPomodoro(props.userId, props.task.id);
