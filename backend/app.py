@@ -638,6 +638,74 @@ def api_chat_history(user_id):
             'success': False,
             'error': str(e)
         }), 500
+
+@app.route('/api/chat/mood-summary/<int:user_id>', methods=['GET'])
+@jwt_required()
+def api_mood_summary(user_id):
+    """API endpoint to get mood summary and emotional insights for a user"""
+    try:
+        today = get_today_ist()
+        
+        # Get today's chat sessions and interactions
+        sessions = ChatSession.query.filter_by(user_id=user_id)\
+                                   .filter(ChatSession.created_at >= datetime.combine(today, datetime.min.time().replace(tzinfo=IST)))\
+                                   .order_by(ChatSession.updated_at.desc()).all()
+        
+        mood_groups = defaultdict(list)
+        all_messages = []
+        latest_mood = None
+        latest_message = None
+        
+        # Collect all interactions from today's sessions
+        for session in sessions:
+            interactions = LLMInteractions.query.filter_by(session_id=session.id)\
+                                               .order_by(LLMInteractions.user_timestamp.desc()).all()
+            
+            for interaction in interactions:
+                if interaction.mood_tag:
+                    if not latest_mood:  # Get the most recent mood
+                        latest_mood = interaction.mood_tag
+                        latest_message = interaction.user_message
+                    
+                    # Group messages by mood
+                    mood_groups[interaction.mood_tag].append({
+                        'user_message': interaction.user_message,
+                        'timestamp': interaction.user_timestamp.isoformat(),
+                        'mood_tag': interaction.mood_tag
+                    })
+                    
+                    all_messages.append(interaction.user_message)
+        
+        # Generate overall mood summary
+        if mood_groups:
+            dominant_mood = max(mood_groups.keys(), key=lambda x: len(mood_groups[x]))
+            total_messages = sum(len(messages) for messages in mood_groups.values())
+            overall_mood = f"Today your child had {total_messages} conversations. The dominant mood was {dominant_mood}."
+        else:
+            overall_mood = "No conversations detected today."
+            dominant_mood = "neutral"
+        
+        return jsonify({
+            'success': True,
+            'date': today.isoformat(),
+            'mood_groups': dict(mood_groups),
+            'latest_mood': latest_mood or 'neutral',
+            'latest_message': latest_message,
+            'overall_mood': overall_mood,
+            'total_messages': len(all_messages),
+            'dominant_mood': dominant_mood
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in mood summary: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'date': get_today_ist().isoformat(),
+            'mood_groups': {},
+            'latest_mood': 'neutral',
+            'overall_mood': 'Unable to load mood data'
+        }), 500
     
 @app.route('/api/user/profile/<int:user_id>', methods=['GET'])
 @jwt_required()
