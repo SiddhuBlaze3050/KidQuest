@@ -11,6 +11,12 @@
           <div class="header-subtitle">
             <p>Discover your learning style and personality traits!</p>
           </div>
+          <button 
+            class="btn quit-btn"
+            @click="quitTest"
+          >
+            Quit
+          </button>
         </div>
       </div>
     </header>
@@ -235,6 +241,16 @@ export default {
         console.error('Error starting test:', error);
         this.isLoading = false;
         alert(`Error starting test: ${error.message}. Please check the console for details.`);
+      }
+    },
+
+    quitTest() {
+      if (window.confirm('Are you sure you want to quit the assessment?')) {
+        this.resetData();
+        this.testStarted = false;
+        this.showResults = false;
+        this.debugMode = false;
+        this.$router.push({ name: 'child-dashboard' });
       }
     },
 
@@ -725,6 +741,33 @@ export default {
   padding: 1rem;
   border-radius: 10px;
   border: 2px solid #f44336;
+}
+
+.quit-btn {
+  background: linear-gradient(135deg, #ff4e50 0%, #f44336 100%);
+  color: white;
+  box-shadow: 0 5px 15px rgba(244, 67, 54, 0.3);
+  margin-left: 1rem;
+  border: none;
+  border-radius: 25px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  padding: 1rem 2rem;
+  min-width: 120px;
+}
+.quit-btn:hover {
+  background: linear-gradient(135deg, #f44336 0%, #ff4e50 100%);
+  box-shadow: 0 10px 25px rgba(244, 67, 54, 0.4);
+  transform: translateY(-2px);
+}
+@media (max-width: 768px) {
+  .quit-btn {
+    padding: 0.7rem 1rem;
+    min-width: 80px;
+    font-size: 1rem;
+  }
 }
 
 @media (max-width: 768px) {

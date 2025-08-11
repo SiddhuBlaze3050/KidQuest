@@ -7,6 +7,8 @@ import traceback
 import re
 from collections import defaultdict
 
+
+
 class AssessmentEngine:
     def __init__(self):
         self.scores = defaultdict(lambda: {"score": 0, "total": 0})  # For standard-type categories
@@ -827,3 +829,5 @@ class PsychometryService:
             return []
         
         return self.assessment_engine.responses
+    
+
