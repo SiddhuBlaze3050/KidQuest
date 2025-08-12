@@ -21,29 +21,37 @@
                                     <span>🕒 {{ task.time_spent }} min spent</span>
                                 </div>
                                 <!-- Enhanced time analytics -->
-                                <div v-if="task.session_stats" class="session-analytics">
+                                 <div v-if="task.session_stats" class="session-card">
+                                    <div v-if="task.last_work_duration !== undefined" class="session-row">
+                                        <span class="session-label">Sessions:</span>
+                                        <span class="session-value">{{task.session_stats.total_sessions }}</span>
+                                    </div>
+                                    <div v-if="task.last_work_duration !== undefined" class="session-row">
+                                        <span class="session-label">Work time:</span>
+                                        <span class="session-value">{{ task.last_work_duration }} sec</span>
+                                    </div>
+                                    <div v-if="task.last_work_duration !== undefined" class="session-row">
+                                        <span class="session-label">Break Time:</span>
+                                        <span class="session-value">{{ task.last_break_duration }} sec</span>
+                                    </div>
+                                </div>
+
+                                <!-- <div v-if="task.session_stats" class="session-analytics">
                                     <div class="analytics-grid">
-                                        <div class="analytics-item">
+                                        <div  v-if="task.last_work_duration !== undefined"  class="analytics-item">
                                             <span class="analytics-label">Sessions:</span>
                                             <span class="analytics-value">{{ task.session_stats.total_sessions }}</span>
                                         </div>
-                                        <div class="analytics-item">
-                                            <span class="analytics-label">Completed:</span>
-                                            <span class="analytics-value">{{ task.session_stats.completed_sessions
-                                                }}</span>
+                                        <div v-if="task.last_work_duration !== undefined"  class="analytics-item">
+                                            <span class="analytics-label">Work time:</span>
+                                            <span class="analytics-value">{{ task.last_work_duration }}sec</span>
                                         </div>
-                                        <div class="analytics-item">
-                                            <span class="analytics-label">Focus Time:</span>
-                                            <span class="analytics-value">{{ task.session_stats.total_work_time
-                                                }}m</span>
-                                        </div>
-                                        <div class="analytics-item">
+                                        <div  v-if="task.last_work_duration !== undefined"  class="analytics-item">
                                             <span class="analytics-label">Break Time:</span>
-                                            <span class="analytics-value">{{ task.session_stats.total_break_time
-                                                }}m</span>
+                                             <span class="analytics-value">{{ task.last_break_duration }}sec</span>
                                         </div>
                                     </div>
-                                </div>
+                                </div> -->
                             </div>
                             <div class="task-actions">
                                 <span class="task-status">{{ task.status }}</span>
@@ -135,36 +143,65 @@ export default defineComponent({
             subject: '',
             due_date: '',
         });
+const lastSessionStats = ref({ workDuration: 0, breakDuration: 0 });
 
-        const fetchTasks = async () => {
-            try {
-                console.log('🔄 Fetching tasks for user:', props.user.id);
-                const response = await apiService.getTasks(props.user.id);
-                console.log('📥 Tasks response:', response);
-
-                if (response.success) {
-                    tasks.value = response.tasks;
-                    console.log('✅ Tasks loaded successfully:', tasks.value.length, 'tasks');
-                } else {
-                    console.error('❌ Failed to fetch tasks:', response.error);
-                    alert('Failed to load tasks: ' + (response.error || 'Unknown error'));
-                }
-            } catch (error) {
-                console.error('❌ Error fetching tasks:', error);
-
-                // Show detailed error message
-                if (error.response) {
-                    console.error('Response error:', error.response.data);
-                    alert('Failed to load tasks: ' + (error.response.data.error || error.response.data.message || 'Server error'));
-                } else if (error.request) {
-                    console.error('Request error:', error.request);
-                    alert('Failed to load tasks: Network error. Please check your connection.');
-                } else {
-                    console.error('General error:', error.message);
-                    alert('Failed to load tasks: ' + error.message);
-                }
+const fetchLastPomodoroSession = async (userId, homeworkId) => {
+    try {
+        const response = await apiService.getLastPomodoroSession(userId, homeworkId);
+        if (response.success) {
+            // Find and update the matching task
+            console.log('📥 Last pomodoro session fetched:', response);
+            const task = tasks.value.find(t => t.id === homeworkId);
+            if (task) {
+                task.last_work_duration = response.work_duration;
+                task.last_break_duration = response.break_duration;
+                console.log(`✅ Updated task ${task.id} with last session data:`, {
+                    work_duration: task.last_work_duration,
+                    break_duration: task.last_break_duration,
+                });
             }
-        };
+        } else {
+            const task = tasks.value.find(t => t.id === homeworkId);
+            if (task) {
+                task.last_work_duration = 0;
+                task.last_break_duration = 0;
+            }
+        }
+    } catch (error) {
+        const task = tasks.value.find(t => t.id === homeworkId);
+        if (task) {
+            task.last_work_duration = 0;
+            task.last_break_duration = 0;
+        }
+        console.error('Error fetching last pomodoro session:', error);
+    }
+};
+
+   const fetchTasks = async () => {
+    try {
+        console.log('🔄 Fetching tasks for user:', props.user.id);
+        const response = await apiService.getTasks(props.user.id);
+
+        if (response.success) {
+            tasks.value = response.tasks;
+            console.log('📥 Tasks fetched successfully:', tasks.value);
+            // Fetch session stats for each task
+            for (const task of tasks.value) {
+                await fetchLastPomodoroSession(props.user.id, task.id);
+            }
+
+            console.log('✅ Tasks loaded successfully:', tasks.value.length, 'tasks');
+        } else {
+            console.error('❌ Failed to fetch tasks:', response.error);
+            alert('Failed to load tasks: ' + (response.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('❌ Error fetching tasks:', error);
+        // error handling same as before...
+    }
+};
+
+        
         const addTask = async () => {
             try {
                 // Validate required fields
@@ -325,6 +362,32 @@ export default defineComponent({
 
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Merriweather:wght@400;700&display=swap');
+.session-card {
+  padding: 1rem 1.5rem; /* Extra padding inside */
+  margin-top: 1rem; /* Space above */
+  margin-bottom: 1rem; /* Space below */
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05); /* Slight transparent background */
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem; /* Space between rows */
+}
+
+.session-row {
+  display: flex;
+  justify-content: space-between; /* Push text apart */
+  font-size: 1rem;
+}
+
+.session-label {
+  font-weight: 500;
+}
+
+.session-value {
+  font-weight: bold;
+  color: #4da3ff; /* Accent color */
+}
+
 
 .task-tracker-modal {
     position: fixed;
@@ -664,6 +727,7 @@ export default defineComponent({
 .analytics-label {
     font-size: 0.8rem;
     color: rgba(255, 255, 255, 0.7);
+    padding: 0%;
 }
 
 .analytics-value {

@@ -419,7 +419,15 @@ export const apiService = {
       throw error
     }
   },
-
+// Get last Pomodoro session using path parameters
+async getLastPomodoroSession(userId, homeworkId) {
+  try {
+    const response = await api.get(`/api/pomodoro/last-session/${userId}/${homeworkId}`)
+    return response.data
+  } catch (error) {
+    throw error
+  }
+},
   async abandonPomodoro(sessionId, workDuration = 0, breakDuration = 0) {
     try {
       const response = await api.put(`/api/pomodoro/abandon/${sessionId}`, {

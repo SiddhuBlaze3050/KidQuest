@@ -86,7 +86,7 @@ class HomeworkSchedule(db.Model):
     assigned_by_teacher = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)  # Teacher who assigned this task
     created_at = db.Column(db.DateTime(timezone=True), default=get_current_ist_time)  # When task was created (IST)
     updated_at = db.Column(db.DateTime(timezone=True), default=get_current_ist_time, onupdate=get_current_ist_time)  # For tracking status changes (IST)
-    pomodoro_sessions = db.relationship('PomodoroSession', backref='homework', lazy=True)
+    pomodoro_sessions = db.relationship('PomodoroSession', backref='homework', lazy=True,cascade="all, delete-orphan")
 
 
 # ---------------------------

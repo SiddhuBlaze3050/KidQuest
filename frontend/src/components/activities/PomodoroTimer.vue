@@ -171,7 +171,6 @@ const totalWorkTime = ref(0); // Only time when timer was actually running
 const showSettings = ref(false);
 const tempWorkMinutes = ref(workMinutes.value);
 const tempBreakMinutes = ref(breakMinutes.value);
-
 // Add a reactive variable to force session duration updates
 const currentTime = ref(Date.now());
 
@@ -247,6 +246,7 @@ const startTimer = async () => {
             const response = await apiService.startPomodoro(props.userId, props.task.id);
             if (response.success) {
                 activeSessionId.value = response.session_id;
+                console.log("Pomodoro session started with ID:", activeSessionId.value);
                 if (!sessionStartTime.value) {
                     sessionStartTime.value = Date.now();
                 }
@@ -421,18 +421,15 @@ const handleClose = async () => {
         const breakDuration = Math.max(0, totalDuration - totalWorkTime.value);
         
         try {
-            await apiService.completePomodoro(
+            const response= await apiService.completePomodoro(
                 activeSessionId.value, 
                 totalWorkTime.value, 
                 breakDuration
             );
-            
-            emit('session-complete');
         } catch (error) {
             console.error("Error completing pomodoro session:", error);
         }
     }
-    
     emit('close');
 };
 
