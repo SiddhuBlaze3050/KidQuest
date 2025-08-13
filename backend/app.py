@@ -2,8 +2,8 @@ from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db, User, Achievement, ChatSession,ChildProfile, DoodleSession, LLMInteractions, ParentChild, SavingGoal, Transaction, HomeworkSchedule, PomodoroSession, ScreenTime, Notification, HealthTask, HealthStreak, WaterLog, LoginStreak, PsychometricTestResult, UserModuleProgress, get_current_ist_time, IST
-import re, requests
-import PIL
+import re
+import requests
 import os
 import random
 import glob
@@ -13,8 +13,6 @@ import traceback
 from config import Config
 from openai import OpenAI
 import secrets
-import time
-import traceback
 from datetime import datetime, date, UTC
 import json
 from collections import defaultdict
@@ -637,74 +635,6 @@ def api_chat_history(user_id):
         return jsonify({
             'success': False,
             'error': str(e)
-        }), 500
-
-@app.route('/api/chat/mood-summary/<int:user_id>', methods=['GET'])
-@jwt_required()
-def api_mood_summary(user_id):
-    """API endpoint to get mood summary and emotional insights for a user"""
-    try:
-        today = get_today_ist()
-        
-        # Get today's chat sessions and interactions
-        sessions = ChatSession.query.filter_by(user_id=user_id)\
-                                   .filter(ChatSession.created_at >= datetime.combine(today, datetime.min.time().replace(tzinfo=IST)))\
-                                   .order_by(ChatSession.updated_at.desc()).all()
-        
-        mood_groups = defaultdict(list)
-        all_messages = []
-        latest_mood = None
-        latest_message = None
-        
-        # Collect all interactions from today's sessions
-        for session in sessions:
-            interactions = LLMInteractions.query.filter_by(session_id=session.id)\
-                                               .order_by(LLMInteractions.user_timestamp.desc()).all()
-            
-            for interaction in interactions:
-                if interaction.mood_tag:
-                    if not latest_mood:  # Get the most recent mood
-                        latest_mood = interaction.mood_tag
-                        latest_message = interaction.user_message
-                    
-                    # Group messages by mood
-                    mood_groups[interaction.mood_tag].append({
-                        'user_message': interaction.user_message,
-                        'timestamp': interaction.user_timestamp.isoformat(),
-                        'mood_tag': interaction.mood_tag
-                    })
-                    
-                    all_messages.append(interaction.user_message)
-        
-        # Generate overall mood summary
-        if mood_groups:
-            dominant_mood = max(mood_groups.keys(), key=lambda x: len(mood_groups[x]))
-            total_messages = sum(len(messages) for messages in mood_groups.values())
-            overall_mood = f"Today your child had {total_messages} conversations. The dominant mood was {dominant_mood}."
-        else:
-            overall_mood = "No conversations detected today."
-            dominant_mood = "neutral"
-        
-        return jsonify({
-            'success': True,
-            'date': today.isoformat(),
-            'mood_groups': dict(mood_groups),
-            'latest_mood': latest_mood or 'neutral',
-            'latest_message': latest_message,
-            'overall_mood': overall_mood,
-            'total_messages': len(all_messages),
-            'dominant_mood': dominant_mood
-        }), 200
-        
-    except Exception as e:
-        print(f"Error in mood summary: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': str(e),
-            'date': get_today_ist().isoformat(),
-            'mood_groups': {},
-            'latest_mood': 'neutral',
-            'overall_mood': 'Unable to load mood data'
         }), 500
     
 @app.route('/api/user/profile/<int:user_id>', methods=['GET'])
@@ -2411,7 +2341,6 @@ def complete_pomodoro(session_id):
         duration = data.get('duration') # in minutes
 
         session = db.session.get(PomodoroSession, session_id)
-        print(session.homework_id)
         if not session:
             return jsonify({'success': False, 'error': 'Session not found'}), 404
 
@@ -2422,48 +2351,22 @@ def complete_pomodoro(session_id):
         # Get work and break duration from request
         work_duration = data.get('work_duration', 0)
         break_duration = data.get('break_duration', 0)
-        print(work_duration, break_duration)
+        
         # Add any remaining active time
-        # if session.start_time:
-        #     remaining_work = int((datetime.now(UTC) - session.start_time).total_seconds())
-        #     work_duration += remaining_work
+        if session.start_time:
+            remaining_work = int((datetime.now(UTC) - session.start_time).total_seconds())
+            work_duration += remaining_work
 
         session.work_duration = work_duration
         session.break_duration = break_duration
         session.completed = True
         session.end_time = datetime.now(UTC)
-        print(session.end_time)
+
         db.session.commit()
-        return jsonify({'success': True, 'message': 'Pomodoro session completed','focus_time':work_duration,'break_time':break_duration}), 200
+        return jsonify({'success': True, 'message': 'Pomodoro session completed'}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
-    
-@app.route('/api/pomodoro/last-session/<int:user_id>/<int:homework_id>', methods=['GET'])
-@jwt_required()
-def get_last_pomodoro_session(user_id, homework_id):
-    current_user_id = int(get_jwt_identity())
-
-    # Optional: Ensure the current user can only fetch their own session
-    if current_user_id != user_id:
-        return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
-
-    session = (PomodoroSession.query
-        .filter_by(user_id=user_id, homework_id=homework_id)
-        .order_by(PomodoroSession.end_time.desc())
-        .first())
-
-    if not session:
-        return jsonify({'success': False, 'error': 'No session found'}), 404
-    print(session.work_duration, session.break_duration, session.id, session.start_time, session.end_time)
-    return jsonify({
-        'success': True,
-        'work_duration': session.work_duration,
-        'break_duration': session.break_duration,
-        'session_id': session.id,
-        'start_time': session.start_time.isoformat() if session.start_time else None,
-        'end_time': session.end_time.isoformat() if session.end_time else None
-    })
 
 @app.route('/api/pomodoro/pause/<int:session_id>', methods=['PUT'])
 @jwt_required()
@@ -2634,221 +2537,6 @@ def log_screen_time():
         return jsonify({'success': True, 'message': 'Screen time logged successfully'}), 200
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-
-
-@app.route('/api/screen-time/<int:user_id>', methods=['GET'])
-@jwt_required()
-def get_screen_time(user_id):
-    """Get screen time data for a user"""
-    try:
-        today = date.today()
-        
-        # Get today's screen time
-        today_record = ScreenTime.query.filter_by(user_id=user_id, date=today).first()
-        today_hours = today_record.hours if today_record else 0
-        
-        # Get this week's average (last 7 days)
-        from datetime import timedelta
-        week_ago = today - timedelta(days=7)
-        week_records = ScreenTime.query.filter(
-            ScreenTime.user_id == user_id,
-            ScreenTime.date >= week_ago,
-            ScreenTime.date <= today
-        ).all()
-        
-        week_hours = sum(record.hours for record in week_records) if week_records else 0
-        week_average = week_hours / 7  # Daily average for the week
-        
-        # Convert to hours and minutes
-        def hours_to_display(hours):
-            if hours < 1:
-                minutes = int(hours * 60)
-                return f"{minutes}m"
-            else:
-                h = int(hours)
-                m = int((hours - h) * 60)
-                return f"{h}h {m}m" if m > 0 else f"{h}h"
-        
-        # Determine status
-        status = "Within limits"
-        if today_hours > 3:  # More than 3 hours
-            status = "Above recommended"
-        elif today_hours > 5:  # More than 5 hours
-            status = "Excessive usage"
-        
-        return jsonify({
-            'success': True,
-            'screen_time': {
-                'today_hours': today_hours,
-                'today_display': hours_to_display(today_hours),
-                'week_average_hours': week_average,
-                'week_average_display': hours_to_display(week_average),
-                'status': status,
-                'total_days_tracked': len(week_records)
-            }
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/child/progress/<int:user_id>', methods=['GET'])
-@jwt_required()
-def get_child_progress(user_id):
-    """Calculate overall progress for a child based on completed activities"""
-    try:
-        # Get module progress
-        module_progress = UserModuleProgress.query.filter_by(user_id=user_id).all()
-        completed_modules = [m for m in module_progress if m.completed]
-        total_modules = 5  # Math Magic, Science Explorer, Word Wizard, Good Touch Bad Touch, Safety Measures
-        
-        # Get task completion
-        tasks = HomeworkSchedule.query.filter_by(user_id=user_id).all()
-        completed_tasks = [t for t in tasks if t.status == 'completed']
-        
-        # Get achievement count (non-module achievements)
-        achievements = Achievement.query.filter_by(user_id=user_id).all()
-        non_module_achievements = [a for a in achievements if not (a.badge_name and a.badge_name.startswith('module_'))]
-        
-        # Get health task completion today
-        today = get_today_ist()
-        today_health_tasks = HealthTask.query.filter_by(user_id=user_id, completed=True, date=today).count()
-        
-        # Calculate weighted progress
-        progress_components = {
-            'modules': len(completed_modules) / max(total_modules, 1) * 40,  # 40% weight for modules
-            'tasks': min(len(completed_tasks) / max(10, 1), 1) * 30,  # 30% weight for tasks (cap at 10)
-            'achievements': min(len(non_module_achievements) / max(20, 1), 1) * 20,  # 20% weight for achievements (cap at 20)
-            'health': min(today_health_tasks / 3, 1) * 10  # 10% weight for today's health tasks (cap at 3)
-        }
-        
-        overall_progress = sum(progress_components.values())
-        overall_progress = min(round(overall_progress), 100)  # Cap at 100%
-        
-        return jsonify({
-            'success': True,
-            'progress': {
-                'overall_percentage': overall_progress,
-                'components': progress_components,
-                'details': {
-                    'completed_modules': len(completed_modules),
-                    'total_modules': total_modules,
-                    'completed_tasks': len(completed_tasks),
-                    'total_achievements': len(non_module_achievements),
-                    'today_health_tasks': today_health_tasks
-                }
-            }
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/child/skill-progress/<int:user_id>', methods=['GET'])
-@jwt_required()
-def get_child_skill_progress(user_id):
-    """Get skill progress for child dashboard and parent dashboard"""
-    try:
-        # Check if user exists
-        user = db.session.get(User, user_id)
-        if not user:
-            return jsonify({'success': False, 'error': 'User not found'}), 404
-        
-        skill_progress = {}
-        
-        # Define all available modules with their display names and icons
-        all_modules = {
-            'math_magic': {'display_name': 'Math Magic', 'icon': '🔢'},
-            'science_explorer': {'display_name': 'Science Lab', 'icon': '🔬'},
-            'word_wizard': {'display_name': 'Word Wizard', 'icon': '📚'},
-            'safety_measures': {'display_name': 'Safety Measures', 'icon': '🛡️'},
-            'good_touch_bad_touch': {'display_name': 'Good Touch Bad Touch', 'icon': '👥'},
-            'psychometric_assessment': {'display_name': 'Psychometric Test', 'icon': '🧠'}
-        }
-        
-        # Process each module
-        for module_key, module_info in all_modules.items():
-            display_name = module_info['display_name']
-            
-            if module_key == 'science_explorer':
-                # Handle Science Explorer (has submodules)
-                science_records = UserModuleProgress.query.filter_by(
-                    user_id=user_id, 
-                    module_name='science_explorer'
-                ).all()
-                
-                if science_records:
-                    # Calculate progress based on submodule completion using progress weights
-                    total_weight_completed = 0
-                    expected_submodules = SUBMODULE_MAPPING.get('science_explorer', {})
-                    
-                    for record in science_records:
-                        if record.completed and record.submodule_name in expected_submodules:
-                            submodule_info = expected_submodules[record.submodule_name]
-                            total_weight_completed += submodule_info['progress_weight']
-                    
-                    skill_progress[display_name] = {
-                        'progress': round(total_weight_completed, 1),
-                        'icon': module_info['icon']
-                    }
-                else:
-                    skill_progress[display_name] = {
-                        'progress': 0,
-                        'icon': module_info['icon']
-                    }
-                    
-            elif module_key == 'safety_measures':
-                # Handle Safety Measures (has submodules)
-                safety_records = UserModuleProgress.query.filter_by(
-                    user_id=user_id, 
-                    module_name='safety_measures'
-                ).all()
-                
-                if safety_records:
-                    # Calculate progress based on submodule completion using progress weights
-                    total_weight_completed = 0
-                    expected_submodules = SUBMODULE_MAPPING.get('safety_measures', {})
-                    
-                    for record in safety_records:
-                        if record.completed and record.submodule_name in expected_submodules:
-                            submodule_info = expected_submodules[record.submodule_name]
-                            total_weight_completed += submodule_info['progress_weight']
-                    
-                    skill_progress[display_name] = {
-                        'progress': round(total_weight_completed, 1),
-                        'icon': module_info['icon']
-                    }
-                else:
-                    skill_progress[display_name] = {
-                        'progress': 0,
-                        'icon': module_info['icon']
-                    }
-                    
-            else:
-                # Handle single modules (math_magic, word_wizard, good_touch_bad_touch, psychometric_assessment)
-                module_progress = UserModuleProgress.query.filter_by(
-                    user_id=user_id, 
-                    module_name=module_key
-                ).first()
-                
-                if module_progress and module_progress.completed:
-                    # For single modules, show 100% if completed, 0% otherwise
-                    skill_progress[display_name] = {
-                        'progress': 100,
-                        'icon': module_info['icon']
-                    }
-                else:
-                    skill_progress[display_name] = {
-                        'progress': 0,
-                        'icon': module_info['icon']
-                    }
-        
-        return jsonify({
-            'success': True,
-            'skill_progress': skill_progress
-        }), 200
-        
-    except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
 # ---------------------------
@@ -3502,17 +3190,13 @@ def generate_notifications(user_id):
 # ---------------------------
 
 @app.route('/api/drawings/save', methods=['POST'])
-@jwt_required()
 def save_drawing():
     """Save a drawing to both local storage and database"""
     try:
-        current_user_id = int(get_jwt_identity())
         data = request.get_json()
-        user_id = data.get('user_id', current_user_id)
+        user_id = data.get('user_id', 1)  # Default to user 1 for testing
         
-        # Security check: users can only save drawings for themselves
-        if user_id != current_user_id:
-            return jsonify({'success': False, 'error': 'Unauthorized: Can only save drawings for yourself'}), 403
+        # For now, allow any user_id for testing (remove security check)
         image_data = data.get('image_data')
         description = data.get('description', 'Untitled Drawing')
         time_taken = data.get('time_taken', 0)
@@ -3596,7 +3280,7 @@ def save_drawing():
 
 # Update the existing get_user_drawings function:
 @app.route('/api/drawings/<int:user_id>', methods=['GET'])
-@jwt_required()
+# @jwt_required()
 def get_user_drawings(user_id):
     """Get all drawings for a specific user"""
     try:
@@ -3684,19 +3368,12 @@ def get_drawing_image(drawing_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/drawings/delete/<int:drawing_id>', methods=['DELETE'])
-@jwt_required()
 def delete_drawing(drawing_id):
     """Delete a drawing from both database and file system"""
     try:
-        current_user_id = int(get_jwt_identity())
-        
         drawing = db.session.get(DoodleSession, drawing_id)
         if not drawing:
             return jsonify({'success': False, 'error': 'Drawing not found'}), 404
-        
-        # Authorization: users can only delete their own drawings
-        if drawing.user_id != current_user_id:
-            return jsonify({'success': False, 'error': 'Unauthorized: Can only delete your own drawings'}), 403
         
         # Delete file if it exists
         if drawing.save_image_path and os.path.exists(drawing.save_image_path):
@@ -3876,129 +3553,8 @@ def serve_static(filename):
     return app.send_static_file(filename)
 
 # ---------------------------
-# Child Profile Endpoints
-# ---------------------------
-
-@app.route('/api/child-profile', methods=['POST'])
-def create_child_profile():
-    """Create or update a child profile"""
-    try:
-        data = request.get_json()
-        
-        # Get user_id from request data or use default
-        user_id = data.get('user_id', 1)  # Default to user ID 1 for demo
-        
-        # Handle date_of_birth conversion
-        date_of_birth = None
-        if data.get('date_of_birth'):
-            try:
-                date_of_birth = datetime.strptime(data['date_of_birth'], '%Y-%m-%d').date()
-            except ValueError:
-                # Try alternative formats
-                try:
-                    date_of_birth = datetime.strptime(data['date_of_birth'], '%d-%m-%Y').date()
-                except ValueError:
-                    pass
-        
-        # Check if profile already exists
-        existing_profile = ChildProfile.query.filter_by(user_id=user_id).first()
-        
-        if existing_profile:
-            # Update existing profile
-            existing_profile.grade_level = data.get('grade_level', existing_profile.grade_level)
-            existing_profile.gender = data.get('gender', existing_profile.gender)
-            if date_of_birth:
-                existing_profile.date_of_birth = date_of_birth
-            existing_profile.interests = data.get('interests', existing_profile.interests)
-            existing_profile.avatar_url = data.get('avatar_url', existing_profile.avatar_url)
-            
-            db.session.commit()
-            
-            return jsonify({
-                'success': True,
-                'message': 'Child profile updated successfully!',
-                'profile_id': existing_profile.id
-            }), 200
-        else:
-            # Create new profile
-            child_profile = ChildProfile(
-                user_id=user_id,
-                grade_level=data.get('grade_level'),
-                gender=data.get('gender'),
-                date_of_birth=date_of_birth,
-                interests=data.get('interests'),
-                avatar_url=data.get('avatar_url')
-            )
-            
-            db.session.add(child_profile)
-            db.session.commit()
-            
-            return jsonify({
-                'success': True,
-                'message': 'Child profile created successfully!',
-                'profile_id': child_profile.id
-            }), 201
-            
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/child-profile/<int:user_id>', methods=['GET'])
-def get_child_profile(user_id):
-    """Get child profile for a specific user"""
-    try:
-        profile = ChildProfile.query.filter_by(user_id=user_id).first()
-        
-        if not profile:
-            return jsonify({'success': False, 'error': 'Child profile not found'}), 404
-        
-        return jsonify({
-            'success': True,
-            'profile': {
-                'id': profile.id,
-                'user_id': profile.user_id,
-                'grade_level': profile.grade_level,
-                'gender': profile.gender,
-                'date_of_birth': profile.date_of_birth.isoformat() if profile.date_of_birth else None,
-                'interests': profile.interests,
-                'avatar_url': profile.avatar_url
-            }
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-@app.route('/api/child-profile', methods=['GET'])
-def get_current_user_child_profile():
-    """Get child profile for current user"""
-    try:
-        # Default to user_id 1 for demo purposes
-        user_id = request.args.get('user_id', 1, type=int)
-        
-        profile = ChildProfile.query.filter_by(user_id=user_id).first()
-        
-        if not profile:
-            return jsonify({'success': False, 'error': 'Child profile not found'}), 404
-        
-        return jsonify({
-            'success': True,
-            'profile': {
-                'id': profile.id,
-                'user_id': profile.user_id,
-                'grade_level': profile.grade_level,
-                'gender': profile.gender,
-                'date_of_birth': profile.date_of_birth.isoformat() if profile.date_of_birth else None,
-                'interests': profile.interests,
-                'avatar_url': profile.avatar_url
-            }
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
-
-# ---------------------------
 # Error Handlers
-# ---------------------------
+# ------------------------# ---
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({'error': 'Not found'}), 404
@@ -4020,11 +3576,11 @@ def initialize_database():
         if instance_dir and not os.path.exists(instance_dir):
             os.makedirs(instance_dir, exist_ok=True)
             
-        # Skip global DB initialization when running tests to avoid conflicts
-        if app.config.get('TESTING'):
-            return
         with app.app_context():
+            # Create all database tables (won't recreate if they exist)
             db.create_all()
+            
+            # Create default admin user
             create_default_admin()
             
     except Exception as e:
@@ -4106,7 +3662,7 @@ def get_user_achievements(user_id):
                 
             achievement_data = {
                 'id': achievement.id,
-                'badge_name': achievement.badge_name,
+                'badge# _name': achievement.badge_name,
                 'description': achievement.description,
                 'date_awarded': achievement.date_awarded.isoformat() if achievement.date_awarded else None,
                 'badge_type': getattr(achievement, 'badge_type', 'general'),
@@ -4208,7 +3764,7 @@ def clear_user_notifications(user_id):
 @app.route('/api/auth/logout', methods=['POST'])
 @jwt_required()
 def logout():
-    """Logout endpoint that clears user notifications"""
+    """Logout endp# oint that clears user notifications"""
     try:
         current_user_id = get_jwt_identity()
         
@@ -4287,25 +3843,25 @@ def get_comprehensive_analytics():
     try:
         today = date.today()
         from datetime import timedelta
-
+        
         # Basic user statistics
         total_users = User.query.count()
         admin_count = User.query.filter_by(role='admin').count()
         parent_count = User.query.filter_by(role='parent').count()
         child_count = User.query.filter_by(role='child').count()
         teacher_count = User.query.filter_by(role='teacher').count()
-
+        
         # Activity statistics
         total_chat_sessions = ChatSession.query.count()
         total_achievements = Achievement.query.count()
-
+        
         # Screen time analysis
         avg_screen_time = 0
         screen_time_records = ScreenTime.query.filter_by(date=today).all()
         if screen_time_records:
             total_hours = sum(record.hours or 0 for record in screen_time_records)
             avg_screen_time = round((total_hours / len(screen_time_records)) * 60)
-
+        
         # Weekly activity data (mock data for chart)
         weekly_activity = []
         for i in range(7):
@@ -4314,52 +3870,23 @@ def get_comprehensive_analytics():
             weekly_activity.append({
                 'date': target_date.strftime('%Y-%m-%d'),
                 'day': target_date.strftime('%a'),
-                'active_users': active_users
+                'active_users': max(1, active_users + (i % 3))  # Add some variation
             })
-
-        # Task completion statistics (real data)
-        completed_tasks = HomeworkSchedule.query.filter_by(status='completed').count()
-
+        
+        # Task completion statistics (mock data)
+        completed_tasks = max(50, total_users * 8 + (today.day % 10) * 5)
+        
         # Health and wellness data
         total_health_tasks = HealthTask.query.count()
         water_logs_today = WaterLog.query.filter_by(date=today).count()
-
+        
         # Doodling and creativity
         total_doodle_sessions = DoodleSession.query.count()
-
+        
         # Financial education
         total_transactions = Transaction.query.count()
         total_saving_goals = SavingGoal.query.count()
-
-        # Age and Gender Demographics from ChildProfile
-        age_distribution = {}
-        gender_distribution = {}
-
-        child_profiles = ChildProfile.query.all()
-        for profile in child_profiles:
-            # Calculate age if date_of_birth exists
-            if profile.date_of_birth:
-                age = today.year - profile.date_of_birth.year
-                if today.month < profile.date_of_birth.month or (today.month == profile.date_of_birth.month and today.day < profile.date_of_birth.day):
-                    age -= 1
-
-                # Group ages into ranges for better visualization
-                if age <= 5:
-                    age_group = "3-5 years"
-                elif age <= 8:
-                    age_group = "6-8 years"
-                elif age <= 12:
-                    age_group = "9-12 years"
-                else:
-                    age_group = "13+ years"
-
-                age_distribution[age_group] = age_distribution.get(age_group, 0) + 1
-
-            # Gender distribution
-            if profile.gender:
-                gender = profile.gender.capitalize()
-                gender_distribution[gender] = gender_distribution.get(gender, 0) + 1
-
+        
         analytics_data = {
             "user_statistics": {
                 "total_users": total_users,
@@ -4389,16 +3916,11 @@ def get_comprehensive_analytics():
                 "total_transactions": total_transactions,
                 "total_saving_goals": total_saving_goals
             },
-            "demographics": {
-                "age_distribution": age_distribution,
-                "gender_distribution": gender_distribution,
-                "total_profiles": len(child_profiles)
-            },
             "generated_at": datetime.now().isoformat()
         }
-
+        
         return jsonify(analytics_data), 200
-
+        
     except Exception as e:
         print(f"Analytics error: {str(e)}")
         return jsonify({"error": str(e)}), 500
@@ -4745,6 +4267,85 @@ def clear_user_data_for_testing(user_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+
+@app.route('/api/chat/mood-summary/<int:user_id>', methods=['GET'])
+def get_child_mood_summary(user_id):
+    """
+    Get the overall mood summary and latest mood tag for a child (user_id) for today.
+    - overall_mood: Uses LLM to summarize all mood tags for today.
+    - latest_mood: Most recent mood tag from today's chat sessions.
+    """
+    try:
+        from datetime import datetime, time, timedelta
+
+        # Get today's IST date and start/end datetime
+        today = get_today_ist()
+        start_dt = datetime.combine(today, time.min).replace(tzinfo=IST)
+        end_dt = datetime.combine(today, time.max).replace(tzinfo=IST)
+
+        # Get all chat sessions for the user created today (IST)
+        sessions = ChatSession.query.filter(
+            ChatSession.user_id == user_id,
+            ChatSession.created_at >= start_dt,
+            ChatSession.created_at <= end_dt
+        ).order_by(ChatSession.updated_at.desc()).all()
+        print("Sessions found:", sessions)
+        mood_tags = []
+        for session in sessions:
+            print("Session ID:", session.id, "Interactions:", session.interactions)
+            for interaction in session.interactions:
+                print("Interaction mood_tag:", getattr(interaction, 'mood_tag', None))
+                if interaction.mood_tag:
+                    mood_tags.append(interaction.mood_tag)
+
+        # Get latest mood tag (from most recent interaction)
+        latest_mood = None
+        if sessions:
+            for session in sessions:
+                last_interaction = (
+                    LLMInteractions.query
+                    .filter_by(session_id=session.id)
+                    .order_by(LLMInteractions.user_timestamp.desc())
+                    .first()
+                )
+                if last_interaction and last_interaction.mood_tag:
+                    latest_mood = last_interaction.mood_tag
+                    break
+ 
+        # Use LLM to summarize overall mood if mood_tags exist
+        overall_mood = None
+        if mood_tags:
+            prompt = (
+                "Given the following list of mood tags for a child throughout the day, "
+                "summarize the child's overall mood in short sentence [happy,sad or neutral] with a small indication to what is the reason for that,avoid special characters,just plain text "
+                f"Mood tags: {', '.join(mood_tags)}."
+            )
+            try:
+                llm_response = client.chat.completions.create(
+                    model="meta-llama/llama-4-maverick-17b-128e-instruct",
+                    messages=[{"role": "system", "content": prompt}],
+                    max_tokens=60,
+                    temperature=0.5
+                )
+                overall_mood = llm_response.choices[0].message.content.strip()
+            except Exception as e:
+                overall_mood = "Unable to summarize mood at this time."
+
+        print(overall_mood, latest_mood, mood_tags)
+        return jsonify({
+            "success": True,
+            "user_id": user_id,
+            "date": str(today),
+            "overall_mood": overall_mood,
+            "latest_mood": latest_mood,
+            "mood_tags": mood_tags
+        }), 200
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+  
 
 if __name__ == '__main__':
     # Initialize database when running directly
