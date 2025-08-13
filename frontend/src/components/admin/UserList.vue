@@ -23,6 +23,7 @@
           <option value="">All Roles</option>
           <option value="admin">Admin</option>
           <option value="parent">Parent</option>
+          <option value="teacher">Teacher</option>
           <option value="child">Child</option>
         </select>
       </div>

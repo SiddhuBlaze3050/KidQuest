@@ -56,9 +56,10 @@
           <span class="input-icon">👥</span>
           <select id="role" v-model="formData.role" required>
             <option value="" disabled>Select Role</option>
+            <option value="admin">Admin</option>
             <option value="parent">Parent</option>
-            <option value="child">Child</option>
             <option value="teacher">Teacher</option>
+            <option value="child">Child</option>
           </select>
         </div>
       </div>
@@ -212,9 +213,18 @@ export default {
 }
 
 .input-wrapper select option {
-  background: #3C4E8B;
-  color: #FFFFFF;
-  padding: 0.5rem;
+  background: #eae6fa;
+  color: #6c4ccf;
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  border-radius: 6px;
+  margin: 2px 0;
+  transition: background 0.2s;
+}
+
+.input-wrapper select option:checked, .input-wrapper select option:hover {
+  background: #d1c4e9;
+  color: #4b2aad;
 }
 
 /* Form Actions */
