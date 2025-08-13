@@ -4287,25 +4287,25 @@ def get_comprehensive_analytics():
     try:
         today = date.today()
         from datetime import timedelta
-        
+
         # Basic user statistics
         total_users = User.query.count()
         admin_count = User.query.filter_by(role='admin').count()
         parent_count = User.query.filter_by(role='parent').count()
         child_count = User.query.filter_by(role='child').count()
         teacher_count = User.query.filter_by(role='teacher').count()
-        
+
         # Activity statistics
         total_chat_sessions = ChatSession.query.count()
         total_achievements = Achievement.query.count()
-        
+
         # Screen time analysis
         avg_screen_time = 0
         screen_time_records = ScreenTime.query.filter_by(date=today).all()
         if screen_time_records:
             total_hours = sum(record.hours or 0 for record in screen_time_records)
             avg_screen_time = round((total_hours / len(screen_time_records)) * 60)
-        
+
         # Weekly activity data (mock data for chart)
         weekly_activity = []
         for i in range(7):
@@ -4314,27 +4314,27 @@ def get_comprehensive_analytics():
             weekly_activity.append({
                 'date': target_date.strftime('%Y-%m-%d'),
                 'day': target_date.strftime('%a'),
-                'active_users': max(1, active_users + (i % 3))  # Add some variation
+                'active_users': active_users
             })
-        
-        # Task completion statistics (mock data)
-        completed_tasks = max(50, total_users * 8 + (today.day % 10) * 5)
-        
+
+        # Task completion statistics (real data)
+        completed_tasks = HomeworkSchedule.query.filter_by(status='completed').count()
+
         # Health and wellness data
         total_health_tasks = HealthTask.query.count()
         water_logs_today = WaterLog.query.filter_by(date=today).count()
-        
+
         # Doodling and creativity
         total_doodle_sessions = DoodleSession.query.count()
-        
+
         # Financial education
         total_transactions = Transaction.query.count()
         total_saving_goals = SavingGoal.query.count()
-        
+
         # Age and Gender Demographics from ChildProfile
         age_distribution = {}
         gender_distribution = {}
-        
+
         child_profiles = ChildProfile.query.all()
         for profile in child_profiles:
             # Calculate age if date_of_birth exists
@@ -4342,7 +4342,7 @@ def get_comprehensive_analytics():
                 age = today.year - profile.date_of_birth.year
                 if today.month < profile.date_of_birth.month or (today.month == profile.date_of_birth.month and today.day < profile.date_of_birth.day):
                     age -= 1
-                
+
                 # Group ages into ranges for better visualization
                 if age <= 5:
                     age_group = "3-5 years"
@@ -4352,14 +4352,14 @@ def get_comprehensive_analytics():
                     age_group = "9-12 years"
                 else:
                     age_group = "13+ years"
-                
+
                 age_distribution[age_group] = age_distribution.get(age_group, 0) + 1
-            
+
             # Gender distribution
             if profile.gender:
                 gender = profile.gender.capitalize()
                 gender_distribution[gender] = gender_distribution.get(gender, 0) + 1
-        
+
         analytics_data = {
             "user_statistics": {
                 "total_users": total_users,
@@ -4396,9 +4396,9 @@ def get_comprehensive_analytics():
             },
             "generated_at": datetime.now().isoformat()
         }
-        
+
         return jsonify(analytics_data), 200
-        
+
     except Exception as e:
         print(f"Analytics error: {str(e)}")
         return jsonify({"error": str(e)}), 500
