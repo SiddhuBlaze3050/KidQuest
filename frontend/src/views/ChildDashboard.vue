@@ -380,7 +380,7 @@
         <MusicPlayer v-if="showMusicPlayer" @close="showMusicPlayer = false" />
 
         <!-- Pomodoro Timer Modal -->
-        <PomodoroTimer v-if="showPomodoroTimer" @close="showPomodoroTimer = false" />
+        <PomodoroTimer v-if="showPomodoroTimer" :userId="user?.id" @close="showPomodoroTimer = false" />
 
         <!-- Drawing Pad Modal -->
         <DrawingPad v-if="showDrawingPad" :userId="user?.id" @close="showDrawingPad = false" />

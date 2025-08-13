@@ -638,6 +638,74 @@ def api_chat_history(user_id):
             'success': False,
             'error': str(e)
         }), 500
+
+@app.route('/api/chat/mood-summary/<int:user_id>', methods=['GET'])
+@jwt_required()
+def api_mood_summary(user_id):
+    """API endpoint to get mood summary and emotional insights for a user"""
+    try:
+        today = get_today_ist()
+        
+        # Get today's chat sessions and interactions
+        sessions = ChatSession.query.filter_by(user_id=user_id)\
+                                   .filter(ChatSession.created_at >= datetime.combine(today, datetime.min.time().replace(tzinfo=IST)))\
+                                   .order_by(ChatSession.updated_at.desc()).all()
+        
+        mood_groups = defaultdict(list)
+        all_messages = []
+        latest_mood = None
+        latest_message = None
+        
+        # Collect all interactions from today's sessions
+        for session in sessions:
+            interactions = LLMInteractions.query.filter_by(session_id=session.id)\
+                                               .order_by(LLMInteractions.user_timestamp.desc()).all()
+            
+            for interaction in interactions:
+                if interaction.mood_tag:
+                    if not latest_mood:  # Get the most recent mood
+                        latest_mood = interaction.mood_tag
+                        latest_message = interaction.user_message
+                    
+                    # Group messages by mood
+                    mood_groups[interaction.mood_tag].append({
+                        'user_message': interaction.user_message,
+                        'timestamp': interaction.user_timestamp.isoformat(),
+                        'mood_tag': interaction.mood_tag
+                    })
+                    
+                    all_messages.append(interaction.user_message)
+        
+        # Generate overall mood summary
+        if mood_groups:
+            dominant_mood = max(mood_groups.keys(), key=lambda x: len(mood_groups[x]))
+            total_messages = sum(len(messages) for messages in mood_groups.values())
+            overall_mood = f"Today your child had {total_messages} conversations. The dominant mood was {dominant_mood}."
+        else:
+            overall_mood = "No conversations detected today."
+            dominant_mood = "neutral"
+        
+        return jsonify({
+            'success': True,
+            'date': today.isoformat(),
+            'mood_groups': dict(mood_groups),
+            'latest_mood': latest_mood or 'neutral',
+            'latest_message': latest_message,
+            'overall_mood': overall_mood,
+            'total_messages': len(all_messages),
+            'dominant_mood': dominant_mood
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in mood summary: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'date': get_today_ist().isoformat(),
+            'mood_groups': {},
+            'latest_mood': 'neutral',
+            'overall_mood': 'Unable to load mood data'
+        }), 500
     
 @app.route('/api/user/profile/<int:user_id>', methods=['GET'])
 @jwt_required()
@@ -2343,6 +2411,7 @@ def complete_pomodoro(session_id):
         duration = data.get('duration') # in minutes
 
         session = db.session.get(PomodoroSession, session_id)
+        print(session.homework_id)
         if not session:
             return jsonify({'success': False, 'error': 'Session not found'}), 404
 
@@ -2353,22 +2422,48 @@ def complete_pomodoro(session_id):
         # Get work and break duration from request
         work_duration = data.get('work_duration', 0)
         break_duration = data.get('break_duration', 0)
-        
+        print(work_duration, break_duration)
         # Add any remaining active time
-        if session.start_time:
-            remaining_work = int((datetime.now(UTC) - session.start_time).total_seconds())
-            work_duration += remaining_work
+        # if session.start_time:
+        #     remaining_work = int((datetime.now(UTC) - session.start_time).total_seconds())
+        #     work_duration += remaining_work
 
         session.work_duration = work_duration
         session.break_duration = break_duration
         session.completed = True
         session.end_time = datetime.now(UTC)
-
+        print(session.end_time)
         db.session.commit()
-        return jsonify({'success': True, 'message': 'Pomodoro session completed'}), 200
+        return jsonify({'success': True, 'message': 'Pomodoro session completed','focus_time':work_duration,'break_time':break_duration}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
+    
+@app.route('/api/pomodoro/last-session/<int:user_id>/<int:homework_id>', methods=['GET'])
+@jwt_required()
+def get_last_pomodoro_session(user_id, homework_id):
+    current_user_id = int(get_jwt_identity())
+
+    # Optional: Ensure the current user can only fetch their own session
+    if current_user_id != user_id:
+        return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
+
+    session = (PomodoroSession.query
+        .filter_by(user_id=user_id, homework_id=homework_id)
+        .order_by(PomodoroSession.end_time.desc())
+        .first())
+
+    if not session:
+        return jsonify({'success': False, 'error': 'No session found'}), 404
+    print(session.work_duration, session.break_duration, session.id, session.start_time, session.end_time)
+    return jsonify({
+        'success': True,
+        'work_duration': session.work_duration,
+        'break_duration': session.break_duration,
+        'session_id': session.id,
+        'start_time': session.start_time.isoformat() if session.start_time else None,
+        'end_time': session.end_time.isoformat() if session.end_time else None
+    })
 
 @app.route('/api/pomodoro/pause/<int:session_id>', methods=['PUT'])
 @jwt_required()

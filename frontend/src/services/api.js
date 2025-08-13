@@ -15,7 +15,7 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     console.log('Making API request:', config.method?.toUpperCase(), config.url)
-    
+
     // Get token from authService and add to this request
     const token = authService.getToken()
     if (token) {
@@ -24,7 +24,7 @@ api.interceptors.request.use(
     } else {
       console.log('⚠️ API service: No token available for request')
     }
-    
+
     return config
   },
   (error) => {
@@ -419,7 +419,15 @@ export const apiService = {
       throw error
     }
   },
-
+// Get last Pomodoro session using path parameters
+async getLastPomodoroSession(userId, homeworkId) {
+  try {
+    const response = await api.get(`/api/pomodoro/last-session/${userId}/${homeworkId}`)
+    return response.data
+  } catch (error) {
+    throw error
+  }
+},
   async abandonPomodoro(sessionId, workDuration = 0, breakDuration = 0) {
     try {
       const response = await api.put(`/api/pomodoro/abandon/${sessionId}`, {
@@ -643,6 +651,36 @@ export const apiService = {
   async delete(endpoint) {
     const response = await api.delete(endpoint)
     return response.data
+  },
+
+  // Screen Time API
+  async getScreenTime(userId) {
+    try {
+      const response = await api.get(`/api/screen-time/${userId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // Child Progress API
+  async getChildProgress(userId) {
+    try {
+      const response = await api.get(`/api/child/progress/${userId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  // Child Skill Progress API
+  async getChildSkillProgress(userId) {
+    try {
+      const response = await api.get(`/api/child/skill-progress/${userId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
   },
 }
 

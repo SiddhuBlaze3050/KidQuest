@@ -128,7 +128,8 @@ import { apiService } from '@/services/api';
 const props = defineProps({
     task: {
         type: Object,
-        required: true,
+        required: false,
+        default: null,
     },
     userId: {
         type: Number,
@@ -170,7 +171,6 @@ const totalWorkTime = ref(0); // Only time when timer was actually running
 const showSettings = ref(false);
 const tempWorkMinutes = ref(workMinutes.value);
 const tempBreakMinutes = ref(breakMinutes.value);
-
 // Add a reactive variable to force session duration updates
 const currentTime = ref(Date.now());
 
@@ -239,13 +239,14 @@ const playBeep = () => {
 const startTimer = async () => {
     if (isRunning.value) return;
 
-    // Start new session if in work mode and no active session
-    if (currentMode.value.id === 'work' && !activeSessionId.value) {
+    // Start new session if in work mode, no active session, and we have a task
+    if (currentMode.value.id === 'work' && !activeSessionId.value && props.task?.id) {
         try {
             console.log(props.task);
             const response = await apiService.startPomodoro(props.userId, props.task.id);
             if (response.success) {
                 activeSessionId.value = response.session_id;
+                console.log("Pomodoro session started with ID:", activeSessionId.value);
                 if (!sessionStartTime.value) {
                     sessionStartTime.value = Date.now();
                 }
@@ -420,18 +421,15 @@ const handleClose = async () => {
         const breakDuration = Math.max(0, totalDuration - totalWorkTime.value);
         
         try {
-            await apiService.completePomodoro(
+            const response= await apiService.completePomodoro(
                 activeSessionId.value, 
                 totalWorkTime.value, 
                 breakDuration
             );
-            
-            emit('session-complete');
         } catch (error) {
             console.error("Error completing pomodoro session:", error);
         }
     }
-    
     emit('close');
 };
 

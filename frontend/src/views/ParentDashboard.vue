@@ -850,7 +850,12 @@ const fetchScreenTimeData = async () => {
     }
   } catch (e) {
     console.error('Failed to fetch screen time data', e)
-    // Keep default fake data on error
+    // Provide fallback data on error
+    screenTimeData.value = {
+      total: 'No data',
+      status: 'Unable to load',
+      week_average: 'No data'
+    }
   }
 }
 
@@ -865,7 +870,8 @@ const fetchOverallProgress = async () => {
     }
   } catch (e) {
     console.error('Failed to fetch overall progress', e)
-    // Keep default fake data on error
+    // Provide fallback data on error
+    overallProgress.value = 0
   }
 }
 
@@ -891,7 +897,7 @@ const fetchSkillProgress = async () => {
     }
   } catch (e) {
     console.error('Failed to fetch skill progress', e)
-    // Keep default fake data on error
+    // Keep default skill data on error - the skillProgress is already initialized with default values
   }
 }
 
