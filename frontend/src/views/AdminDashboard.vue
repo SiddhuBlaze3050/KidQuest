@@ -102,10 +102,6 @@
                 <span class="btn-icon">📈</span>
                 Usage Reports
               </button>
-              <button @click="exportData" class="action-btn">
-                <span class="btn-icon">📥</span>
-                Export Data
-              </button>
             </div>
           </div>
 

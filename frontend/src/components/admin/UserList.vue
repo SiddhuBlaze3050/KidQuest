@@ -320,18 +320,34 @@ export default {
 }
 
 .role-filter {
+  /* === Clarity Enhancement: Role Dropdown (Purple Theme) === */
   padding: 0.8rem 2.5rem 0.8rem 1rem;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: linear-gradient(135deg, #a78bfa, #7c3aed);
+  border: 1px solid #a78bfa;
   border-radius: 12px;
-  color: #FFFFFF;
-  font-size: 1rem;
+  color: #fff;
+  font-size: 1rem; /* min 14px for clarity */
   cursor: pointer;
   appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='rgba(255, 255, 255, 0.8)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 1rem center;
   background-size: 1rem;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.4;
+  /* No blur or opacity filters applied */
+}
+
+/* === Clarity Enhancement: Dropdown Options === */
+.role-filter option {
+  color: #7c3aed;
+  background: #f3e8ff;
+  font-size: 1rem;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.4;
+  /* No blur or opacity filters applied */
 }
 
 /* Table Section */
@@ -422,28 +438,36 @@ export default {
 
 /* Role Badge */
 .role-badge {
+  /* === Clarity Enhancement: Role Badge (Purple Theme) === */
   padding: 0.4rem 1rem;
   border-radius: 20px;
-  font-size: 0.85rem;
+  font-size: 1rem; /* min 14px for clarity */
   font-weight: 600;
   text-transform: capitalize;
   letter-spacing: 0.5px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.4;
+  background: linear-gradient(135deg, #a78bfa, #7c3aed);
+  color: #fff;
+  /* No blur or opacity filters applied */
 }
 
 .role-badge.admin {
-  background: linear-gradient(135deg, #818cf8, #6366f1);
-  color: #FFFFFF;
+  /* Purple for admin badge (matches unified purple theme) */
+  background: linear-gradient(135deg, #a78bfa, #7c3aed);
+  color: #fff;
 }
 
 .role-badge.parent {
-  background: linear-gradient(135deg, #34d399, #10b981);
-  color: #FFFFFF;
+  background: linear-gradient(135deg, #a78bfa, #7c3aed);
+  color: #fff;
 }
 
 .role-badge.child {
-  background: linear-gradient(135deg, #fbbf24, #f59e0b);
-  color: #FFFFFF;
+  background: linear-gradient(135deg, #a78bfa, #7c3aed);
+  color: #fff;
 }
 
 /* Status Badge */

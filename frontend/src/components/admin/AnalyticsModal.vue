@@ -26,13 +26,6 @@
           </div>
         </div>
         <div class="quick-stat">
-          <div class="stat-icon">⏱️</div>
-          <div class="stat-info">
-            <div class="stat-value">{{ formatTime(analyticsData.avgScreenTime) }}</div>
-            <div class="stat-label">Avg Screen Time</div>
-          </div>
-        </div>
-        <div class="quick-stat">
           <div class="stat-icon">🎯</div>
           <div class="stat-info">
             <div class="stat-value">{{ analyticsData.completedTasks }}</div>
