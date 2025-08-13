@@ -904,4 +904,5 @@ def test_assessment_accuracy_calculation(test_client):
 
 
 if __name__ == '__main__':
-    pytest.main([__file__, '-v'])
+    # Allow direct execution, but pytest discovery will ignore this
+    pytest.main(['-v', __file__])

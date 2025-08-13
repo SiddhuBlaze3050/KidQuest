@@ -4020,11 +4020,11 @@ def initialize_database():
         if instance_dir and not os.path.exists(instance_dir):
             os.makedirs(instance_dir, exist_ok=True)
             
+        # Skip global DB initialization when running tests to avoid conflicts
+        if app.config.get('TESTING'):
+            return
         with app.app_context():
-            # Create all database tables (won't recreate if they exist)
             db.create_all()
-            
-            # Create default admin user
             create_default_admin()
             
     except Exception as e:

@@ -5,6 +5,10 @@ Tests the notification functionality between frontend and backend
 """
 
 import requests
+import pytest
+
+# Mark this module as integration since it depends on a running backend server
+pytestmark = pytest.mark.integration
 import json
 import sys
 

@@ -8,7 +8,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from app import app, db
 from models import User
 from flask_jwt_extended import create_access_token
-import requests_mock
+requests_mock = pytest.importorskip("requests_mock")
 
 
 class TestMotivationalQuotes:

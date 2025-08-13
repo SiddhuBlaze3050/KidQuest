@@ -6,12 +6,14 @@ Includes race condition prevention, timezone handling, and dashboard API testing
 """
 
 import requests
+import pytest
 import json
 import sys
 import time
 from datetime import datetime, timezone, timedelta
 
 BASE_URL = "http://localhost:5000"
+pytestmark = pytest.mark.integration
 FRONTEND_URL = "http://localhost:5173"
 
 # Define IST timezone for testing
