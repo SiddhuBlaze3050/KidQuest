@@ -63,6 +63,7 @@
                 <span class="btn-icon">💧</span>
                 Add Glass
               </button>
+              <button class="remove-glass-btn" @click="removeWater" :disabled="waterCount === 0">Remove Glass</button>
             </div>
             <div class="water-animation">
               <div class="water-drops">
@@ -183,6 +184,14 @@ export default {
         this.fetchWaterChart(); // Refresh graph
       } catch (error) {
         console.error('Error incrementing water count:', error);
+      }
+    },
+    async removeWater() {
+      try {
+        this.waterCount = await apiService.decrementWaterCount(this.userId);
+        this.fetchWaterChart(); // Refresh graph
+      } catch (error) {
+        console.error('Error decrementing water count:', error);
       }
     },
     async fetchWaterChart() {
@@ -621,6 +630,24 @@ export default {
 .add-glass-btn:hover {
   transform: translateY(-2px);
   box-shadow: 0 8px 25px rgba(76, 175, 80, 0.4);
+}
+
+.remove-glass-btn {
+  background: linear-gradient(135deg, #f44336, #e57373);
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 20px;
+  cursor: pointer;
+  font-weight: bold;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 3px 10px rgba(244, 67, 54, 0.3);
+  margin-top: 0.5rem;
+  margin: 0.5rem auto 0; /* Auto margins center horizontally */
+
 }
 
 .btn-icon {

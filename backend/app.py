@@ -811,6 +811,26 @@ def increment_water(user_id):
             'success': False, 
             'error': str(e) 
         }), 500
+    
+@app.route('/api/health/water/<int:user_id>', methods=['DELETE'])
+@jwt_required()
+def decrement_water(user_id):
+    """Decrement water intake for a user"""
+    try:
+        today = date.today()
+        log = WaterLog.query.filter_by(user_id=user_id, date=today).first()
+
+        if not log:
+            return jsonify({'success': False, 'error': 'No water log for today'}), 404
+
+        if log.count > 0:
+            log.count -= 1
+            db.session.commit()
+
+        return jsonify({'success': True, 'count': log.count}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @app.route('/api/health/water/<int:user_id>', methods=['GET'])
 @jwt_required()

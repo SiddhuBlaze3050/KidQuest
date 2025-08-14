@@ -177,6 +177,15 @@ export const apiService = {
     }
   },
 
+  async decrementWaterCount(userId) {
+    try {
+      const res = await api.delete(`/api/health/water/${userId}`)
+      return res.data.count
+    } catch (error) {
+      throw error
+    }
+  },
+
   async getWaterLog(userId) {
     try {
       const res = await api.get(`/api/health/water/log/${userId}`)
