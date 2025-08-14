@@ -273,6 +273,16 @@ export default {
                     if (messages.value.length > 0) {
                         const latestMessage = messages.value[messages.value.length - 1]
                         currentSessionId.value = latestMessage.session_id
+                        
+                        // Update emotion based on latest message
+                        if (latestMessage.mood) {
+                            currentEmotion.value = latestMessage.mood
+                        } else if (latestMessage.sender === 'user') {
+                            // Detect emotion from user's latest message
+                            const detectedEmotion = getMessageEmotion(latestMessage.message)
+                            currentEmotion.value = detectedEmotion
+                        }
+                        console.log('Updated emotion from chat history:', currentEmotion.value)
                     }
                 }
             } catch (error) {
@@ -301,6 +311,20 @@ export default {
                     }))
                     currentSessionId.value = sessionId
                     showSessionHistory.value = false
+                    
+                    // Update emotion based on latest message in session
+                    if (messages.value.length > 0) {
+                        const latestMessage = messages.value[messages.value.length - 1]
+                        if (latestMessage.mood) {
+                            currentEmotion.value = latestMessage.mood
+                        } else if (latestMessage.sender === 'user') {
+                            // Detect emotion from user's latest message
+                            const detectedEmotion = getMessageEmotion(latestMessage.message)
+                            currentEmotion.value = detectedEmotion
+                        }
+                        console.log('Updated emotion from session:', currentEmotion.value)
+                    }
+                    
                     scrollToBottom()
                 }
             } catch (error) {
@@ -337,6 +361,12 @@ export default {
             if (!newMessage.value.trim() || isTyping.value) return
 
             const userMessage = newMessage.value.trim()
+            
+            // Immediately detect emotion from user message
+            const detectedEmotion = getMessageEmotion(userMessage)
+            currentEmotion.value = detectedEmotion
+            console.log('Immediate emotion detection:', detectedEmotion)
+            
             newMessage.value = ''
             showSuggestions.value = false
 
@@ -370,6 +400,11 @@ export default {
                     if (response.mood) {
                         currentEmotion.value = response.mood
                         console.log('LLM detected mood:', response.mood)
+                    } else {
+                        // Fallback: detect emotion from user's message if LLM didn't provide mood
+                        const detectedEmotion = getMessageEmotion(userMessage)
+                        currentEmotion.value = detectedEmotion
+                        console.log('Client-side detected emotion:', detectedEmotion)
                     }
 
                     // Add bot response
@@ -457,8 +492,26 @@ export default {
         }
 
         // Watchers
-        watch(messages, () => {
+        watch(messages, (newMessages, oldMessages) => {
             scrollToBottom()
+            
+            // Update emotion based on latest user message
+            if (newMessages.length > oldMessages?.length) {
+                const latestMessage = newMessages[newMessages.length - 1]
+                if (latestMessage.sender === 'user') {
+                    // Only detect emotion from user messages, not bot responses
+                    const detectedEmotion = getMessageEmotion(latestMessage.message)
+                    if (detectedEmotion !== currentEmotion.value) {
+                        currentEmotion.value = detectedEmotion
+                        console.log('Emotion updated from new user message:', detectedEmotion)
+                    }
+                }
+                // If it's a bot message with mood, use that
+                else if (latestMessage.sender === 'assistant' && latestMessage.mood) {
+                    currentEmotion.value = latestMessage.mood
+                    console.log('Emotion updated from bot response mood:', latestMessage.mood)
+                }
+            }
         }, { deep: true })
 
         watch(currentEmotion, (newEmotion) => {
@@ -677,6 +730,79 @@ export default {
     border-radius: 12px;
     background: rgba(255, 255, 255, 0.2);
     font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+/* Emotion-specific colors */
+.emotion-value.emotion-happy {
+    background: rgba(255, 215, 0, 0.3);
+    color: #fff200;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
+}
+
+.emotion-value.emotion-sad {
+    background: rgba(100, 149, 237, 0.3);
+    color: #6495ed;
+    box-shadow: 0 0 10px rgba(100, 149, 237, 0.2);
+}
+
+.emotion-value.emotion-angry {
+    background: rgba(255, 69, 0, 0.3);
+    color: #ff4500;
+    box-shadow: 0 0 10px rgba(255, 69, 0, 0.2);
+}
+
+.emotion-value.emotion-fear {
+    background: rgba(138, 43, 226, 0.3);
+    color: #8a2be2;
+    box-shadow: 0 0 10px rgba(138, 43, 226, 0.2);
+}
+
+.emotion-value.emotion-surprise {
+    background: rgba(255, 20, 147, 0.3);
+    color: #ff1493;
+    box-shadow: 0 0 10px rgba(255, 20, 147, 0.2);
+}
+
+.emotion-value.emotion-love {
+    background: rgba(255, 105, 180, 0.3);
+    color: #ff69b4;
+    box-shadow: 0 0 10px rgba(255, 105, 180, 0.2);
+}
+
+.emotion-value.emotion-excited {
+    background: rgba(255, 165, 0, 0.3);
+    color: #ffa500;
+    box-shadow: 0 0 10px rgba(255, 165, 0, 0.2);
+}
+
+.emotion-value.emotion-disgusted {
+    background: rgba(128, 128, 0, 0.3);
+    color: #808000;
+    box-shadow: 0 0 10px rgba(128, 128, 0, 0.2);
+}
+
+.emotion-value.emotion-thinking {
+    background: rgba(70, 130, 180, 0.3);
+    color: #4682b4;
+    box-shadow: 0 0 10px rgba(70, 130, 180, 0.2);
+}
+
+.emotion-value.emotion-confident {
+    background: rgba(50, 205, 50, 0.3);
+    color: #32cd32;
+    box-shadow: 0 0 10px rgba(50, 205, 50, 0.2);
+}
+
+.emotion-value.emotion-tired {
+    background: rgba(105, 105, 105, 0.3);
+    color: #696969;
+    box-shadow: 0 0 10px rgba(105, 105, 105, 0.2);
+}
+
+.emotion-value.emotion-neutral {
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
 }
 
 /* Session Controls */
