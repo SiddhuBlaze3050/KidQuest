@@ -23,6 +23,53 @@
     </div>
     <!-- End Transactions Modal -->
 
+<!-- Health Modal -->
+<div v-if="modalComponent === 'health-modal'" class="health-modal modal-overlay" @click="closeModal">
+  <div class="transactions-popup" @click.stop>
+    <div class="popup-header">
+      <span>Water Intake - History</span>
+      <button class="close-btn" @click="closeModal">×</button>
+    </div>
+    <!-- Header Row -->
+    <div class="history-header">
+      <span class="col-intake">Intake</span>
+      <span class="col-day">Day</span>
+      <span class="col-target">Target</span>
+      <span class="col-trend">Trend</span>
+    </div>
+    <div class="pill-container" v-if="healthStats.waterlog.length">
+      <div
+        class="pill"
+        v-for="(entry, index) in healthStats.waterlog"
+        :key="entry.date"
+      >
+        <div class="pill-count">{{ entry.count }}</div>
+        <div class="pill-date">{{ entry.date }}</div>
+
+        <!-- Target vs Actual -->
+        <div class="pill-target">
+          Target: {{ healthStats.dailyTarget }}  
+          <span 
+            :class="entry.count >= healthStats.dailyTarget ? 'target-met' : 'target-missed'">
+            ({{ entry.count >= healthStats.dailyTarget ? 'Met' : 'Missed' }})
+          </span>
+        </div>
+
+        <!-- Trend Indicator -->
+        <div class="pill-trend" v-if="index < healthStats.waterlog.length - 1">
+          <span v-if="entry.count > healthStats.waterlog[index + 1].count" class="trend-up">⬆ Up</span>
+          <span v-else-if="entry.count < healthStats.waterlog[index + 1].count" class="trend-down">⬇ Down</span>
+          <span v-else class="trend-same">→ Same</span>
+        </div>
+      </div>
+    </div>
+
+    <div v-else class="no-data">
+      No water intake data available.
+    </div>
+  </div>
+</div>
+
     <!-- Psychometric Modal Component -->
     <div v-if="modalComponent === 'psychometric-modal'" class="psychometric-modal modal-overlay" @click="closeModal">
       <div class="transactions-popup" @click.stop>
@@ -88,7 +135,6 @@
         </div>
       </div>
     </div>
-
 
     <!-- Recent Tasks Modal Component -->
     <div v-if="modalComponent === 'recent-tasks-modal'" class="recent-tasks-modal modal-overlay" @click="closeModal">
@@ -210,8 +256,6 @@
         </div>
       </div>
     </div>
-
-
 
     <!-- Header -->
     <header class="dashboard-header">
@@ -943,6 +987,9 @@ const healthStats = ref({
   water_today: 0,
   tasks_completed: 0,
   completedTaskNames: [],
+  waterlog: [],
+  dailyTarget: 8, // glasses per day
+
 })
 
 const fetchHealthStats = async () => {
@@ -956,6 +1003,7 @@ const fetchHealthStats = async () => {
 
     healthStats.value.water_today = await apiService.getWaterCount(childId.value);
     healthStats.value.streak = await apiService.getHealthStreak(childId.value);
+    healthStats.value.waterlog = await apiService.getWaterLog(childId.value);
   } catch (e) {
     console.error('Failed to fetch health stats', e);
   }
@@ -2325,6 +2373,19 @@ const logout = () => {
   justify-content: center;
 }
 
+.health-modal.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(30, 30, 30, 0.5);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .psychometric-modal.modal-overlay {
   position: fixed;
   top: 0;
@@ -3004,6 +3065,99 @@ const logout = () => {
   .mood-emoji {
     text-align: left;
   }
+}
+
+/* Pills container */
+.pill-container {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* Pill style */
+.pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f8f9fa;
+  margin: 6px 12px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  transition: background 0.2s ease-in-out;
+  cursor: default;
+}
+
+.pill:hover {
+  background: #eef3f7;
+}
+
+.pill-count {
+  font-size: 1rem;
+  font-weight: bold;
+  background: #4facfe;
+  color: white;
+  padding: 6px 10px;
+  border-radius: 50%;
+  min-width: 28px;
+  text-align: center;
+}
+
+.pill-date {
+  font-size: 0.95rem;
+  color: #333;
+  font-weight: 500;
+}
+
+/* No data style */
+.no-data {
+  padding: 16px;
+  text-align: center;
+  color: #777;
+}
+
+.pill-target {
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.history-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+  background: #f0f4f8;
+  padding: 8px 12px;
+  font-weight: bold;
+  font-size: 0.95rem;
+  border-bottom: 2px solid #e0e0e0;
+  color: #333;
+}
+
+.target-met {
+  color: green;
+  font-weight: bold;
+}
+
+.target-missed {
+  color: red;
+  font-weight: bold;
+}
+
+.pill-trend {
+  font-size: 0.85rem;
+  margin-top: 2px;
+}
+
+.trend-up {
+  color: green;
+}
+
+.trend-down {
+  color: red;
+}
+
+.trend-same {
+  color: gray;
 }
 
 .modal-content {
