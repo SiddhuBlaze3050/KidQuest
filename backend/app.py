@@ -1835,13 +1835,13 @@ def get_psychometry_results(child_id):
         result = PsychometricTestResult.query.filter_by(child_id=child_id).order_by(PsychometricTestResult.taken_at.desc()).first()
         if not result:
             return jsonify({'success': False, 'error': 'No result found'}), 404
-
+        print(result)
         return jsonify({
             'success': True,
             'result': {
                 'id': result.id,
                 'child_id': result.child_id,
-                'taken_at': result.taken_at.isoformat() if result.taken_at else None,
+                'taken_at': result.taken_at.strftime('%Y-%m-%d %H:%M:%S') if result.taken_at else None,
                 'learning_style': result.learning_style,
                 'personality_type': result.personality_type,
                 'top_interest': result.top_interest,
