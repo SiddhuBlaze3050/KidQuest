@@ -360,6 +360,9 @@
               <h3>Doodling Sessions</h3>
             </div>
             <div class="card-content">
+              <div class="doodle-summary">
+                <span class="doodle-count">{{ doodleStats.allDoodles?.length || 0 }} artworks</span>
+              </div>
               <div class="doodle-grid">
                 <div v-for="(doodle, idx) in doodleStats.doodles.slice(0, 4)" :key="idx" class="doodle-box"
                   @click.stop="viewDoodle(doodle)">
@@ -375,6 +378,9 @@
                     <div class="doodle-date">{{ doodle.date }}</div>
                   </div>
                 </div>
+              </div>
+              <div v-if="doodleStats.allDoodles?.length > 4" class="more-indicator">
+                <span>+{{ doodleStats.allDoodles.length - 4 }} more artworks</span>
               </div>
             </div>
           </div>
@@ -500,25 +506,31 @@
     <div v-if="modalComponent === 'doodling-modal'" class="doodling-modal modal-overlay" @click="closeModal">
       <div class="doodling-popup" @click.stop>
         <div class="popup-header">
-          <span>Doodle View</span>
+          <span>Doodle Gallery ({{ modalData.allDoodles?.length || 0 }} items)</span>
           <button class="close-btn" @click="closeModal">×</button>
         </div>
-        <div class="doodle-gallery">
-          <div v-for="(doodle, idx) in modalData.allDoodles" :key="idx" class="doodle-gallery-item">
-            <div class="doodle-canvas-large" :style="{ backgroundColor: doodle.color }">
-              <div class="doodle-artwork">
-                <img v-if="doodle.file_exists && doodle.file_path" :src="getDoodleImageUrl(doodle.file_path)"
-                  alt="Doodle" style="max-width: 100%; max-height: 250px; border-radius: 12px;" />
-                <span v-else>{{ doodle.emoji || '🎨' }}</span>
+        <div class="doodle-gallery-container">
+          <div class="doodle-gallery">
+            <div v-for="(doodle, idx) in modalData.allDoodles" :key="idx" class="doodle-gallery-item">
+              <div class="doodle-canvas-large" :style="{ backgroundColor: doodle.color }">
+                <div class="doodle-artwork">
+                  <img v-if="doodle.file_exists && doodle.file_path" :src="getDoodleImageUrl(doodle.file_path)"
+                    alt="Doodle" class="doodle-image" />
+                  <span v-else class="doodle-emoji">{{ doodle.emoji || '🎨' }}</span>
+                </div>
+              </div>
+              <div class="doodle-details">
+                <h4>{{ doodle.title }}</h4>
+                <p class="doodle-date">{{ doodle.date }}</p>
+                <div class="doodle-tags">
+                  <span v-for="tag in doodle.tags" :key="tag" class="doodle-tag">{{ tag }}</span>
+                </div>
               </div>
             </div>
-            <div class="doodle-details">
-              <h4>{{ doodle.title }}</h4>
-              <p class="doodle-date">{{ doodle.date }}</p>
-
-              <div class="doodle-tags">
-                <span v-for="tag in doodle.tags" :key="tag" class="doodle-tag">{{ tag }}</span>
-              </div>
+            <div v-if="!modalData.allDoodles || modalData.allDoodles.length === 0" class="no-doodles">
+              <div class="no-doodles-icon">🎨</div>
+              <p>No doodles to display</p>
+              <small>Child hasn't created any doodles yet</small>
             </div>
           </div>
         </div>
@@ -620,7 +632,7 @@ const modalTitle = ref('')
 const modalComponent = ref('')
 const modalData = ref({})
 
-const overallProgress = ref(78)
+const overallProgress = ref(0)
 const screenTimeData = ref({
   total: 'Loading...',
   status: 'Loading...'
@@ -1860,6 +1872,31 @@ const logout = () => {
   gap: 15px;
 }
 
+.doodle-summary {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  margin-bottom: 15px;
+  padding: 10px 0;
+}
+
+.doodle-count {
+  font-size: 0.9rem;
+  color: #667eea;
+  font-weight: 600;
+}
+
+.more-indicator {
+  text-align: center;
+  margin-top: 15px;
+  padding: 8px;
+  background: rgba(102, 126, 234, 0.1);
+  border-radius: 8px;
+  color: #667eea;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
 .doodle-box {
   background: rgba(255, 255, 255, 0.4);
   border-radius: 15px;
@@ -1877,8 +1914,9 @@ const logout = () => {
 .doodling-popup {
   background: #fff;
   border-radius: 18px;
-  max-width: 400px;
+  max-width: 800px;
   width: 90vw;
+  max-height: 85vh;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   padding: 0;
   position: relative;
@@ -1898,6 +1936,132 @@ const logout = () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 20px;
+}
+
+/* Doodle Gallery Container with Scroll */
+.doodle-gallery-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 20px 20px 20px;
+  scrollbar-width: thin;
+  scrollbar-color: #667eea transparent;
+}
+
+.doodle-gallery-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.doodle-gallery-container::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.doodle-gallery-container::-webkit-scrollbar-thumb {
+  background: #667eea;
+  border-radius: 3px;
+}
+
+.doodle-gallery-container::-webkit-scrollbar-thumb:hover {
+  background: #5a67d8;
+}
+
+.doodle-gallery {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 20px;
+  padding: 10px 0;
+}
+
+.doodle-gallery-item {
+  background: #fff;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+  border: 1px solid #e2e8f0;
+}
+
+.doodle-gallery-item:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+}
+
+.doodle-canvas-large {
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.doodle-artwork {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
+.doodle-image {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.doodle-emoji {
+  font-size: 3rem;
+  color: white;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* No Doodles State */
+.no-doodles {
+  text-align: center;
+  padding: 60px 20px;
+  color: #666;
+  grid-column: 1 / -1;
+}
+
+.no-doodles-icon {
+  font-size: 4rem;
+  margin-bottom: 20px;
+  opacity: 0.5;
+}
+
+.no-doodles p {
+  font-size: 1.2rem;
+  margin: 0 0 10px 0;
+  color: #4a5568;
+}
+
+.no-doodles small {
+  color: #a0aec0;
+  font-size: 0.9rem;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .doodling-popup {
+    max-width: 95vw;
+    max-height: 90vh;
+  }
+  
+  .doodle-gallery {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+  
+  .doodle-gallery-container {
+    padding: 0 15px 15px 15px;
+  }
+  
+  .doodle-canvas-large {
+    height: 150px;
+  }
 }
 
 .doodle-details {
