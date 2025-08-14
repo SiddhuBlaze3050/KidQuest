@@ -228,15 +228,4 @@ pytest
 
 This will execute the entire backend test suite without additional flags.
 
-### Frontend (Vue.js) Testing
-
-Run all frontend tests using npm:
-
-```bash
-cd frontend
-npm run test
-```
-
-This command runs all unit and component tests for the Vue.js frontend (if configured in your `package.json`).
-
 > **Note:** Ensure you have installed all dependencies (`npm install` for frontend, `pip install -r requirements.txt` for backend) before running tests.

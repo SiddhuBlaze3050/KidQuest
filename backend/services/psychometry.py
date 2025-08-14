@@ -655,10 +655,7 @@ class QuestionGenerator:
     3. Give practical tips for studying and learning
     4. Highlight their personality strengths
     5. Mention their top interest and suggest related activities
-    6. Provide suggestions for improvement areas (concentration, memory)
-    7. Be written in a friendly, age-appropriate tone
-    8. Be around 100-150 words,no need of high spacing or line breaks,no more than 15 lines in total
-    9. Return the entire response in HTML format (with <h3>, <ul>, <li>, <p>, or <b> tags as appropriate,do not use the tag <html>)
+    6. Give the whole content summarised in 2-3 sentences.Do not give a heading or title,just the plain text without any formatting.GIve the sentences within 3 sentences. itself
 
     Make it personal and actionable for the child and their parents.Try not to use the name of the child in the response.Only wishes is necessary"""
 

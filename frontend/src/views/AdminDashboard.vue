@@ -27,7 +27,7 @@
               <h3>Total Users</h3>
               <div class="stat-number">{{ totalUsers }}</div>
               <div class="stat-details">
-                Parents: {{ parentCount }} | Children: {{ childCount }} | Teachers: {{ teacherCount }} | Admins: {{ adminCount }}
+                Parents: {{ parentCount }}  Children: {{ childCount }}  Teachers: {{ teacherCount }}  Admins: {{ adminCount }}
               </div>
             </div>
           </div>

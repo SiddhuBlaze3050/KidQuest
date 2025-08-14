@@ -2341,6 +2341,7 @@ def complete_pomodoro(session_id):
         duration = data.get('duration') # in minutes
 
         session = db.session.get(PomodoroSession, session_id)
+        print(session.homework_id)
         if not session:
             return jsonify({'success': False, 'error': 'Session not found'}), 404
 
@@ -2353,9 +2354,9 @@ def complete_pomodoro(session_id):
         break_duration = data.get('break_duration', 0)
         
         # Add any remaining active time
-        if session.start_time:
-            remaining_work = int((datetime.now(UTC) - session.start_time).total_seconds())
-            work_duration += remaining_work
+        #if session.start_time:
+        #    remaining_work = int((datetime.now(UTC) - session.start_time).total_seconds())
+        #   work_duration += remaining_work
 
         session.work_duration = work_duration
         session.break_duration = break_duration
@@ -2363,10 +2364,37 @@ def complete_pomodoro(session_id):
         session.end_time = datetime.now(UTC)
 
         db.session.commit()
-        return jsonify({'success': True, 'message': 'Pomodoro session completed'}), 200
+        return jsonify({'success': True, 'message': 'Pomodoro session completed','focus_time':work_duration,'break_time':break_duration}), 200
     except Exception as e:
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+    
+@app.route('/api/pomodoro/last-session/<int:user_id>/<int:homework_id>', methods=['GET'])
+@jwt_required()
+def get_last_pomodoro_session(user_id, homework_id):
+    current_user_id = int(get_jwt_identity())
+
+    # Optional: Ensure the current user can only fetch their own session
+    if current_user_id != user_id:
+        return jsonify({'success': False, 'error': 'Unauthorized access'}), 403
+
+    session = (PomodoroSession.query
+        .filter_by(user_id=user_id, homework_id=homework_id)
+        .order_by(PomodoroSession.end_time.desc())
+        .first())
+
+    if not session:
+        return jsonify({'success': False, 'error': 'No session found'}), 404
+    print(session.work_duration, session.break_duration, session.id, session.start_time, session.end_time)
+    return jsonify({
+        'success': True,
+        'work_duration': session.work_duration,
+        'break_duration': session.break_duration,
+        'session_id': session.id,
+        'start_time': session.start_time.isoformat() if session.start_time else None,
+        'end_time': session.end_time.isoformat() if session.end_time else None
+    })
 
 @app.route('/api/pomodoro/pause/<int:session_id>', methods=['PUT'])
 @jwt_required()

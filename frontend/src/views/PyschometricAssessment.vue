@@ -30,10 +30,10 @@
             <span class="stat-value">{{ currentQuestionNumber }}</span>
             <span class="stat-label">Question</span>
           </div>
-          <div class="stat-item">
+          <!-- <div class="stat-item">
             <span class="stat-value">{{ currentAccuracy }}%</span>
             <span class="stat-label">Accuracy</span>
-          </div>
+          </div> -->
         </div>
 
         <!-- Debug info - remove this after fixing -->
@@ -165,7 +165,7 @@ export default {
       // Test state
       testStarted: false,
       isLoading: false,
-      loadingMessage: 'Starting the assessment...',
+      loadingMessage: 'Starting the assessment...AI is generating questions for you...Please wait.',
       debugMode: false,
       
       // Question data
@@ -201,7 +201,7 @@ export default {
     async startTest() {
       this.testStarted = true;
       this.isLoading = true;
-      this.loadingMessage = 'Starting the assessment...';
+      this.loadingMessage = 'Starting the assessment...AI is generating questions for you...Please wait.';
       this.showResults = false;
       this.resetData();
 
