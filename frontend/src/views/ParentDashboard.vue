@@ -30,38 +30,46 @@
           <span>Psychometric Test Results</span>
           <button class="close-btn" @click="closeModal">×</button>
         </div>
-        <div class="psychometric-detailed popup-body">
-          <div class="psycho-stats-grid">
-            <div class="psycho-stat-card">
+        <div class="psychometric-detailed popup-body scrollable-section">
+          <div class="psycho-stats-grid highlight-style">
+          <div class="psycho-stat-card learning-style-card">
+            <div class="stat-icon">📚</div>
+            <div class="stat-info">
+              <h4>Learning Style</h4>
+              <div class="stat-value highlight-badge">{{ modalData.learning_style || 'Balanced' }}</div>
+            </div>
+          </div>
+            <div class="psycho-stat-card personality-card">
               <div class="stat-icon">👤</div>
               <div class="stat-info">
                 <h4>Personality Type</h4>
-                <div class="stat-value">{{ modalData.personality }}</div>
+                <div class="stat-value highlight-badge">{{ modalData.personality }}</div>
                 <div class="personality-traits">
-                  <div v-for="trait in modalData.traits" :key="trait" class="trait-tag">
+                  <span v-for="trait in modalData.traits" :key="trait" class="trait-tag">
                     {{ trait }}
-                  </div>
+                  </span>
                 </div>
               </div>
             </div>
-            <div class="psycho-stat-card">
+            <div class="psycho-stat-card interests-card">
               <div class="stat-icon">🎯</div>
               <div class="stat-info">
                 <h4>Primary Interests</h4>
+                <div class="stat-value highlight-badge">{{ modalData.interests }}</div>
               </div>
             </div>
-            <div class="psycho-stat-card">
+            <div class="psycho-stat-card concentration-card">
               <div class="stat-icon">🎯</div>
               <div class="stat-info">
                 <h4>Concentration Level</h4>
-                <div class="stat-value">{{ modalData.concentration }}/100</div>
+                <div class="stat-value highlight-badge">{{ modalData.concentration }}/100</div>
               </div>
             </div>
-            <div class="psycho-stat-card">
+            <div class="psycho-stat-card memory-card">
               <div class="stat-icon">🧠</div>
               <div class="stat-info">
                 <h4>Memory Strength</h4>
-                <div class="stat-value">{{ modalData.memory }}/100</div>
+                <div class="stat-value highlight-badge">{{ modalData.memory }}/100</div>
                 <div class="memory-types">
                   <div v-for="type in modalData.memoryTypes" :key="type.name" class="memory-type">
                     <span class="memory-emoji">{{ type.emoji }}</span>
@@ -104,10 +112,10 @@
 
     <!-- Emotional Modal Component -->
     <div v-if="modalComponent === 'emotional-modal'" class="emotional-modal modal-overlay" @click="closeModal">
-      <div class="transactions-popup" style="min-width:700px;text-align: center;align-items: center;" @click.stop>
+      <div class="transactions-popup"  @click.stop>
         <div class="popup-header">
           <div>Emotional Insight</div>
-          <button class="close-btn" style="margin-right:10px !important;" @click="closeModal">×</button>
+          <button class="close-btn"  @click="closeModal">×</button>
         </div>
 
         <div class="popup-body scrollable-section">
@@ -2184,8 +2192,9 @@ const logout = () => {
 .transactions-popup {
   background: #fff;
   border-radius: 18px;
-  max-width: 400px;
-  width: 90vw;
+  max-width: 700px;
+  max-height: 700px;
+  width: 100vw;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
   padding: 0;
   position: relative;
@@ -2526,6 +2535,64 @@ const logout = () => {
   border-bottom: 2px solid #e1e5e9;
 }
 
+.psycho-stats-grid.highlight-style {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  justify-content: center;
+}
+.psycho-stat-card {
+  background: linear-gradient(135deg, #f8fafc 60%, #e0e7ff 100%);
+  border-radius: 18px;
+  box-shadow: 0 4px 24px rgba(80, 80, 180, 0.10);
+  padding: 1.5rem 1.2rem;
+  min-width: 220px;
+  max-width: 270px;
+  margin: 0.5rem;
+  text-align: center;
+  transition: box-shadow 0.2s;
+}
+.psycho-stat-card .stat-icon {
+  font-size: 2.2rem;
+  margin-bottom: 0.5rem;
+}
+.stat-value.highlight-badge {
+  display: inline-block;
+  background: linear-gradient(90deg, #6366f1 60%, #a5b4fc 100%);
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.2rem;
+  border-radius: 12px;
+  padding: 0.3em 1em;
+  margin: 0.5em 0;
+  box-shadow: 0 2px 8px rgba(99,102,241,0.10);
+}
+.trait-tag.highlight-tag {
+  background: #fbbf24;
+  color: #fff;
+  border-radius: 8px;
+  padding: 0.2em 0.7em;
+  margin: 0.2em;
+  font-size: 0.95em;
+  font-weight: 600;
+  display: inline-block;
+}
+.progress-bar {
+  background: #e5e7eb;
+  border-radius: 8px;
+  height: 8px;
+  margin: 0.5em 0;
+  width: 80%;
+  margin-left: auto;
+  margin-right: auto;
+  overflow: hidden;
+}
+.progress-fill {
+  background: linear-gradient(90deg, #34d399, #60a5fa);
+  height: 100%;
+  border-radius: 8px;
+  transition: width 0.4s;
+}
 .section-header h3 {
   margin: 0;
   font-size: 16px;
