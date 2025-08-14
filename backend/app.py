@@ -4477,8 +4477,8 @@ def get_child_mood_summary(user_id):
         # Get all chat sessions for the user created today (IST)
         sessions = ChatSession.query.filter(
             ChatSession.user_id == user_id,
-            ChatSession.created_at >= start_dt,
-            ChatSession.created_at <= end_dt
+            ChatSession.updated_at >= start_dt,
+            ChatSession.updated_at <= end_dt
         ).order_by(ChatSession.updated_at.desc()).all()
         
         print("Sessions found:", sessions)

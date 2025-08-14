@@ -214,7 +214,7 @@ This project includes tests for both the backend (Flask) and frontend (Vue.js).
 Run all backend tests using pytest:
 
 ```bash
-cd ../backend
+cd ./backend/test_files
 pytest
 ```
 
