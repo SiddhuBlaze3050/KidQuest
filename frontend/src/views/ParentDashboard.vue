@@ -110,7 +110,7 @@
           <button class="close-btn" style="margin-right:10px !important;" @click="closeModal">×</button>
         </div>
 
-        <div class="popup-body">
+        <div class="popup-body scrollable-section">
           <!-- Today's Mood Section -->
           <div class="section-header">
             <h3>📅 Today's Mood Summary</h3>
@@ -486,17 +486,6 @@
 
     <!-- Modals -->
 
-    <div v-if="showModal" class="modal-overlay" @click="closeModal">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3>{{ modalTitle }}</h3>
-          <button @click="closeModal" class="close-btn">×</button>
-        </div>
-        <div class="modal-body">
-          <component :is="modalComponent" :data="modalData" />
-        </div>
-      </div>
-    </div>
 
 
     <!-- Doodling Modal Component -->
@@ -1010,9 +999,9 @@ const handleApiError = (error, context = 'emotional insights') => {
     weeklyMoods: [
       {
         date: formatDate(new Date()),
-        emoji: '❌',
-        feeling: 'Error',
-        notes: `Unable to load ${context}. Please try again later.`,
+        emoji: '',
+        feeling: 'Could not load Details',
+        notes: `Unable to load ${context}. Please try again.`,
         messageCount: 0
       }
     ],
@@ -1020,9 +1009,9 @@ const handleApiError = (error, context = 'emotional insights') => {
       {
         id: 1,
         sentiment: 'neutral',
-        title: 'Error Loading Data',
+        title: 'Could not Load Details',
         summary: 'Please check your connection and try again',
-        keywords: ['Error', 'Retry'],
+        keywords: ['Retry'],
         messages: []
       }
     ]
@@ -1159,18 +1148,18 @@ const fetchEmotionalInsights = async () => {
       weeklyMoods: [
         {
           date: formatDate(new Date()),
-          emoji: '❌',
-          feeling: 'Error',
-          notes: 'Failed to load emotional insights'
+          emoji: '',
+          feeling: 'Could not load Details',
+          notes: 'Sorry, could not load emotional insights, please try again.'
         }
       ],
       conversationTopics: [
         {
           id: 1,
           sentiment: 'neutral',
-          title: 'Error Loading Data',
-          summary: 'Please try again later',
-          keywords: ['Error']
+          title: 'Could not Load Details',
+          summary: 'Please try again',
+          keywords: ['Retry']
         }
       ],
       moodTrends: [],
@@ -2548,6 +2537,13 @@ const logout = () => {
 .topics-section {
   margin-bottom: 20px;
 }
+
+.scrollable-section {
+  max-height: 650px; /* Adjust as needed for your modal size */
+  overflow-y: auto;
+  padding-right: 8px; /* Optional: for scrollbar spacing */
+}
+
 
 .mood-item {
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);

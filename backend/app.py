@@ -4301,9 +4301,10 @@ def clear_user_data_for_testing(user_id):
 @app.route('/api/chat/mood-summary/<int:user_id>', methods=['GET'])
 def get_child_mood_summary(user_id):
     """
-    Get the overall mood summary and latest mood tag for a child (user_id) for today.
+    Get the overall mood summary, latest mood tag, and associated user messages for a child (user_id) for today.
     - overall_mood: Uses LLM to summarize all mood tags for today.
     - latest_mood: Most recent mood tag from today's chat sessions.
+    - mood_messages: User messages associated with each mood tag.
     """
     try:
         from datetime import datetime, time, timedelta
@@ -4319,17 +4320,32 @@ def get_child_mood_summary(user_id):
             ChatSession.created_at >= start_dt,
             ChatSession.created_at <= end_dt
         ).order_by(ChatSession.updated_at.desc()).all()
+        
         print("Sessions found:", sessions)
+        
         mood_tags = []
+        mood_messages = []  # New: Store messages with their mood tags
+        
         for session in sessions:
             print("Session ID:", session.id, "Interactions:", session.interactions)
             for interaction in session.interactions:
-                print("Interaction mood_tag:", getattr(interaction, 'mood_tag', None))
-                if interaction.mood_tag:
-                    mood_tags.append(interaction.mood_tag)
+                mood_tag = getattr(interaction, 'mood_tag', None)
+                print("Interaction mood_tag:", mood_tag)
+                
+                if mood_tag and interaction.user_message:
+                    mood_tags.append(mood_tag)
+                    
+                    # Store message with mood context
+                    mood_messages.append({
+                        'mood_tag': mood_tag,
+                        'user_message': interaction.user_message,
+                        'timestamp': interaction.user_timestamp.isoformat() if interaction.user_timestamp else None,
+                        'session_id': session.id
+                    })
 
         # Get latest mood tag (from most recent interaction)
         latest_mood = None
+        latest_message = None
         if sessions:
             for session in sessions:
                 last_interaction = (
@@ -4340,40 +4356,70 @@ def get_child_mood_summary(user_id):
                 )
                 if last_interaction and last_interaction.mood_tag:
                     latest_mood = last_interaction.mood_tag
+                    latest_message = last_interaction.user_message
                     break
  
         # Use LLM to summarize overall mood if mood_tags exist
         overall_mood = None
         if mood_tags:
+            # Include some sample messages in the prompt for better context
+            sample_messages = [msg['user_message'][:100] + "..." if len(msg['user_message']) > 100 
+                             else msg['user_message'] for msg in mood_messages[:3]]
+            
             prompt = (
-                "Given the following list of mood tags for a child throughout the day, "
-                "summarize the child's overall mood in short sentence [happy,sad or neutral] with a small indication to what is the reason for that,avoid special characters,just plain text "
-                f"Mood tags: {', '.join(mood_tags)}."
+                "Given the following mood tags and sample messages from a child throughout the day, "
+                "summarize the child's overall emotional state in a short sentence. "
+                "Focus on the dominant emotion and provide a brief reason. "
+                "Avoid special characters, use plain text only. "
+                f"Mood tags: {', '.join(mood_tags)}. "
+                f"Sample messages: {'; '.join(sample_messages) if sample_messages else 'No messages available'}."
             )
             try:
                 llm_response = client.chat.completions.create(
                     model="meta-llama/llama-4-maverick-17b-128e-instruct",
                     messages=[{"role": "system", "content": prompt}],
-                    max_tokens=60,
+                    max_tokens=80,
                     temperature=0.5
                 )
                 overall_mood = llm_response.choices[0].message.content.strip()
             except Exception as e:
+                print(f"LLM Error: {e}")
                 overall_mood = "Unable to summarize mood at this time."
 
-        print(overall_mood, latest_mood, mood_tags)
+        # Group mood messages by mood tag for better organization
+        mood_groups = {}
+        for msg in mood_messages:
+            mood = msg['mood_tag']
+            if mood not in mood_groups:
+                mood_groups[mood] = []
+            mood_groups[mood].append(msg)
+
+        # Sort messages by timestamp (most recent first)
+        for mood in mood_groups:
+            mood_groups[mood].sort(key=lambda x: x['timestamp'] or '', reverse=True)
+
+        print("Overall mood:", overall_mood)
+        print("Latest mood:", latest_mood)
+        print("Mood tags:", mood_tags)
+        print("Mood groups:", mood_groups)
+        
         return jsonify({
             "success": True,
             "user_id": user_id,
             "date": str(today),
             "overall_mood": overall_mood,
             "latest_mood": latest_mood,
-            "mood_tags": mood_tags
+            "latest_message": latest_message,
+            "mood_tags": mood_tags,
+            "mood_messages": mood_messages,
+            "mood_groups": mood_groups,
+            "total_messages": len(mood_messages),
+            "unique_moods": len(mood_groups)
         }), 200
 
     except Exception as e:
+        print(f"Error in get_child_mood_summary: {e}")
         return jsonify({'success': False, 'error': str(e)}), 500
-  
 
 if __name__ == '__main__':
     # Initialize database when running directly
