@@ -26,29 +26,54 @@
       <textarea v-model="content" class="story-textarea" placeholder="Write your wonderful story here..."
         rows="6"></textarea>
 
-      <button class="btn save-btn" @click="saveStory">✨ Save Story</button>
+      <button class="btn save-btn" @click="saveStory" :disabled="isSaving">
+        {{ isSaving ? '💫 Saving...' : (editingStory ? '📝 Update Story' : '✨ Save Story') }}
+      </button>
 
       <!-- Saved Stories -->
       <div class="saved-stories" v-if="stories.length > 0">
-        <h3>📝 Your Saved Stories</h3>
-        <div class="story-card" v-for="(story, i) in stories" :key="i">
+        <h3>📝 Your Saved Stories ({{ stories.length }})</h3>
+        <div class="story-card" v-for="story in stories" :key="story.id">
           <h4>{{ story.title }}</h4>
-          <p>{{ story.content }}</p>
-          <div class="story-date" v-if="story.date">{{ story.date }}</div>
+          <p>{{ story.content.substring(0, 150) }}{{ story.content.length > 150 ? '...' : '' }}</p>
+          <div class="story-date" v-if="story.created_at">{{ formatDate(story.created_at) }}</div>
+          <div class="story-actions">
+            <button @click="editStory(story)" class="btn edit-btn" style="font-size: 0.8rem; padding: 0.3rem 0.8rem; margin-right: 0.5rem; background: linear-gradient(135deg, #4CAF50, #45a049);">✏️ Edit</button>
+            <button @click="deleteStory(story.id)" class="btn delete-btn" style="font-size: 0.8rem; padding: 0.3rem 0.8rem; background: linear-gradient(135deg, #ff6b6b, #ff5252);">🗑️ Delete</button>
+          </div>
         </div>
+      </div>
+
+      <div v-else-if="!isLoading" class="no-stories">
+        <p style="text-align: center; color: rgba(255, 255, 255, 0.7); font-style: italic; margin-top: 2rem;">
+          ✨ No stories yet! Create your first magical tale! ✨
+        </p>
+      </div>
+
+      <div v-if="isLoading" class="loading" style="text-align: center; margin-top: 2rem;">
+        <p style="color: rgba(255, 255, 255, 0.8);">📚 Loading your stories...</p>
       </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import Swal from 'sweetalert2'
+import { apiService } from '../../services/api'
+import { userUtils } from '../../services/api'
 
 const title = ref('')
 const content = ref('')
 const stories = ref([])
 const currentPrompt = ref({})
+const isLoading = ref(false)
+const isSaving = ref(false)
+const editingStory = ref(null)
+
+const props = defineProps({
+  isVisible: Boolean
+})
 
 const prompts = [
   { text: "A dragon who loves pizza meets a robot at school.", image: "https://cdn-icons-png.flaticon.com/512/616/616408.png" },
@@ -70,33 +95,59 @@ function generatePrompt() {
   currentPrompt.value = prompts[i]
 }
 
-function saveStory() {
-  if (title.value.trim() && content.value.trim()) {
-    stories.value.unshift({
-      title: title.value.trim(),
-      content: content.value.trim(),
-      date: new Date().toLocaleDateString()
+// Load stories from backend when component mounts or becomes visible
+async function loadStories() {
+  console.log('loadStories() called')
+  
+  if (!userUtils.isLoggedIn()) {
+    console.log('User not logged in, cannot load stories')
+    return
+  }
+
+  try {
+    isLoading.value = true
+    const currentUser = userUtils.getCurrentUser()
+    
+    console.log('Current user:', currentUser)
+    
+    if (!currentUser || !currentUser.id) {
+      console.log('No current user found')
+      return
+    }
+
+    console.log('Fetching stories for user ID:', currentUser.id)
+    const response = await apiService.getUserStories(currentUser.id)
+    console.log('API response:', response)
+    
+    if (response.success) {
+      stories.value = response.stories || []
+      console.log('✅ Stories loaded successfully:', stories.value.length, 'stories')
+    } else {
+      console.error('Failed to load stories:', response.error)
+      stories.value = []
+    }
+  } catch (error) {
+    console.error('Error loading stories:', error)
+    stories.value = []
+    
+    // Show user-friendly error message
+    await Swal.fire({
+      icon: 'error',
+      title: 'Failed to Load Stories',
+      text: 'Could not load your saved stories. Please try again.',
+      background: 'linear-gradient(135deg, #ff6b6b, #ff5252)',
+      color: 'white',
+      confirmButtonColor: '#667eea'
     })
+  } finally {
+    isLoading.value = false
+  }
+}
 
-    // Clear the form
-    title.value = ''
-    content.value = ''
-
-    // Show success message
-    Swal.fire({
-      icon: 'success',
-      title: 'Story Saved! 📚',
-      text: 'Your magical story has been added to your collection!',
-      timer: 2000,
-      showConfirmButton: false,
-      background: 'linear-gradient(135deg, #667eea, #764ba2)',
-      color: 'white'
-    })
-
-    // Generate a new prompt for next story
-    generatePrompt()
-  } else {
-    Swal.fire({
+// Save story to backend
+async function saveStory() {
+  if (!title.value.trim() || !content.value.trim()) {
+    await Swal.fire({
       icon: 'warning',
       title: 'Incomplete Story! ✍️',
       text: 'Please enter both a title and some content for your story!',
@@ -104,12 +155,164 @@ function saveStory() {
       color: 'white',
       confirmButtonColor: '#ff6b6b'
     })
+    return
+  }
+
+  if (!userUtils.isLoggedIn()) {
+    await Swal.fire({
+      icon: 'error',
+      title: 'Not Logged In',
+      text: 'Please log in to save your stories!',
+      background: 'linear-gradient(135deg, #667eea, #764ba2)',
+      color: 'white',
+      confirmButtonColor: '#ff6b6b'
+    })
+    return
+  }
+
+  try {
+    isSaving.value = true
+    
+    const storyData = {
+      title: title.value.trim(),
+      content: content.value.trim(),
+      prompt_used: currentPrompt.value.text || null
+    }
+
+    let response
+    if (editingStory.value) {
+      // Update existing story
+      response = await apiService.updateStory(editingStory.value.id, storyData)
+    } else {
+      // Create new story
+      response = await apiService.saveStory(storyData)
+    }
+
+    if (response.success) {
+      await Swal.fire({
+        icon: 'success',
+        title: editingStory.value ? 'Story Updated! 📝' : 'Story Saved! 🎉',
+        text: editingStory.value ? 'Your story has been updated successfully!' : 'Your magical story has been saved!',
+        background: 'linear-gradient(135deg, #4caf50, #45a049)',
+        color: 'white',
+        timer: 2000,
+        showConfirmButton: false
+      })
+
+      // Clear form
+      title.value = ''
+      content.value = ''
+      editingStory.value = null
+      
+      // Reload stories to show the new/updated story
+      await loadStories()
+      
+      // Generate new prompt
+      generatePrompt()
+    } else {
+      throw new Error(response.error || 'Failed to save story')
+    }
+  } catch (error) {
+    console.error('Error saving story:', error)
+    await Swal.fire({
+      icon: 'error',
+      title: 'Save Failed! 😞',
+      text: error.message || 'Failed to save your story. Please try again.',
+      background: 'linear-gradient(135deg, #ff6b6b, #ff5252)',
+      color: 'white',
+      confirmButtonColor: '#667eea'
+    })
+  } finally {
+    isSaving.value = false
   }
 }
 
+// Edit story
+function editStory(story) {
+  editingStory.value = story
+  title.value = story.title
+  content.value = story.content
+  if (story.prompt_used) {
+    currentPrompt.value = { text: story.prompt_used }
+  }
+}
+
+// Delete story
+async function deleteStory(storyId) {
+  const result = await Swal.fire({
+    icon: 'warning',
+    title: 'Delete Story? 🗑️',
+    text: 'Are you sure you want to delete this story? This action cannot be undone.',
+    background: 'linear-gradient(135deg, #667eea, #764ba2)',
+    color: 'white',
+    showCancelButton: true,
+    confirmButtonColor: '#ff6b6b',
+    cancelButtonColor: '#6c757d',
+    confirmButtonText: 'Yes, delete it!',
+    cancelButtonText: 'Cancel'
+  })
+
+  if (result.isConfirmed) {
+    try {
+      const response = await apiService.deleteStory(storyId)
+      if (response.success) {
+        await Swal.fire({
+          icon: 'success',
+          title: 'Story Deleted! 🗑️',
+          text: 'Your story has been deleted successfully.',
+          background: 'linear-gradient(135deg, #4caf50, #45a049)',
+          color: 'white',
+          timer: 2000,
+          showConfirmButton: false
+        })
+        
+        // Reload stories
+        await loadStories()
+      } else {
+        throw new Error(response.error || 'Failed to delete story')
+      }
+    } catch (error) {
+      console.error('Error deleting story:', error)
+      await Swal.fire({
+        icon: 'error',
+        title: 'Delete Failed! 😞',
+        text: error.message || 'Failed to delete the story. Please try again.',
+        background: 'linear-gradient(135deg, #ff6b6b, #ff5252)',
+        color: 'white',
+        confirmButtonColor: '#667eea'
+      })
+    }
+  }
+}
+
+// Format date for display
+function formatDate(dateString) {
+  if (!dateString) return ''
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+}
+
+// Watch for when component becomes visible to load stories
+watch(() => props.isVisible, (newValue, oldValue) => {
+  console.log('StoryBuilder visibility changed:', oldValue, '->', newValue)
+  if (newValue) {
+    console.log('Loading stories because component became visible')
+    loadStories()
+  }
+}, { immediate: true })
+
 // Generate initial prompt when component mounts
 onMounted(() => {
+  console.log('StoryBuilder mounted, isVisible:', props.isVisible)
   generatePrompt()
+  // Always try to load stories on mount, regardless of visibility
+  loadStories()
 })
 </script>
 
@@ -285,6 +488,21 @@ h2 {
   font-size: 0.85rem;
   margin-top: 0.5rem;
   font-style: italic;
+}
+
+.story-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.edit-btn:hover {
+  box-shadow: 0 5px 15px rgba(76, 175, 80, 0.4);
+}
+
+.delete-btn:hover {
+  box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
 }
 
 .close-btn {

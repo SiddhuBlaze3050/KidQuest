@@ -691,6 +691,52 @@ async getLastPomodoroSession(userId, homeworkId) {
       throw error
     }
   },
+
+  // Story Builder API
+  async getUserStories(userId) {
+    try {
+      const response = await api.get(`/api/stories/${userId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async saveStory(storyData) {
+    try {
+      const response = await api.post('/api/stories', storyData)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async updateStory(storyId, storyData) {
+    try {
+      const response = await api.put(`/api/stories/${storyId}`, storyData)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async deleteStory(storyId) {
+    try {
+      const response = await api.delete(`/api/stories/${storyId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async getStory(storyId) {
+    try {
+      const response = await api.get(`/api/stories/${storyId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
 }
 
 // User utility functions - Now using authService

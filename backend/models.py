@@ -103,7 +103,16 @@ class DoodleSession(db.Model):
     is_completed = db.Column(db.Boolean, default=False)
     timestamp = db.Column(db.DateTime(timezone=True), default=get_current_ist_time)  # IST time
     time_taken = db.Column(db.Integer, nullable=True)  # Time in seconds
-    start_time = db.Column(db.DateTime, nullable=True)  # When drawing started 
+    start_time = db.Column(db.DateTime, nullable=True)  # When drawing started
+
+class Story(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    title = db.Column(db.String(255), nullable=False)
+    content = db.Column(db.Text, nullable=False)
+    prompt_used = db.Column(db.Text, nullable=True)  # The prompt that inspired this story
+    created_at = db.Column(db.DateTime(timezone=True), default=get_current_ist_time)  # IST time
+    updated_at = db.Column(db.DateTime(timezone=True), default=get_current_ist_time, onupdate=get_current_ist_time)  # IST time 
 
 # ---------------------------
 # Emotional Chatbot

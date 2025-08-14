@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Achievement, ChatSession,ChildProfile, DoodleSession, LLMInteractions, ParentChild, SavingGoal, Transaction, HomeworkSchedule, PomodoroSession, ScreenTime, Notification, HealthTask, HealthStreak, WaterLog, LoginStreak, PsychometricTestResult, UserModuleProgress, get_current_ist_time, IST
+from models import db, User, Achievement, ChatSession,ChildProfile, DoodleSession, Story, LLMInteractions, ParentChild, SavingGoal, Transaction, HomeworkSchedule, PomodoroSession, ScreenTime, Notification, HealthTask, HealthStreak, WaterLog, LoginStreak, PsychometricTestResult, UserModuleProgress, get_current_ist_time, IST
 import re
 import requests
 import os
@@ -3759,6 +3759,178 @@ def create_default_reference_images(ref_images_dir):
 def serve_static(filename):
     """Serve static files"""
     return app.send_static_file(filename)
+
+# ---------------------------
+# Story Builder API Endpoints
+# ---------------------------
+
+@app.route('/api/stories/<int:user_id>', methods=['GET'])
+@jwt_required()
+def get_user_stories(user_id):
+    """Get all stories for a specific user"""
+    try:
+        # Ensure user can only access their own stories
+        current_user_id = int(get_jwt_identity())
+        if current_user_id != user_id:
+            return jsonify({'success': False, 'error': 'Unauthorized: Can only access your own stories'}), 403
+        
+        # Get all stories for the user, ordered by creation date (newest first)
+        stories = Story.query.filter_by(user_id=user_id).order_by(Story.created_at.desc()).all()
+        
+        stories_data = []
+        for story in stories:
+            stories_data.append({
+                'id': story.id,
+                'title': story.title,
+                'content': story.content,
+                'prompt_used': story.prompt_used,
+                'created_at': story.created_at.isoformat(),
+                'updated_at': story.updated_at.isoformat()
+            })
+        
+        return jsonify({
+            'success': True,
+            'stories': stories_data
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/stories', methods=['POST'])
+@jwt_required()
+def save_story():
+    """Save a new story"""
+    try:
+        data = request.get_json()
+        user_id = int(get_jwt_identity())
+        
+        # Validate required fields
+        if not data.get('title') or not data.get('content'):
+            return jsonify({'success': False, 'error': 'Title and content are required'}), 400
+        
+        # Create new story
+        new_story = Story(
+            user_id=user_id,
+            title=data['title'].strip(),
+            content=data['content'].strip(),
+            prompt_used=data.get('prompt_used', '').strip() if data.get('prompt_used') else None
+        )
+        
+        db.session.add(new_story)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Story saved successfully!',
+            'story': {
+                'id': new_story.id,
+                'title': new_story.title,
+                'content': new_story.content,
+                'prompt_used': new_story.prompt_used,
+                'created_at': new_story.created_at.isoformat(),
+                'updated_at': new_story.updated_at.isoformat()
+            }
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/stories/<int:story_id>', methods=['PUT'])
+@jwt_required()
+def update_story(story_id):
+    """Update an existing story"""
+    try:
+        data = request.get_json()
+        user_id = int(get_jwt_identity())
+        
+        # Find the story
+        story = Story.query.filter_by(id=story_id, user_id=user_id).first()
+        
+        if not story:
+            return jsonify({'success': False, 'error': 'Story not found or unauthorized'}), 404
+        
+        # Validate required fields
+        if not data.get('title') or not data.get('content'):
+            return jsonify({'success': False, 'error': 'Title and content are required'}), 400
+        
+        # Update story
+        story.title = data['title'].strip()
+        story.content = data['content'].strip()
+        if 'prompt_used' in data:
+            story.prompt_used = data['prompt_used'].strip() if data['prompt_used'] else None
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Story updated successfully!',
+            'story': {
+                'id': story.id,
+                'title': story.title,
+                'content': story.content,
+                'prompt_used': story.prompt_used,
+                'created_at': story.created_at.isoformat(),
+                'updated_at': story.updated_at.isoformat()
+            }
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/stories/<int:story_id>', methods=['DELETE'])
+@jwt_required()
+def delete_story(story_id):
+    """Delete a story"""
+    try:
+        user_id = int(get_jwt_identity())
+        
+        # Find the story
+        story = Story.query.filter_by(id=story_id, user_id=user_id).first()
+        
+        if not story:
+            return jsonify({'success': False, 'error': 'Story not found or unauthorized'}), 404
+        
+        db.session.delete(story)
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Story deleted successfully!'
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/stories/<int:story_id>', methods=['GET'])
+@jwt_required()
+def get_story(story_id):
+    """Get a specific story"""
+    try:
+        user_id = int(get_jwt_identity())
+        
+        # Find the story
+        story = Story.query.filter_by(id=story_id, user_id=user_id).first()
+        
+        if not story:
+            return jsonify({'success': False, 'error': 'Story not found or unauthorized'}), 404
+        
+        return jsonify({
+            'success': True,
+            'story': {
+                'id': story.id,
+                'title': story.title,
+                'content': story.content,
+                'prompt_used': story.prompt_used,
+                'created_at': story.created_at.isoformat(),
+                'updated_at': story.updated_at.isoformat()
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # ---------------------------
 # Error Handlers
