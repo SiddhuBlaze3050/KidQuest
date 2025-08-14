@@ -614,8 +614,8 @@ const modalData = ref({})
 
 const overallProgress = ref(78)
 const screenTimeData = ref({
-  total: '3h 45m',
-  status: 'Within limits'
+  total: 'Loading...',
+  status: 'Loading...'
 })
 const todayAchievement = ref({
   text: 'Login Streak',
@@ -777,17 +777,21 @@ const childName = ref('')
 // Get the childId for this parent from ParentChild table
 const fetchChildId = async () => {
   try {
+    console.log('fetchChildId called')
     const res = await apiService.get('/api/parentchild')
     console.log('apiService.get(/api/parentchild) result:', res)
     const parentId = userUtils.getCurrentUser()?.id
+    console.log('Current parentId:', parentId)
+    console.log('Links:', res.links)
     const link = Array.isArray(res.links) ? res.links.find(l => l.parent_id === parentId) : null
     if (link) {
       childId.value = link.child_id
+      console.log('Setting childId to:', childId.value)
       // Fetch child's name after getting the ID
       await fetchChildName()
+    } else {
+      console.error('No parent-child link found for parentId:', parentId)
     }
-    console.log('Current parentId:', parentId)
-    console.log('Links:', res.links)
   } catch (e) {
     console.error('Failed to fetch childId', e)
   }
@@ -827,8 +831,10 @@ const fetchFinanceStats = async () => {
 // Fetch screen time data from API
 const fetchScreenTimeData = async () => {
   if (!childId.value) return
+  console.log('fetchScreenTimeData called with childId:', childId.value)
   try {
     const res = await apiService.getScreenTime(childId.value)
+    console.log('Screen time API response:', res)
     if (res.success && res.screen_time) {
       screenTimeData.value = {
         total: res.screen_time.today_display,
@@ -836,6 +842,8 @@ const fetchScreenTimeData = async () => {
         week_average: res.screen_time.week_average_display
       }
       console.log('Screen time data fetched:', screenTimeData.value)
+    } else {
+      console.error('Screen time API returned unsuccessful or missing data:', res)
     }
   } catch (e) {
     console.error('Failed to fetch screen time data', e)
@@ -867,8 +875,10 @@ const fetchOverallProgress = async () => {
 // Fetch skill progress from API
 const fetchSkillProgress = async () => {
   if (!childId.value) return
+  console.log('fetchSkillProgress called with childId:', childId.value)
   try {
     const res = await apiService.getChildSkillProgress(childId.value)
+    console.log('Skill progress API response:', res)
     if (res.success && res.skill_progress) {
       const skillData = res.skill_progress
 
@@ -883,6 +893,8 @@ const fetchSkillProgress = async () => {
       }))
 
       console.log('Skill progress fetched:', skillProgress.value)
+    } else {
+      console.error('Skill progress API returned unsuccessful or missing data:', res)
     }
   } catch (e) {
     console.error('Failed to fetch skill progress', e)

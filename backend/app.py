@@ -13,7 +13,7 @@ import traceback
 from config import Config
 from openai import OpenAI
 import secrets
-from datetime import datetime, date, UTC
+from datetime import datetime, date, UTC, timedelta
 import json
 from collections import defaultdict
 
@@ -2567,6 +2567,52 @@ def log_screen_time():
         db.session.rollback()
         return jsonify({'success': False, 'error': str(e)}), 500
 
+@app.route('/api/screen-time/<int:user_id>', methods=['GET'])
+def get_screen_time(user_id):
+    """Get screen time data for a user"""
+    try:
+        today = date.today()
+        week_ago = today - timedelta(days=7)
+        
+        # Get today's screen time
+        today_record = ScreenTime.query.filter_by(user_id=user_id, date=today).first()
+        today_hours = today_record.hours if today_record else 0
+        
+        # Get week's average
+        week_records = ScreenTime.query.filter(
+            ScreenTime.user_id == user_id,
+            ScreenTime.date >= week_ago,
+            ScreenTime.date <= today
+        ).all()
+        
+        week_total_hours = sum(record.hours for record in week_records)
+        week_average_hours = week_total_hours / 7 if week_records else 0
+        
+        # Format display strings
+        today_display = f"{int(today_hours)}h {int((today_hours % 1) * 60)}m"
+        week_average_display = f"{int(week_average_hours)}h {int((week_average_hours % 1) * 60)}m"
+        
+        # Determine status
+        if today_hours <= 2:
+            status = "Great!"
+        elif today_hours <= 4:
+            status = "Good"
+        else:
+            status = "Too much"
+        
+        return jsonify({
+            'success': True,
+            'screen_time': {
+                'today_hours': today_hours,
+                'today_display': today_display,
+                'week_average_hours': week_average_hours,
+                'week_average_display': week_average_display,
+                'status': status
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # ---------------------------
 # Module Progress Routes
 # ---------------------------
@@ -2925,6 +2971,120 @@ def get_modules_info():
             'modules': enhanced_modules,
             'modules_with_submodules': [key for key, info in MODULE_MAPPING.items() if info.get('has_submodules', False)],
             'modules_without_submodules': [key for key, info in MODULE_MAPPING.items() if not info.get('has_submodules', False)]
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+# ---------------------------
+# Child Progress Routes
+# ---------------------------
+@app.route('/api/child/progress/<int:user_id>', methods=['GET'])
+def get_child_progress(user_id):
+    """Get overall progress for a child"""
+    try:
+        # Check if user exists
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        # Calculate overall progress based on multiple factors
+        total_modules = len(MODULE_MAPPING)
+        completed_modules = UserModuleProgress.query.filter_by(user_id=user_id, completed=True).count()
+        
+        # Get task completion rate
+        total_tasks = HomeworkSchedule.query.filter_by(user_id=user_id).count()
+        completed_tasks = HomeworkSchedule.query.filter_by(user_id=user_id, status='completed').count()
+        
+        # Get achievements count
+        total_achievements = Achievement.query.filter_by(user_id=user_id).count()
+        
+        # Calculate overall percentage (weighted)
+        module_weight = 0.6  # 60% weight for modules
+        task_weight = 0.3    # 30% weight for tasks
+        achievement_weight = 0.1  # 10% weight for achievements
+        
+        module_progress = (completed_modules / total_modules * 100) if total_modules > 0 else 0
+        task_progress = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+        achievement_progress = min(total_achievements * 10, 100)  # Cap at 100%
+        
+        overall_percentage = (
+            module_progress * module_weight +
+            task_progress * task_weight +
+            achievement_progress * achievement_weight
+        )
+        
+        return jsonify({
+            'success': True,
+            'progress': {
+                'overall_percentage': round(overall_percentage, 1),
+                'module_progress': round(module_progress, 1),
+                'task_progress': round(task_progress, 1),
+                'achievement_progress': round(achievement_progress, 1),
+                'completed_modules': completed_modules,
+                'total_modules': total_modules,
+                'completed_tasks': completed_tasks,
+                'total_tasks': total_tasks,
+                'total_achievements': total_achievements
+            }
+        }), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/child/skill-progress/<int:user_id>', methods=['GET'])
+def get_child_skill_progress(user_id):
+    """Get skill progress for a child"""
+    try:
+        # Check if user exists
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+        
+        # Get module progress for skill calculation
+        skill_progress = {}
+        
+        for module_key, module_info in MODULE_MAPPING.items():
+            module_name = module_info['name']
+            
+            if module_info.get('has_submodules'):
+                # For modules with submodules, calculate progress based on submodule completion
+                submodules = SUBMODULE_MAPPING.get(module_key, {})
+                if submodules:
+                    completed_submodules = UserModuleProgress.query.filter_by(
+                        user_id=user_id, 
+                        module_name=module_key, 
+                        completed=True
+                    ).count()
+                    total_submodules = len(submodules)
+                    progress = (completed_submodules / total_submodules * 100) if total_submodules > 0 else 0
+                else:
+                    progress = 0
+            else:
+                # For single modules, check if completed
+                completed = UserModuleProgress.query.filter_by(
+                    user_id=user_id, 
+                    module_name=module_key, 
+                    completed=True
+                ).first()
+                progress = 100 if completed else 0
+            
+            # Map module to skill with appropriate icon
+            icon_map = {
+                'Math Magic': '🔢',
+                'Word Wizard': '📚',
+                'Science Explorer': '🔬',
+                'Safety Measures': '🛡️',
+                'Good Touch Bad Touch': '🤝',
+                'Psychometric Assessment': '🧠'
+            }
+            
+            skill_progress[module_name] = {
+                'progress': round(progress, 1),
+                'icon': icon_map.get(module_name, '🎯')
+            }
+        
+        return jsonify({
+            'success': True,
+            'skill_progress': skill_progress
         }), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
