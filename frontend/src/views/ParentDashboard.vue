@@ -30,6 +30,7 @@
       <span>Water Intake - History</span>
       <button class="close-btn" @click="closeModal">×</button>
     </div>
+
     <!-- Header Row -->
     <div class="history-header">
       <span class="col-intake">Intake</span>
@@ -37,30 +38,35 @@
       <span class="col-target">Target</span>
       <span class="col-trend">Trend</span>
     </div>
+
     <div class="pill-container" v-if="healthStats.waterlog.length">
       <div
         class="pill"
         v-for="(entry, index) in healthStats.waterlog"
         :key="entry.date"
       >
-        <div class="pill-count">{{ entry.count }}</div>
-        <div class="pill-date">{{ entry.date }}</div>
+        <!-- Intake -->
+        <div class="pill-count col-intake">{{ entry.count }}</div>
+
+        <!-- Date / Day -->
+        <div class="pill-date col-day">{{ entry.date }}</div>
 
         <!-- Target vs Actual -->
-        <div class="pill-target">
+        <div class="pill-target col-target">
           Target: {{ healthStats.dailyTarget }}  
-          <span 
-            :class="entry.count >= healthStats.dailyTarget ? 'target-met' : 'target-missed'">
+          <span :class="entry.count >= healthStats.dailyTarget ? 'target-met' : 'target-missed'">
             ({{ entry.count >= healthStats.dailyTarget ? 'Met' : 'Missed' }})
           </span>
         </div>
 
         <!-- Trend Indicator -->
-        <div class="pill-trend" v-if="index < healthStats.waterlog.length - 1">
+        <div class="pill-trend col-trend" v-if="index < healthStats.waterlog.length - 1">
           <span v-if="entry.count > healthStats.waterlog[index + 1].count" class="trend-up">⬆ Up</span>
           <span v-else-if="entry.count < healthStats.waterlog[index + 1].count" class="trend-down">⬇ Down</span>
           <span v-else class="trend-same">→ Same</span>
         </div>
+        <!-- Fallback when no next day -->
+        <div class="pill-trend col-trend" v-else>—</div>
       </div>
     </div>
 
@@ -3069,8 +3075,6 @@ const logout = () => {
 
 /* Pills container */
 .pill-container {
-  display: flex;
-  flex-direction: column;
   padding: 10px 0;
   max-height: 300px;
   overflow-y: auto;
@@ -3078,20 +3082,24 @@ const logout = () => {
 
 /* Pill style */
 .pill {
-  display: flex;
+  display: grid;
+  grid-template-columns: 100px 1fr 1.2fr 0.8fr; /* 👈 Matches header */
+  gap: 12px;
   align-items: center;
-  justify-content: space-between;
   background: #f8f9fa;
   margin: 6px 12px;
-  padding: 10px 14px;
+  padding: 10px 12px;
   border-radius: 12px;
   transition: background 0.2s ease-in-out;
   cursor: default;
 }
+.pill:hover { background: #eef3f7; }
 
-.pill:hover {
-  background: #eef3f7;
-}
+/* Explicit Column Mapping */
+.col-intake { grid-column: 1; }
+.col-day    { grid-column: 2; }
+.col-target { grid-column: 3; }
+.col-trend  { grid-column: 4; text-align: right; }
 
 .pill-count {
   font-size: 1rem;
@@ -3102,6 +3110,7 @@ const logout = () => {
   border-radius: 50%;
   min-width: 28px;
   text-align: center;
+  justify-self: start;
 }
 
 .pill-date {
@@ -3124,7 +3133,8 @@ const logout = () => {
 
 .history-header {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr;
+  grid-template-columns: 100px 1fr 1.2fr 0.8fr; /* Ensures alignment */
+  gap: 12px;
   background: #f0f4f8;
   padding: 8px 12px;
   font-weight: bold;
@@ -3133,32 +3143,15 @@ const logout = () => {
   color: #333;
 }
 
-.target-met {
-  color: green;
-  font-weight: bold;
-}
+/* Status Colors */
+.target-met { color: green; font-weight: 600; }
+.target-missed { color: red; font-weight: 600; }
 
-.target-missed {
-  color: red;
-  font-weight: bold;
-}
-
-.pill-trend {
-  font-size: 0.85rem;
-  margin-top: 2px;
-}
-
-.trend-up {
-  color: green;
-}
-
-.trend-down {
-  color: red;
-}
-
-.trend-same {
-  color: gray;
-}
+/* Trend Styles */
+.pill-trend { font-size: 0.85rem; }
+.trend-up { color: green; }
+.trend-down { color: red; }
+.trend-same { color: gray; }
 
 .modal-content {
   width: 800px;
