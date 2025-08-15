@@ -84,6 +84,34 @@ export const apiService = {
     }
   },
 
+  // Child Profile
+  async getChildProfile(userId) {
+    try {
+      const response = await api.get(`/api/child-profile/${userId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async createChildProfile(profileData) {
+    try {
+      const response = await api.post('/api/child-profile', profileData)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
+  async updateChildProfile(userId, profileData) {
+    try {
+      const response = await api.put(`/api/child-profile/${userId}`, profileData)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
+
   // Finance Tracker
   async getTransactions(userId) {
     try {

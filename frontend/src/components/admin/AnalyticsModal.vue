@@ -62,24 +62,48 @@
       <!-- Demographics Section -->
       <div class="demographics-section">
         <h3>📊 Child Demographics</h3>
-        <div class="combined-chart-container">
-          <div class="chart-container demographics-chart">
-            <h3>Age & Gender Distribution</h3>
-            <div class="chart-placeholder">
-              <canvas ref="combinedDemographicsChart" width="600" height="300"></canvas>
+        
+        <!-- Demographics Summary -->
+        <div class="demographics-summary" v-if="analyticsData.totalProfiles > 0">
+          <div class="summary-stats">
+            <div class="summary-stat">
+              <div class="summary-value">{{ analyticsData.totalProfiles }}</div>
+              <div class="summary-label">Total Child Profiles</div>
             </div>
-            <div class="chart-legend">
-              <div class="legend-item">
-                <div class="legend-color male-color"></div>
-                <span>Male</span>
+            <div class="summary-stat" v-if="Object.keys(analyticsData.ageDistribution).length > 0">
+              <div class="summary-value">{{ Object.keys(analyticsData.ageDistribution).length }}</div>
+              <div class="summary-label">Age Groups</div>
+            </div>
+            <div class="summary-stat" v-if="Object.keys(analyticsData.genderDistribution).length > 0">
+              <div class="summary-value">{{ Object.keys(analyticsData.genderDistribution).length }}</div>
+              <div class="summary-label">Gender Categories</div>
+            </div>
+          </div>
+          
+          <!-- Age Distribution Summary -->
+          <div class="distribution-summary" v-if="Object.keys(analyticsData.ageDistribution).length > 0">
+            <h4>Age Distribution</h4>
+            <div class="distribution-bars">
+              <div v-for="(count, ageGroup) in analyticsData.ageDistribution" :key="ageGroup" class="distribution-bar">
+                <div class="bar-label">{{ ageGroup }}</div>
+                <div class="bar-container">
+                  <div class="bar-fill" :style="{ width: (count / analyticsData.totalProfiles * 100) + '%' }"></div>
+                </div>
+                <div class="bar-count">{{ count }} ({{ Math.round(count / analyticsData.totalProfiles * 100) }}%)</div>
               </div>
-              <div class="legend-item">
-                <div class="legend-color female-color"></div>
-                <span>Female</span>
-              </div>
-              <div class="legend-item">
-                <div class="legend-color other-color"></div>
-                <span>Other</span>
+            </div>
+          </div>
+          
+          <!-- Gender Distribution Summary -->
+          <div class="distribution-summary" v-if="Object.keys(analyticsData.genderDistribution).length > 0">
+            <h4>Gender Distribution</h4>
+            <div class="distribution-bars">
+              <div v-for="(count, gender) in analyticsData.genderDistribution" :key="gender" class="distribution-bar">
+                <div class="bar-label">{{ gender.charAt(0).toUpperCase() + gender.slice(1) }}</div>
+                <div class="bar-container">
+                  <div class="bar-fill gender-fill" :style="{ width: (count / analyticsData.totalProfiles * 100) + '%' }"></div>
+                </div>
+                <div class="bar-count">{{ count }} ({{ Math.round(count / analyticsData.totalProfiles * 100) }}%)</div>
               </div>
             </div>
           </div>
@@ -174,7 +198,6 @@ export default {
 
     const loading = ref(false)
     const activityChart = ref(null)
-    const combinedDemographicsChart = ref(null)
     
     const analyticsData = ref({
       totalUsers: 0,
@@ -184,7 +207,8 @@ export default {
       roleDistribution: [],
       activityData: [],
       ageDistribution: {},
-      genderDistribution: {}
+      genderDistribution: {},
+      totalProfiles: 0
     })
 
     const fetchAnalyticsData = async () => {
@@ -197,6 +221,21 @@ export default {
         const data = analyticsResponse.data
         
         console.log('✅ AnalyticsModal: Analytics data received:', data)
+        
+        // Also fetch demographics data specifically
+        let demographicsData = {}
+        try {
+          const demographicsResponse = await axios.get('http://localhost:5000/api/admin/demographics')
+          demographicsData = demographicsResponse.data
+          console.log('✅ AnalyticsModal: Demographics data received:', demographicsData)
+        } catch (demographicsError) {
+          console.warn('⚠️ AnalyticsModal: Could not fetch demographics data, using fallback:', demographicsError)
+          demographicsData = {
+            age_distribution: data.demographics?.age_distribution || {},
+            gender_distribution: data.demographics?.gender_distribution || {},
+            total_profiles: data.demographics?.total_profiles || 0
+          }
+        }
         
         analyticsData.value = {
           totalUsers: data.user_statistics.total_users || 0,
@@ -230,17 +269,17 @@ export default {
             }
           ],
           activityData: data.activity_data.weekly_activity || [],
-          ageDistribution: data.demographics?.age_distribution || {},
-          genderDistribution: data.demographics?.gender_distribution || {}
+          ageDistribution: demographicsData.age_distribution || {},
+          genderDistribution: demographicsData.gender_distribution || {},
+          totalProfiles: demographicsData.total_profiles || 0
         }
         
         console.log('📊 AnalyticsModal: Processed analytics data:', analyticsData.value)
         
-        // Draw charts after data is loaded
+        // Draw activity chart after data is loaded
         nextTick(() => {
-          console.log('🎨 AnalyticsModal: Drawing charts...')
+          console.log('🎨 AnalyticsModal: Drawing activity chart...')
           drawActivityChart()
-          drawCombinedDemographicsChart()
         })
         
       } catch (error) {
@@ -431,164 +470,7 @@ export default {
       console.log('✅ AnalyticsModal: Chart drawn successfully')
     }
 
-    const drawCombinedDemographicsChart = () => {
-      if (!combinedDemographicsChart.value) {
-        console.warn('📊 AnalyticsModal: Combined demographics chart canvas not found')
-        return
-      }
-      
-      const canvas = combinedDemographicsChart.value
-      const ctx = canvas.getContext('2d')
-      const ageData = analyticsData.value.ageDistribution
-      const genderData = analyticsData.value.genderDistribution
-      
-      // Clear canvas
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      
-      // Check if data exists
-      const hasAgeData = Object.keys(ageData).length > 0
-      const hasGenderData = Object.keys(genderData).length > 0
-      
-      if (!hasAgeData || !hasGenderData) {
-        // Draw "No Data" message
-        ctx.fillStyle = '#666'
-        ctx.font = 'bold 16px Arial'
-        ctx.textAlign = 'center'
-        ctx.fillText('No demographic data available', canvas.width / 2, canvas.height / 2)
-        return
-      }
-      
-      // Chart styling
-      const padding = 60
-      const chartWidth = canvas.width - 2 * padding
-      const chartHeight = canvas.height - 2 * padding - 40 // Extra space for legend
-      
-      // Combine and process data
-      const combinedData = {}
-      
-      // Initialize combined data structure
-      Object.keys(ageData).forEach(ageGroup => {
-        combinedData[ageGroup] = {
-          Male: 0,
-          Female: 0,
-          Other: 0,
-          total: ageData[ageGroup]
-        }
-      })
-      
-      // For this demo, we'll distribute gender data proportionally across age groups
-      // In a real scenario, you'd have age-gender cross-tabulated data from backend
-      const totalUsers = Object.values(ageData).reduce((sum, val) => sum + val, 0)
-      const genderRatios = {}
-      const totalGenderUsers = Object.values(genderData).reduce((sum, val) => sum + val, 0)
-      
-      Object.keys(genderData).forEach(gender => {
-        genderRatios[gender] = genderData[gender] / totalGenderUsers
-      })
-      
-      // Distribute gender data across age groups proportionally
-      Object.keys(combinedData).forEach(ageGroup => {
-        const ageGroupTotal = ageData[ageGroup]
-        Object.keys(genderRatios).forEach(gender => {
-          const estimatedCount = Math.round(ageGroupTotal * genderRatios[gender])
-          if (combinedData[ageGroup][gender] !== undefined) {
-            combinedData[ageGroup][gender] = estimatedCount
-          }
-        })
-      })
-      
-      // Gender colors with purple theme
-      const genderColors = {
-        'Male': '#4A90E2',
-        'Female': '#E24A90', 
-        'Other': '#7ED321'
-      }
-      
-      // Calculate chart dimensions
-      const ageGroups = Object.keys(combinedData)
-      const groupWidth = chartWidth / ageGroups.length
-      const barWidth = groupWidth * 0.6
-      const barSpacing = groupWidth * 0.1
-      
-      // Find max value for scaling
-      const maxValue = Math.max(...Object.values(combinedData).map(group => group.total))
-      
-      // Draw grouped bars
-      ageGroups.forEach((ageGroup, groupIndex) => {
-        const groupData = combinedData[ageGroup]
-        const genders = ['Male', 'Female', 'Other'].filter(gender => groupData[gender] > 0)
-        const subBarWidth = barWidth / Math.max(genders.length, 1)
-        
-        const groupX = padding + groupIndex * groupWidth + (groupWidth - barWidth) / 2
-        
-        genders.forEach((gender, genderIndex) => {
-          const value = groupData[gender]
-          if (value > 0) {
-            const barHeight = Math.max((value / maxValue) * chartHeight * 0.8, 5)
-            const x = groupX + genderIndex * subBarWidth
-            const y = canvas.height - padding - barHeight - 40
-            
-            // Create gradient for bars
-            const gradient = ctx.createLinearGradient(0, y, 0, y + barHeight)
-            gradient.addColorStop(0, genderColors[gender])
-            gradient.addColorStop(1, genderColors[gender] + '80') // Add transparency
-            
-            // Draw bar
-            ctx.fillStyle = gradient
-            ctx.fillRect(x, y, subBarWidth - 2, barHeight)
-            
-            // Draw bar border
-            ctx.strokeStyle = genderColors[gender]
-            ctx.lineWidth = 2
-            ctx.strokeRect(x, y, subBarWidth - 2, barHeight)
-            
-            // Draw value label on bar
-            ctx.fillStyle = 'white'
-            ctx.font = 'bold 11px Arial'
-            ctx.textAlign = 'center'
-            if (barHeight > 20) {
-              ctx.fillText(value.toString(), x + (subBarWidth - 2) / 2, y + 15)
-            } else {
-              ctx.fillStyle = '#333'
-              ctx.fillText(value.toString(), x + (subBarWidth - 2) / 2, y - 5)
-            }
-            
-            // Draw percentage label
-            const percentage = Math.round((value / groupData.total) * 100)
-            ctx.fillStyle = '#333'
-            ctx.font = 'bold 9px Arial'
-            ctx.fillText(`${percentage}%`, x + (subBarWidth - 2) / 2, y + barHeight + 15)
-          }
-        })
-        
-        // Draw age group label
-        ctx.fillStyle = '#333'
-        ctx.font = 'bold 12px Arial'
-        ctx.textAlign = 'center'
-        ctx.fillText(ageGroup, groupX + barWidth / 2, canvas.height - 15)
-      })
-      
-      // Draw chart title
-      ctx.fillStyle = '#333'
-      ctx.font = 'bold 16px Arial'
-      ctx.textAlign = 'center'
-      ctx.fillText('Age & Gender Distribution', canvas.width / 2, 30)
-      
-      // Draw axis labels
-      ctx.fillStyle = '#666'
-      ctx.font = 'bold 11px Arial'
-      ctx.textAlign = 'center'
-      ctx.fillText('Age Groups', canvas.width / 2, canvas.height - 5)
-      
-      // Draw Y-axis label
-      ctx.save()
-      ctx.translate(15, canvas.height / 2)
-      ctx.rotate(-Math.PI / 2)
-      ctx.fillText('Number of Users', 0, 0)
-      ctx.restore()
-      
-      console.log('✅ AnalyticsModal: Combined demographics chart drawn successfully')
-    }
+
 
     const formatTime = (minutes) => {
       if (minutes === 0) return '00:00'
@@ -1125,7 +1007,6 @@ export default {
       loading,
       analyticsData,
       activityChart,
-      combinedDemographicsChart,
       formatTime,
       generateReport,
       exportData,
@@ -1217,59 +1098,7 @@ export default {
   justify-content: center;
 }
 
-.demographics-section .chart-placeholder {
-  height: 300px;
-}
 
-.combined-chart-container {
-  display: flex;
-  justify-content: center;
-  margin-bottom: 2rem;
-}
-
-.demographics-chart {
-  width: 100%;
-  max-width: 800px;
-}
-
-.chart-legend {
-  display: flex;
-  justify-content: center;
-  gap: 2rem;
-  margin-top: 1rem;
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 8px;
-  backdrop-filter: blur(5px);
-}
-
-.legend-item {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  color: white;
-  font-size: 0.9rem;
-  font-weight: 600;
-}
-
-.legend-color {
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.3);
-}
-
-.male-color {
-  background: #4A90E2;
-}
-
-.female-color {
-  background: #E24A90;
-}
-
-.other-color {
-  background: #7ED321;
-}
 
 .role-distribution {
   display: flex;
@@ -1420,6 +1249,97 @@ export default {
   100% { transform: rotate(360deg); }
 }
 
+/* Demographics Summary Styles */
+.demographics-summary {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.summary-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.summary-stat {
+  text-align: center;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+}
+
+.summary-value {
+  font-size: 2rem;
+  font-weight: bold;
+  color: white;
+  margin-bottom: 0.5rem;
+}
+
+.summary-label {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.distribution-summary {
+  margin-bottom: 2rem;
+}
+
+.distribution-summary h4 {
+  color: white;
+  margin-bottom: 1rem;
+  font-size: 1.1rem;
+}
+
+.distribution-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.distribution-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.bar-label {
+  min-width: 100px;
+  color: white;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.bar-container {
+  flex: 1;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  border-radius: 10px;
+  transition: width 0.3s ease;
+}
+
+.gender-fill {
+  background: linear-gradient(90deg, #4A90E2, #E24A90);
+}
+
+.bar-count {
+  min-width: 80px;
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 0.8rem;
+  text-align: right;
+}
+
 @media (max-width: 768px) {
   .charts-section {
     grid-template-columns: 1fr;
@@ -1431,6 +1351,29 @@ export default {
   
   .export-options {
     flex-direction: column;
+  }
+  
+  .summary-stats {
+    grid-template-columns: 1fr;
+  }
+  
+  .distribution-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+  
+  .bar-label {
+    min-width: auto;
+  }
+  
+  .bar-container {
+    width: 100%;
+  }
+  
+  .bar-count {
+    min-width: auto;
+    text-align: left;
   }
 }
 </style>

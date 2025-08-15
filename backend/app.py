@@ -1,7 +1,7 @@
 from flask import Flask, request, jsonify, session
 from flask_cors import CORS
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Achievement, ChatSession,ChildProfile, DoodleSession, Story, LLMInteractions, ParentChild, SavingGoal, Transaction, HomeworkSchedule, PomodoroSession, ScreenTime, Notification, HealthTask, HealthStreak, WaterLog, LoginStreak, PsychometricTestResult, UserModuleProgress, get_current_ist_time, IST
+from models import db, User, Achievement, ChatSession,ChildProfile, DoodleSession, Story, LLMInteractions, ParentChild, SavingGoal, Transaction, HomeworkSchedule, PomodoroSession, ScreenTime, Notification, HealthTask, HealthStreak, WaterLog, LoginStreak, LoginHistory, PsychometricTestResult, UserModuleProgress, get_current_ist_time, IST
 import re
 import requests
 import os
@@ -489,6 +489,9 @@ def api_login():
             # Update login streak for successful login
             update_login_streak(user.id)
             
+            # Record login history for analytics
+            record_login_history(user.id, request)
+            
             # Generate notifications for the user
             generate_notifications(user.id)
             
@@ -937,6 +940,34 @@ def update_login_streak(user_id):
         db.session.commit()
         
     except Exception as e:
+        db.session.rollback()
+
+def record_login_history(user_id, request):
+    """Record login history for analytics"""
+    try:
+        today = date.today()
+        
+        # Check if user already logged in today (to avoid duplicate records)
+        existing_login = LoginHistory.query.filter_by(
+            user_id=user_id, 
+            login_date=today
+        ).first()
+        
+        if not existing_login:
+            # Record new login
+            login_record = LoginHistory(
+                user_id=user_id,
+                login_date=today,
+                login_time=datetime.now(UTC),
+                ip_address=request.remote_addr if request else None,
+                user_agent=request.headers.get('User-Agent') if request else None
+            )
+            db.session.add(login_record)
+            db.session.commit()
+        
+    except Exception as e:
+        # Don't fail login if history recording fails
+        print(f"Failed to record login history: {e}")
         db.session.rollback()
 
 # -----------------------
@@ -4176,8 +4207,8 @@ def get_admin_dashboard_stats():
         child_count = User.query.filter_by(role='child').count()
         teacher_count = User.query.filter_by(role='teacher').count()
         
-        # Count active users today (based on login streaks)
-        active_today = LoginStreak.query.filter_by(last_login_date=today).count()
+        # Count active users today (based on login history)
+        active_today = LoginHistory.query.filter_by(login_date=today).distinct(LoginHistory.user_id).count()
         
         # Active in last hour (simplified - use a subset of active today)
         active_last_hour = max(0, active_today - 1)
@@ -4208,7 +4239,8 @@ def get_admin_dashboard_stats():
             "active_last_hour": active_last_hour,
             "average_screen_time": average_screen_time,
             "chat_sessions": ChatSession.query.count(),
-            "achievements": Achievement.query.count()
+            "achievements": Achievement.query.count(),
+            "completed_tasks": HomeworkSchedule.query.filter_by(status='completed').count()
         }
 
         return jsonify(stats), 200
@@ -4242,19 +4274,20 @@ def get_comprehensive_analytics():
             total_hours = sum(record.hours or 0 for record in screen_time_records)
             avg_screen_time = round((total_hours / len(screen_time_records)) * 60)
         
-        # Weekly activity data (mock data for chart)
+        # Weekly activity data - fetch actual user activity from database using LoginHistory
         weekly_activity = []
         for i in range(7):
             target_date = today - timedelta(days=6-i)
-            active_users = LoginStreak.query.filter_by(last_login_date=target_date).count()
+            # Get actual users who logged in on this date using LoginHistory table
+            active_users = LoginHistory.query.filter_by(login_date=target_date).distinct(LoginHistory.user_id).count()
             weekly_activity.append({
                 'date': target_date.strftime('%Y-%m-%d'),
                 'day': target_date.strftime('%a'),
-                'active_users': max(1, active_users + (i % 3))  # Add some variation
+                'active_users': active_users  # Use actual count from login history
             })
         
-        # Task completion statistics (mock data)
-        completed_tasks = max(50, total_users * 8 + (today.day % 10) * 5)
+        # Task completion statistics - fetch actual data from database
+        completed_tasks = HomeworkSchedule.query.filter_by(status='completed').count()
         
         # Health and wellness data
         total_health_tasks = HealthTask.query.count()
@@ -4266,6 +4299,35 @@ def get_comprehensive_analytics():
         # Financial education
         total_transactions = Transaction.query.count()
         total_saving_goals = SavingGoal.query.count()
+        
+        # Demographics data from child profiles
+        child_profiles = ChildProfile.query.all()
+        age_distribution = {}
+        gender_distribution = {}
+        
+        for profile in child_profiles:
+            if profile.date_of_birth:
+                # Calculate age
+                age = today.year - profile.date_of_birth.year
+                if today.month < profile.date_of_birth.month or (today.month == profile.date_of_birth.month and today.day < profile.date_of_birth.day):
+                    age -= 1
+                
+                # Group by age ranges
+                if age < 6:
+                    age_group = "5 and under"
+                elif age < 9:
+                    age_group = "6-8 years"
+                elif age < 12:
+                    age_group = "9-11 years"
+                elif age < 15:
+                    age_group = "12-14 years"
+                else:
+                    age_group = "15+ years"
+                
+                age_distribution[age_group] = age_distribution.get(age_group, 0) + 1
+            
+            if profile.gender:
+                gender_distribution[profile.gender] = gender_distribution.get(profile.gender, 0) + 1
         
         analytics_data = {
             "user_statistics": {
@@ -4296,6 +4358,11 @@ def get_comprehensive_analytics():
                 "total_transactions": total_transactions,
                 "total_saving_goals": total_saving_goals
             },
+            "demographics": {
+                "age_distribution": age_distribution,
+                "gender_distribution": gender_distribution,
+                "total_profiles": len(child_profiles)
+            },
             "generated_at": datetime.now().isoformat()
         }
         
@@ -4303,6 +4370,400 @@ def get_comprehensive_analytics():
         
     except Exception as e:
         print(f"Analytics error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+# User Activity Analytics Endpoint
+@app.route('/api/admin/user-activity', methods=['GET'])
+def get_user_activity_analytics():
+    """Get detailed user activity analytics for admin dashboard"""
+    try:
+        today = date.today()
+        from datetime import timedelta
+        
+        # Get activity data for the last 7 days
+        weekly_activity = []
+        for i in range(7):
+            target_date = today - timedelta(days=6-i)
+            
+            # Count users who logged in on this date using LoginHistory
+            login_activity = LoginHistory.query.filter_by(login_date=target_date).distinct(LoginHistory.user_id).count()
+            
+            # Count tasks completed on this date
+            tasks_completed = HomeworkSchedule.query.filter(
+                HomeworkSchedule.status == 'completed',
+                db.func.date(HomeworkSchedule.updated_at) == target_date
+            ).count()
+            
+            # Count chat sessions created on this date
+            chat_activity = ChatSession.query.filter(
+                db.func.date(ChatSession.created_at) == target_date
+            ).count()
+            
+            # Count achievements awarded on this date
+            achievements_earned = Achievement.query.filter(
+                db.func.date(Achievement.date_awarded) == target_date
+            ).count()
+            
+            # Count health tasks completed on this date
+            health_activity = HealthTask.query.filter(
+                HealthTask.completed == True,
+                HealthTask.date == target_date
+            ).count()
+            
+            # Total activity score (weighted combination)
+            total_activity = (
+                login_activity * 1 +      # Login = 1 point
+                tasks_completed * 2 +     # Task completion = 2 points
+                chat_activity * 1 +       # Chat session = 1 point
+                achievements_earned * 3 + # Achievement = 3 points
+                health_activity * 1       # Health task = 1 point
+            )
+            
+            weekly_activity.append({
+                'date': target_date.strftime('%Y-%m-%d'),
+                'day': target_date.strftime('%a'),
+                'active_users': login_activity,
+                'tasks_completed': tasks_completed,
+                'chat_sessions': chat_activity,
+                'achievements_earned': achievements_earned,
+                'health_tasks': health_activity,
+                'total_activity_score': total_activity
+            })
+        
+        # Get overall activity statistics using LoginHistory
+        total_users = User.query.count()
+        active_users_today = LoginHistory.query.filter_by(login_date=today).distinct(LoginHistory.user_id).count()
+        active_users_week = LoginHistory.query.filter(
+            LoginHistory.login_date >= today - timedelta(days=7)
+        ).distinct(LoginHistory.user_id).count()
+        
+        # Get activity by user role using LoginHistory
+        role_activity = {}
+        for role in ['child', 'parent', 'teacher', 'admin']:
+            users_with_role = User.query.filter_by(role=role).count()
+            active_users_with_role = db.session.query(LoginHistory).join(User).filter(
+                User.role == role,
+                LoginHistory.login_date >= today - timedelta(days=7)
+            ).distinct(LoginHistory.user_id).count()
+            
+            role_activity[role] = {
+                'total_users': users_with_role,
+                'active_users': active_users_with_role,
+                'activity_rate': round((active_users_with_role / users_with_role * 100) if users_with_role > 0 else 0, 1)
+            }
+        
+        activity_data = {
+            'weekly_activity': weekly_activity,
+            'overall_stats': {
+                'total_users': total_users,
+                'active_today': active_users_today,
+                'active_this_week': active_users_week,
+                'activity_rate_today': round((active_users_today / total_users * 100) if total_users > 0 else 0, 1),
+                'activity_rate_week': round((active_users_week / total_users * 100) if total_users > 0 else 0, 1)
+            },
+            'role_activity': role_activity,
+            'generated_at': datetime.now().isoformat()
+        }
+        
+        return jsonify(activity_data), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Task Statistics Endpoint
+@app.route('/api/admin/task-stats', methods=['GET'])
+def get_task_statistics():
+    """Get task completion statistics for admin dashboard"""
+    try:
+        # Get total tasks and completed tasks
+        total_tasks = HomeworkSchedule.query.count()
+        completed_tasks = HomeworkSchedule.query.filter_by(status='completed').count()
+        pending_tasks = HomeworkSchedule.query.filter_by(status='pending').count()
+        in_progress_tasks = HomeworkSchedule.query.filter_by(status='in-progress').count()
+        
+        # Calculate completion rate
+        completion_rate = round((completed_tasks / total_tasks * 100) if total_tasks > 0 else 0, 1)
+        
+        # Get tasks by subject
+        tasks_by_subject = db.session.query(
+            HomeworkSchedule.subject,
+            db.func.count(HomeworkSchedule.id).label('total'),
+            db.func.sum(db.case([(HomeworkSchedule.status == 'completed', 1)], else_=0)).label('completed')
+        ).group_by(HomeworkSchedule.subject).all()
+        
+        subject_stats = []
+        for subject, total, completed in tasks_by_subject:
+            subject_stats.append({
+                'subject': subject or 'Other',
+                'total': total,
+                'completed': completed,
+                'completion_rate': round((completed / total * 100) if total > 0 else 0, 1)
+            })
+        
+        # Get recent task activity (last 7 days)
+        from datetime import timedelta
+        today = date.today()
+        week_ago = today - timedelta(days=7)
+        
+        recent_completed = HomeworkSchedule.query.filter(
+            HomeworkSchedule.status == 'completed',
+            HomeworkSchedule.updated_at >= week_ago
+        ).count()
+        
+        stats = {
+            'total_tasks': total_tasks,
+            'completed_tasks': completed_tasks,
+            'pending_tasks': pending_tasks,
+            'in_progress_tasks': in_progress_tasks,
+            'completion_rate': completion_rate,
+            'recent_completed': recent_completed,
+            'subject_statistics': subject_stats,
+            'generated_at': datetime.now().isoformat()
+        }
+        
+        return jsonify(stats), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Migration endpoint to populate LoginHistory from existing LoginStreak data
+@app.route('/api/admin/migrate-login-history', methods=['POST'])
+def migrate_login_history():
+    """Migrate existing LoginStreak data to LoginHistory for historical analytics"""
+    try:
+        # Get all users with login streaks
+        login_streaks = LoginStreak.query.all()
+        migrated_count = 0
+        
+        for streak in login_streaks:
+            # Check if this user already has login history for their last login date
+            existing_history = LoginHistory.query.filter_by(
+                user_id=streak.user_id,
+                login_date=streak.last_login_date
+            ).first()
+            
+            if not existing_history and streak.last_login_date:
+                # Create login history record
+                login_history = LoginHistory(
+                    user_id=streak.user_id,
+                    login_date=streak.last_login_date,
+                    login_time=datetime.now(UTC),  # Use current time as approximation
+                    ip_address=None,
+                    user_agent=None
+                )
+                db.session.add(login_history)
+                migrated_count += 1
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Migrated {migrated_count} login records to history table',
+            'migrated_count': migrated_count
+        }), 200
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+# Child Profile Endpoints
+@app.route('/api/child-profile/<int:user_id>', methods=['GET'])
+def get_child_profile(user_id):
+    """Get child profile by user ID"""
+    try:
+        profile = ChildProfile.query.filter_by(user_id=user_id).first()
+        
+        if profile:
+            return jsonify({
+                'success': True,
+                'profile': {
+                    'id': profile.id,
+                    'user_id': profile.user_id,
+                    'grade_level': profile.grade_level,
+                    'date_of_birth': profile.date_of_birth.isoformat() if profile.date_of_birth else None,
+                    'gender': profile.gender,
+                    'interests': profile.interests,
+                    'avatar_url': profile.avatar_url
+                }
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Profile not found'
+            }), 404
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/child-profile', methods=['POST'])
+def create_child_profile():
+    """Create or update child profile"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['user_id', 'grade_level', 'date_of_birth', 'gender', 'interests']
+        for field in required_fields:
+            if field not in data or not data[field]:
+                return jsonify({
+                    'success': False,
+                    'error': f'Missing required field: {field}'
+                }), 400
+        
+        # Check if profile already exists
+        existing_profile = ChildProfile.query.filter_by(user_id=data['user_id']).first()
+        
+        if existing_profile:
+            # Update existing profile
+            existing_profile.grade_level = data['grade_level']
+            existing_profile.date_of_birth = datetime.strptime(data['date_of_birth'], '%Y-%m-%d').date()
+            existing_profile.gender = data['gender']
+            existing_profile.interests = data['interests']
+            
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Profile updated successfully',
+                'profile_id': existing_profile.id
+            })
+        else:
+            # Create new profile
+            new_profile = ChildProfile(
+                user_id=data['user_id'],
+                grade_level=data['grade_level'],
+                date_of_birth=datetime.strptime(data['date_of_birth'], '%Y-%m-%d').date(),
+                gender=data['gender'],
+                interests=data['interests']
+            )
+            
+            db.session.add(new_profile)
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Profile created successfully',
+                'profile_id': new_profile.id
+            })
+            
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/child-profile/<int:user_id>', methods=['PUT'])
+def update_child_profile(user_id):
+    """Update child profile by user ID"""
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['grade_level', 'date_of_birth', 'gender', 'interests']
+        for field in required_fields:
+            if field not in data or not data[field]:
+                return jsonify({
+                    'success': False,
+                    'error': f'Missing required field: {field}'
+                }), 400
+        
+        # Find existing profile
+        profile = ChildProfile.query.filter_by(user_id=user_id).first()
+        
+        if not profile:
+            return jsonify({
+                'success': False,
+                'error': 'Profile not found'
+            }), 404
+        
+        # Update profile
+        profile.grade_level = data['grade_level']
+        profile.date_of_birth = datetime.strptime(data['date_of_birth'], '%Y-%m-%d').date()
+        profile.gender = data['gender']
+        profile.interests = data['interests']
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Profile updated successfully',
+            'profile_id': profile.id
+        })
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# Demographics Analytics Endpoint
+@app.route('/api/admin/demographics', methods=['GET'])
+def get_demographics_analytics():
+    """Get detailed demographics data for admin dashboard"""
+    try:
+        today = date.today()
+        
+        # Get all child profiles
+        child_profiles = ChildProfile.query.all()
+        
+        # Initialize distribution objects
+        age_distribution = {}
+        gender_distribution = {}
+        grade_distribution = {}
+        
+        # Process each profile
+        for profile in child_profiles:
+            # Age distribution
+            if profile.date_of_birth:
+                age = today.year - profile.date_of_birth.year
+                if today.month < profile.date_of_birth.month or (today.month == profile.date_of_birth.month and today.day < profile.date_of_birth.day):
+                    age -= 1
+                
+                # Group by age ranges
+                if age < 6:
+                    age_group = "5 and under"
+                elif age < 9:
+                    age_group = "6-8 years"
+                elif age < 12:
+                    age_group = "9-11 years"
+                elif age < 15:
+                    age_group = "12-14 years"
+                else:
+                    age_group = "15+ years"
+                
+                age_distribution[age_group] = age_distribution.get(age_group, 0) + 1
+            
+            # Gender distribution
+            if profile.gender:
+                gender_distribution[profile.gender] = gender_distribution.get(profile.gender, 0) + 1
+            
+            # Grade distribution
+            if profile.grade_level:
+                grade_distribution[f"Grade {profile.grade_level}"] = grade_distribution.get(f"Grade {profile.grade_level}", 0) + 1
+        
+        # Calculate percentages
+        total_profiles = len(child_profiles)
+        
+        demographics_data = {
+            "total_profiles": total_profiles,
+            "age_distribution": age_distribution,
+            "gender_distribution": gender_distribution,
+            "grade_distribution": grade_distribution,
+            "age_percentages": {k: round((v / total_profiles * 100), 1) for k, v in age_distribution.items()} if total_profiles > 0 else {},
+            "gender_percentages": {k: round((v / total_profiles * 100), 1) for k, v in gender_distribution.items()} if total_profiles > 0 else {},
+            "grade_percentages": {k: round((v / total_profiles * 100), 1) for k, v in grade_distribution.items()} if total_profiles > 0 else {},
+            "generated_at": datetime.now().isoformat()
+        }
+        
+        return jsonify(demographics_data), 200
+        
+    except Exception as e:
+        print(f"Demographics analytics error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 # System Health Check Endpoint

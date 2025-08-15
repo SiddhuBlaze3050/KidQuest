@@ -222,7 +222,7 @@ export default {
         // For demo purposes, use a default user ID if no user is logged in
         const userId = user.value?.id || 1; // Use ID 1 as default for demo
         
-        const response = await apiService.get(`/api/child-profile/${userId}`)
+        const response = await apiService.getChildProfile(userId)
         if (response.success && response.profile) {
           const profile = response.profile
           formData.value = {
@@ -256,7 +256,7 @@ export default {
 
         console.log('Submitting profile data:', profileData)
 
-        const response = await apiService.post('/api/child-profile', profileData)
+        const response = await apiService.createChildProfile(profileData)
 
         if (response.success) {
           showSuccessModal.value = true

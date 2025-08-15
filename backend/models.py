@@ -224,6 +224,21 @@ class LoginStreak(db.Model):
     total_logins = db.Column(db.Integer, default=0)
     longest_streak = db.Column(db.Integer, default=0)
 
+class LoginHistory(db.Model):
+    """Track individual login events for historical analytics"""
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    login_date = db.Column(db.Date, default=date.today)
+    login_time = db.Column(db.DateTime, default=datetime.now)
+    ip_address = db.Column(db.String(45), nullable=True)  # IPv6 compatible
+    user_agent = db.Column(db.String(500), nullable=True)
+    
+    # Index for efficient date-based queries
+    __table_args__ = (
+        db.Index('idx_login_history_date', 'login_date'),
+        db.Index('idx_login_history_user_date', 'user_id', 'login_date'),
+    )
+
 class ScreenTime(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
