@@ -680,18 +680,34 @@ export default {
 
       if (result.isConfirmed) {
         try {
-          // Remove from local list
+          console.log('🗑️ Deleting homework with ID:', homeworkId);
+          
+          // Actually delete from database via API
+          await apiService.deleteTask(homeworkId);
+          
+          // Remove from local list only after successful API call
           assignedHomework.value = assignedHomework.value.filter(hw => hw.id !== homeworkId)
+          
+          // Refresh both student tasks and assigned homework to ensure consistency
+          await loadStudentTasks()
+          await loadAssignedHomework()
           
           Swal.fire({
             icon: 'success',
             title: 'Deleted!',
-            text: 'Homework has been deleted.',
+            text: 'Homework has been deleted successfully.',
             timer: 2000,
             showConfirmButton: false
           })
         } catch (error) {
-          console.error('Error deleting homework:', error)
+          console.error('❌ Error deleting homework:', error)
+          Swal.fire({
+            icon: 'error',
+            title: 'Deletion Failed',
+            text: 'Failed to delete homework. Please try again.',
+            timer: 3000,
+            showConfirmButton: false
+          })
         }
       }
     }

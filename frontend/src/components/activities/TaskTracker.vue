@@ -343,6 +343,12 @@ const fetchLastPomodoroSession = async (userId, homeworkId) => {
             fetchTasks();
         };
 
+        // Expose refresh method for parent components
+        const refreshTasks = () => {
+            console.log('🔄 Refreshing tasks from external call...');
+            fetchTasks();
+        };
+
         onMounted(fetchTasks);
 
         return {
@@ -355,6 +361,7 @@ const fetchLastPomodoroSession = async (userId, homeworkId) => {
             removeTask,
             startPomodoro,
             handleSessionComplete,
+            refreshTasks, // Expose this method
         };
     },
 });
