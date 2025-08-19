@@ -7,14 +7,17 @@ class AuthService {
     this.token = this.getToken()
     this.user = this.getUser()
     this.refreshTimer = null
-    
+
+    // Get API base URL from environment
+    this.API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+
     // Set up axios headers immediately if token exists
     if (this.token) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${this.token}`
     }
-    
+
     this.setupAxiosInterceptors()
-    
+
     // Check if we have an existing token and set up refresh timer
     this.initializeTokenTimer()
   }
@@ -22,16 +25,17 @@ class AuthService {
   // Initialize token timer on service startup
   initializeTokenTimer() {
     if (!this.token) return
-    
+
     const storedExpiration = localStorage.getItem('jwt_token_expires')
     if (storedExpiration) {
       const expirationTime = parseInt(storedExpiration)
       const currentTime = Date.now()
       const timeUntilExpiry = Math.floor((expirationTime - currentTime) / 1000)
-      
+
       console.log(`🔍 AuthService initialized - token expires in ${timeUntilExpiry} seconds`)
-      
-      if (timeUntilExpiry > 300) { // More than 5 minutes left
+
+      if (timeUntilExpiry > 300) {
+        // More than 5 minutes left
         this.setupTokenRefreshTimer(timeUntilExpiry - 300) // Refresh 5 minutes before expiry
       } else if (timeUntilExpiry > 0) {
         // Less than 5 minutes - verify immediately
@@ -52,17 +56,17 @@ class AuthService {
     localStorage.setItem('jwt_token', token)
     console.log('🔧 AuthService: Token stored in localStorage:', !!token)
     console.log('🔧 AuthService: Token length:', token ? token.length : 0)
-    
+
     // Store expiration time if provided
     if (expiresIn) {
-      const expirationTime = Date.now() + (expiresIn * 1000) // Convert seconds to milliseconds
+      const expirationTime = Date.now() + expiresIn * 1000 // Convert seconds to milliseconds
       localStorage.setItem('jwt_token_expires', expirationTime.toString())
       console.log('🔧 AuthService: Token expiration set for:', new Date(expirationTime))
-      
+
       // Set up token refresh timer (refresh 5 minutes before expiry)
       this.setupTokenRefreshTimer(expiresIn - 300) // 5 minutes before expiry
     }
-    
+
     // Update axios default headers immediately
     if (token) {
       axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
@@ -116,31 +120,31 @@ class AuthService {
   // Wait for token to be ready and validated
   async waitForTokenReady(maxAttempts = 10, delayMs = 100) {
     console.log('🔍 AuthService: Waiting for token to be ready...')
-    
+
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       console.log(`🔍 AuthService: Token readiness check ${attempt}/${maxAttempts}`)
-      
+
       // Check if token exists and is set in axios headers
       const token = this.getToken()
       const hasAxiosHeader = !!axios.defaults.headers.common['Authorization']
       const isAuthenticated = this.isAuthenticated()
-      
+
       console.log(`🔍 Token exists: ${!!token}`)
       console.log(`🔍 Axios header set: ${hasAxiosHeader}`)
       console.log(`🔍 Is authenticated: ${isAuthenticated}`)
-      
+
       if (token && hasAxiosHeader && isAuthenticated) {
         console.log('✅ AuthService: Token is ready!')
         return true
       }
-      
+
       // If not ready, wait before next attempt
       if (attempt < maxAttempts) {
         console.log(`⏳ AuthService: Token not ready, waiting ${delayMs}ms...`)
-        await new Promise(resolve => setTimeout(resolve, delayMs))
+        await new Promise((resolve) => setTimeout(resolve, delayMs))
       }
     }
-    
+
     console.log('❌ AuthService: Token readiness timeout')
     return false
   }
@@ -149,11 +153,11 @@ class AuthService {
   async verifyTokenValidity() {
     try {
       console.log('🔍 AuthService: Verifying token validity...')
-      
-      const response = await axios.get('http://localhost:5000/api/auth/verify', {
-        timeout: 5000 // 5 second timeout
+
+      const response = await axios.get(`${this.API_BASE_URL}/api/auth/verify`, {
+        timeout: 5000, // 5 second timeout
       })
-      
+
       if (response.data.success) {
         console.log('✅ AuthService: Token is valid')
         return true
@@ -170,14 +174,14 @@ class AuthService {
   // Complete authentication check (token ready + valid)
   async ensureAuthenticated() {
     console.log('🔐 AuthService: Ensuring complete authentication...')
-    
+
     // Step 1: Wait for token to be ready in localStorage and axios
     const isReady = await this.waitForTokenReady()
     if (!isReady) {
       console.log('❌ AuthService: Token not ready')
       return false
     }
-    
+
     // Step 2: Verify token is valid with backend
     const isValid = await this.verifyTokenValidity()
     if (!isValid) {
@@ -187,7 +191,7 @@ class AuthService {
       this.removeUser()
       return false
     }
-    
+
     console.log('✅ AuthService: Authentication ensured - ready for API calls')
     return true
   }
@@ -197,8 +201,8 @@ class AuthService {
     try {
       console.log('🔑 AuthService: Attempting login for:', username)
       console.log('🌐 AuthService: Making request to backend...')
-      
-      const response = await axios.post('http://localhost:5000/api/auth/login', {
+
+      const response = await axios.post(`${this.API_BASE_URL}/api/auth/login`, {
         username,
         password,
       })
@@ -209,11 +213,14 @@ class AuthService {
 
       if (response.data.success) {
         console.log('🎉 AuthService: Login successful!')
-        console.log('🔧 AuthService: Setting token:', response.data.access_token.substring(0, 20) + '...')
+        console.log(
+          '🔧 AuthService: Setting token:',
+          response.data.access_token.substring(0, 20) + '...',
+        )
         console.log('🎯 AuthService: User role from response:', response.data.user?.role)
         console.log('🎯 AuthService: Is child user?', response.data.user?.role === 'child')
         console.log('⏰ AuthService: Token expires in:', response.data.expires_in, 'seconds')
-        
+
         // Store JWT token and user data with expiration
         this.setToken(response.data.access_token, response.data.expires_in)
         this.setUser(response.data.user)
@@ -224,14 +231,17 @@ class AuthService {
         console.log('✅ AuthService: Login successful, token stored and axios headers updated')
         console.log('👤 AuthService: User data stored:', response.data.user)
         console.log('🔧 AuthService: Token in localStorage:', !!localStorage.getItem('jwt_token'))
-        console.log('🌐 AuthService: Axios default header set:', !!axios.defaults.headers.common['Authorization'])
-        
+        console.log(
+          '🌐 AuthService: Axios default header set:',
+          !!axios.defaults.headers.common['Authorization'],
+        )
+
         // Verify authentication state after setting data
         console.log('🔍 AuthService: Verifying authentication state...')
         console.log('🔍 AuthService: isAuthenticated():', this.isAuthenticated())
         console.log('🔍 AuthService: hasRole("child"):', this.hasRole('child'))
         console.log('🔍 AuthService: getCurrentUser():', this.getCurrentUser())
-        
+
         // Wait for token to be fully ready and verified before returning success
         console.log('⏳ AuthService: Ensuring token is ready for API calls...')
         try {
@@ -260,15 +270,18 @@ class AuthService {
         message: error.message,
         status: error.response?.status,
         statusText: error.response?.statusText,
-        data: error.response?.data
+        data: error.response?.data,
       })
-      
+
       // If it's a 401 error with response data, return the error response
       if (error.response && error.response.status === 401 && error.response.data) {
-        console.log('🔍 AuthService: Handling 401 error, returning response data:', error.response.data)
+        console.log(
+          '🔍 AuthService: Handling 401 error, returning response data:',
+          error.response.data,
+        )
         return error.response.data
       }
-      
+
       // For other types of errors, throw them
       console.log('🔍 AuthService: Re-throwing error for other error types')
       throw error
@@ -280,7 +293,7 @@ class AuthService {
     try {
       // Call backend logout endpoint to clear notifications
       await axios.post(
-        'http://localhost:5000/api/auth/logout',
+        `${this.API_BASE_URL}/api/auth/logout`,
         {},
         {
           headers: {
@@ -371,7 +384,7 @@ class AuthService {
         const token = this.getToken()
         console.log('🔧 Request interceptor - Token available:', !!token)
         console.log('🌐 Making request to:', config.url)
-        
+
         if (token) {
           // Ensure headers object exists
           if (!config.headers) {
@@ -379,11 +392,19 @@ class AuthService {
           }
           config.headers.Authorization = `Bearer ${token}`
           console.log('✅ Authorization header added to request')
-          console.log('🔍 Full Authorization header:', config.headers.Authorization ? config.headers.Authorization.substring(0, 20) + '...' : 'NOT SET')
+          console.log(
+            '🔍 Full Authorization header:',
+            config.headers.Authorization
+              ? config.headers.Authorization.substring(0, 20) + '...'
+              : 'NOT SET',
+          )
           console.log('🔍 Token from localStorage:', token.substring(0, 20) + '...')
         } else {
           console.log('⚠️ No token available for request')
-          console.log('🔍 Token from localStorage check:', localStorage.getItem('jwt_token') ? 'EXISTS' : 'MISSING')
+          console.log(
+            '🔍 Token from localStorage check:',
+            localStorage.getItem('jwt_token') ? 'EXISTS' : 'MISSING',
+          )
         }
         return config
       },
@@ -404,12 +425,12 @@ class AuthService {
         const originalRequest = error.config
 
         // Check if this is a login request - be very specific about login URLs
-        const isLoginRequest = originalRequest.url && (
-          originalRequest.url.includes('/api/auth/login') || 
-          originalRequest.url.endsWith('/api/auth/login') ||
-          originalRequest.url.includes('localhost:5000/api/auth/login') ||
-          originalRequest.url === 'http://localhost:5000/api/auth/login'
-        )
+        const isLoginRequest =
+          originalRequest.url &&
+          (originalRequest.url.includes('/api/auth/login') ||
+            originalRequest.url.endsWith('/api/auth/login') ||
+            originalRequest.url.includes('/api/auth/login') ||
+            originalRequest.url === `${this.API_BASE_URL}/api/auth/login`)
 
         console.log('🔍 Interceptor: Is login request?', isLoginRequest)
         console.log('🔍 Interceptor: Request URL:', originalRequest.url)
@@ -426,15 +447,15 @@ class AuthService {
           const hasToken = this.getToken()
           const hasUser = this.getUser()
           const errorData = error.response?.data || {}
-          
+
           console.log('🔍 Interceptor: Has token?', !!hasToken)
           console.log('🔍 Interceptor: Has user?', !!hasUser)
           console.log('🔍 Interceptor: Error type:', errorData.error_type)
-          
+
           // Only treat as session expired if we had both token and user (valid session)
           if (hasToken && hasUser) {
             originalRequest._retry = true
-            
+
             console.log('🔒 Valid session exists but got 401 - treating as session expired')
             console.log('🧹 Clearing auth data and redirecting to login')
 
@@ -446,7 +467,7 @@ class AuthService {
             // Show user-friendly message based on error type
             let title = 'Session Expired'
             let text = 'Your session has expired. Please log in again.'
-            
+
             if (errorData.error_type === 'token_expired') {
               title = 'Session Expired'
               text = 'Your login session has expired. Please log in again to continue.'
@@ -495,7 +516,7 @@ class AuthService {
     }
 
     console.log(`⏰ Setting up token refresh timer for ${delaySeconds} seconds`)
-    
+
     this.refreshTimer = setTimeout(async () => {
       console.log('🔄 Token refresh timer triggered - verifying token')
       await this.verifyAndRefreshToken()
@@ -506,21 +527,21 @@ class AuthService {
   async verifyAndRefreshToken() {
     try {
       console.log('🔍 Verifying current token...')
-      
-      const response = await axios.get('http://localhost:5000/api/auth/verify')
-      
+
+      const response = await axios.get(`${this.API_BASE_URL}/api/auth/verify`)
+
       if (response.data.success) {
         console.log('✅ Token is still valid')
         const expiresAt = response.data.token_info.expires_at
         const now = Math.floor(Date.now() / 1000)
         const timeUntilExpiry = expiresAt - now
-        
+
         console.log(`⏰ Token expires in ${timeUntilExpiry} seconds`)
-        
+
         // If token expires in less than 10 minutes, warn user
         if (timeUntilExpiry < 600) {
           console.log('⚠️ Token expiring soon, should implement refresh or notify user')
-          
+
           // Show warning to user about upcoming session expiry
           Swal.fire({
             icon: 'info',
@@ -537,7 +558,7 @@ class AuthService {
       }
     } catch (error) {
       console.error('❌ Token verification failed:', error)
-      
+
       // If verification fails with 401, the interceptor will handle logout
       if (error.response?.status === 401) {
         console.log('🔒 Token verification failed with 401 - will be handled by interceptor')
@@ -564,12 +585,12 @@ class AuthService {
         const expirationTime = parseInt(storedExpiration)
         const currentTime = Date.now()
         const isExpired = currentTime >= expirationTime
-        
+
         console.log(`🔍 Token expiration check:`)
         console.log(`   Current time: ${new Date(currentTime)}`)
         console.log(`   Expires at: ${new Date(expirationTime)}`)
         console.log(`   Is expired: ${isExpired}`)
-        
+
         if (isExpired) {
           console.log('⚠️ Token expired based on stored expiration time, clearing all data')
           this.removeToken()
@@ -577,7 +598,7 @@ class AuthService {
           this.clearAllModuleProgress()
           return true
         }
-        
+
         return false
       }
 

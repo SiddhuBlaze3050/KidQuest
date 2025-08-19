@@ -2,14 +2,18 @@ import axios from 'axios'
 import Swal from 'sweetalert2'
 import authService from './authService'
 
-// Configure axios base URL
+// Configure axios base URL with environment support
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+
 const api = axios.create({
-  baseURL: 'http://localhost:5000',
+  baseURL: API_BASE_URL,
   headers: {
     'Content-Type': 'application/json',
   },
   withCredentials: true,
 })
+
+console.log('🔧 API Service initialized with base URL:', API_BASE_URL)
 
 // Request interceptor - add JWT token automatically
 api.interceptors.request.use(
@@ -456,15 +460,15 @@ export const apiService = {
       throw error
     }
   },
-// Get last Pomodoro session using path parameters
-async getLastPomodoroSession(userId, homeworkId) {
-  try {
-    const response = await api.get(`/api/pomodoro/last-session/${userId}/${homeworkId}`)
-    return response.data
-  } catch (error) {
-    throw error
-  }
-},
+  // Get last Pomodoro session using path parameters
+  async getLastPomodoroSession(userId, homeworkId) {
+    try {
+      const response = await api.get(`/api/pomodoro/last-session/${userId}/${homeworkId}`)
+      return response.data
+    } catch (error) {
+      throw error
+    }
+  },
   async abandonPomodoro(sessionId, workDuration = 0, breakDuration = 0) {
     try {
       const response = await api.put(`/api/pomodoro/abandon/${sessionId}`, {

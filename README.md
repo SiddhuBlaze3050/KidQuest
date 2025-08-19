@@ -229,3 +229,49 @@ pytest
 This will execute the entire backend test suite without additional flags.
 
 > **Note:** Ensure you have installed all dependencies (`npm install` for frontend, `pip install -r requirements.txt` for backend) before running tests.
+
+## 🚀 Deployment
+
+### Netlify Deployment (Frontend)
+
+The frontend is ready for deployment to Netlify with the following configuration:
+
+1. **Quick Deployment:**
+
+   ```bash
+   # Windows
+   deploy.bat
+
+   # Linux/Mac
+   ./deploy.sh
+   ```
+
+2. **Manual Steps:**
+
+   - Deploy your backend to Heroku/Railway/etc.
+   - Update `frontend/.env.production` with your backend URL
+   - Push to GitHub and connect to Netlify
+   - Set build settings: base `frontend/`, command `npm run build`, publish `frontend/dist/`
+   - Add environment variables in Netlify dashboard
+
+3. **Configuration Files:**
+   - `netlify.toml` - Netlify configuration with redirects and headers
+   - `frontend/.env.production` - Production environment variables
+   - `frontend/vite.config.js` - Optimized build configuration
+
+📖 **See [NETLIFY_DEPLOYMENT_GUIDE.md](NETLIFY_DEPLOYMENT_GUIDE.md) for detailed deployment instructions.**
+
+### Backend Deployment
+
+The Flask backend can be deployed to:
+
+- **Heroku**: Use the provided `requirements.txt`
+- **Railway**: Connect GitHub repo and deploy backend folder
+- **PythonAnywhere**: Upload files and configure WSGI
+- **DigitalOcean**: Use App Platform or Droplets
+
+Ensure to:
+
+- Set environment variables for database and JWT secret
+- Configure CORS to allow your Netlify domain
+- Update database connection for production

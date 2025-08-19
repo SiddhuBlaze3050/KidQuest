@@ -5,8 +5,11 @@ import router from './router'
 import axios from 'axios'
 import authService from './services/authService'
 
-// Configure axios globally
-axios.defaults.baseURL = 'http://localhost:5000'
+// Configure axios globally with environment-based URL
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+axios.defaults.baseURL = API_BASE_URL
+
+console.log('🌐 API Base URL:', API_BASE_URL)
 
 // Initialize authentication on app startup
 console.log('🚀 Initializing authentication on app startup...')
