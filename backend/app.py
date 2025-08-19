@@ -49,13 +49,13 @@ CORS(app,
          "http://127.0.0.1:5173", 
          "http://localhost:5000",
          "http://localhost:4173",  # Vite preview
-         # Production - Netlify domains (update with your actual domain)
+         # Production - Netlify domains
+         "https://kidquest.netlify.app",
          "https://*.netlify.app",
          "https://*.netlify.com",
          # Swagger for API testing
-         "https://editor.swagger.io",
-         # Allow all for now (remove in production once you have your Netlify URL)
-         "*"
+         "https://editor.swagger.io"
+         # Note: Cannot use "*" with supports_credentials=True
      ], 
      supports_credentials=True,
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],

@@ -8,6 +8,7 @@ import authService from './services/authService'
 // Configure axios globally with environment-based URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
 axios.defaults.baseURL = API_BASE_URL
+axios.defaults.withCredentials = true // Enable cookies/session for cross-origin requests
 
 console.log('🌐 API Base URL:', API_BASE_URL)
 
