@@ -2,12 +2,9 @@ services:
   - type: web
     name: kidquest-backend
     env: python
+    plan: free
     buildCommand: "pip install -r requirements.txt"
-    startCommand: "gunicorn --chdir backend --bind 0.0.0.0:$PORT app:app"
-    disk:
-      name: kidquest-data
-      mountPath: /opt/render/project/src/backend/instance
-      sizeGB: 1
+    startCommand: 'cd backend && python -c ''from app import app; from models import db; app.app_context().push(); db.create_all(); print("Database initialized")'' && gunicorn --bind 0.0.0.0:$PORT app:app'
     envVars:
       - key: SECRET_KEY
         generateValue: true
@@ -23,3 +20,7 @@ services:
         value: "https://openrouter.ai/api/v1/chat/completions"
       - key: FLASK_ENV
         value: "production"
+    # FREE TIER DEPLOYMENT
+    # - Database resets on each deployment (perfect for testing)
+    # - Service spins down after 15 minutes of inactivity
+    # - 750 hours/month limit

@@ -1,1 +1,1 @@
-web: cd backend && python -c "from app import app; from models import db; import os; app.app_context().push(); db.create_all(); print('Database tables ready')" && gunicorn --bind 0.0.0.0:$PORT app:app
+web: cd backend && python -c "from app import app; from models import db; app.app_context().push(); db.create_all(); print('Database initialized for free tier')" && gunicorn --bind 0.0.0.0:$PORT app:app --timeout 120

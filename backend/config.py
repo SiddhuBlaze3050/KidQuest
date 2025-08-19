@@ -12,21 +12,24 @@ class Config:
     INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
     os.makedirs(INSTANCE_DIR, exist_ok=True)
 
-    # Database configuration - supports both SQLite and PostgreSQL
-    # SQLite with persistent disk storage on Render (data persists between deployments)
+    # Database configuration - FREE TIER SETUP
+    # SQLite on ephemeral storage (resets on each deployment)
     DATABASE_PATH = os.path.join(INSTANCE_DIR, 'app.db')
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', f"sqlite:///{DATABASE_PATH}")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # SQLite Configuration for better performance and reliability
+    # SQLite Configuration optimized for free tier
     SQLALCHEMY_ENGINE_OPTIONS = {
         'pool_timeout': 20,
-        'pool_recycle': -1,
-        'pool_pre_ping': True
+        'pool_recycle': 300,  # Recycle connections every 5 minutes
+        'pool_pre_ping': True,
+        'connect_args': {'timeout': 20}  # SQLite connection timeout
     }
     
-    # Note: Using SQLite with persistent disk storage
-    # For PostgreSQL, override DATABASE_URL environment variable
+    # FREE TIER NOTES:
+    # - Database resets on each deployment (good for testing)
+    # - Service spins down after 15 minutes of inactivity
+    # - Perfect for development and demonstration
 
     # API Keys (better stored in Render environment variables)
     GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
