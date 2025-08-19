@@ -13,18 +13,23 @@ class Config:
     os.makedirs(INSTANCE_DIR, exist_ok=True)
 
     # Database configuration - FREE TIER SETUP
-    # For Render deployment, use in-memory SQLite (perfect for free tier)
-    # For local development, use file-based SQLite
-    if os.environ.get('RENDER') or os.environ.get('FLASK_ENV') == 'production':
-        # Production/Render: Use in-memory SQLite (resets on each restart)
-        DATABASE_URI = 'sqlite:///:memory:'
+    # For Render deployment, use /tmp directory (writable on Render)
+    # For local development, use file-based SQLite in instance folder
+    if os.environ.get('RENDER'):
+        # Render: Use writable /tmp directory
+        DATABASE_PATH = "/tmp/app.db"
+        DATABASE_URI = f"sqlite:///{DATABASE_PATH}"
+        print(f"🔧 Render detected: Using database at {DATABASE_PATH}")
     else:
-        # Local development: Use file-based SQLite
+        # Local development: Use instance folder
         DATABASE_PATH = os.path.join(INSTANCE_DIR, 'app.db')
         DATABASE_URI = f"sqlite:///{DATABASE_PATH}"
+        print(f"🔧 Local development: Using database at {DATABASE_PATH}")
     
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', DATABASE_URI)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
+    
+    print(f"📊 Final Database URI: {SQLALCHEMY_DATABASE_URI}")
     
     # SQLite Configuration optimized for free tier
     SQLALCHEMY_ENGINE_OPTIONS = {
@@ -35,8 +40,8 @@ class Config:
     }
     
     # FREE TIER NOTES:
-    # - In-memory database resets on each service restart (perfect for testing)
-    # - No file system permissions issues
+    # - Database in /tmp directory resets on each deployment (perfect for testing)
+    # - /tmp directory has write permissions on Render
     # - Service spins down after 15 minutes of inactivity
     # - Ideal for development, testing, and demonstration
 

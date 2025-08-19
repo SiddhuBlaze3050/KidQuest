@@ -50,6 +50,14 @@ CORS(app,
 
 db.init_app(app)
 
+# Initialize database tables on startup
+with app.app_context():
+    try:
+        db.create_all()
+        print("✅ Database tables created successfully")
+    except Exception as e:
+        print(f"❌ Database initialization error: {e}")
+
 # NEW: Initialize JWT with proper configuration
 jwt = JWTManager(app)
 

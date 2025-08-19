@@ -4,7 +4,7 @@ services:
     env: python
     plan: free
     buildCommand: "pip install -r backend/requirements.txt"
-    startCommand: 'cd backend && python -c "import os; print(\"Database URI:\", os.environ.get(\"DATABASE_URL\", \"using_config_default\")); from app import app; from models import db; app.app_context().push(); db.create_all(); print(\"Database initialized successfully\")" && gunicorn --bind 0.0.0.0:$PORT app:app --timeout 120'
+    startCommand: "cd backend && gunicorn --bind 0.0.0.0:$PORT app:app --timeout 120"
     envVars:
       - key: SECRET_KEY
         generateValue: true
@@ -21,7 +21,8 @@ services:
       - key: RENDER
         value: "true"
     # FREE TIER DEPLOYMENT
-    # - In-memory SQLite database (resets on each restart - perfect for testing)
+    # - Simple startup with Gunicorn only
+    # - Database initialization happens automatically in app.py
+    # - SQLite database in /tmp directory (writable on Render, resets on deployment)
     # - Service spins down after 15 minutes of inactivity
     # - 750 hours/month limit
-    # - No file system issues - database lives in RAM
