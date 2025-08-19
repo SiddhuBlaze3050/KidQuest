@@ -184,7 +184,8 @@ export default {
 
         const fetchStats = async () => {
             try {
-                const response = await axios.get('http://localhost:5000/api/admin/dashboard-stats')
+                const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+                const response = await axios.get(`${API_BASE_URL}/api/admin/dashboard-stats`)
                 const stats = response.data
                 totalUsers.value = stats.total_users || 0
                 parentCount.value = stats.parent_count || 0
@@ -208,7 +209,7 @@ export default {
 
         const checkSystemStatus = async () => {
             try {
-                await axios.get('http://localhost:5000/api/health')
+                await axios.get(`${API_BASE_URL}/api/health`)
                 systemStatus.value = 'Healthy'
             } catch (error) {
                 systemStatus.value = 'Error'

@@ -217,7 +217,8 @@ export default {
         console.log('🔄 AnalyticsModal: Fetching analytics data...')
         
         // Fetch comprehensive analytics data
-        const analyticsResponse = await axios.get('http://localhost:5000/api/admin/analytics')
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+        const analyticsResponse = await axios.get(`${API_BASE_URL}/api/admin/analytics`)
         const data = analyticsResponse.data
         
         console.log('✅ AnalyticsModal: Analytics data received:', data)
@@ -225,7 +226,7 @@ export default {
         // Also fetch demographics data specifically
         let demographicsData = {}
         try {
-          const demographicsResponse = await axios.get('http://localhost:5000/api/admin/demographics')
+          const demographicsResponse = await axios.get(`${API_BASE_URL}/api/admin/demographics`)
           demographicsData = demographicsResponse.data
           console.log('✅ AnalyticsModal: Demographics data received:', demographicsData)
         } catch (demographicsError) {
@@ -301,7 +302,7 @@ export default {
         // Fallback to dashboard stats if analytics endpoint fails
         try {
           console.log('🔄 AnalyticsModal: Trying fallback dashboard stats...')
-          const statsResponse = await axios.get('http://localhost:5000/api/admin/dashboard-stats')
+          const statsResponse = await axios.get(`${API_BASE_URL}/api/admin/dashboard-stats`)
           const stats = statsResponse.data
           
           console.log('✅ AnalyticsModal: Fallback data loaded successfully')

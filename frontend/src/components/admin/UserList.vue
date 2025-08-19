@@ -196,7 +196,8 @@ export default {
     const fetchUsers = async () => {
       try {
         console.log('🔍 UserList: Fetching users...')
-        const response = await axios.get('http://localhost:5000/api/admin/users')
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+        const response = await axios.get(`${API_BASE_URL}/api/admin/users`)
         console.log('✅ UserList: Users fetched:', response.data)
         users.value = response.data.users || []
       } catch (error) {
@@ -233,7 +234,7 @@ export default {
         deleting.value = true
         console.log('🗑️ UserList: Deleting user:', selectedUser.value.username)
         
-        const response = await axios.delete(`http://localhost:5000/api/admin/users/${selectedUser.value.id}`)
+        const response = await axios.delete(`${API_BASE_URL}/api/admin/users/${selectedUser.value.id}`)
         
         if (response.data.success) {
           console.log('✅ UserList: User deleted successfully')

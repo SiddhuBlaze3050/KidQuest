@@ -159,7 +159,8 @@ export default {
         }
 
         console.log('🔄 EditUserForm: Updating user:', props.user.id, updateData)
-        const response = await axios.put(`http://localhost:5000/api/admin/users/${props.user.id}`, updateData)
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+        const response = await axios.put(`${API_BASE_URL}/api/admin/users/${props.user.id}`, updateData)
         
         if (response.data.success) {
           console.log('✅ EditUserForm: User updated successfully')
