@@ -4,7 +4,7 @@ services:
     env: python
     plan: free
     buildCommand: "pip install -r backend/requirements.txt"
-    startCommand: 'cd backend && python -c "import os; print(f\"Database will be created at: {os.environ.get(\"DATABASE_URL\", \"default_path\")}\"); from app import app; from models import db; app.app_context().push(); db.create_all(); print(\"Database initialized successfully\")" && gunicorn --bind 0.0.0.0:$PORT app:app --timeout 120'
+    startCommand: 'cd backend && python -c "import os; print(\"Database URI:\", os.environ.get(\"DATABASE_URL\", \"using_config_default\")); from app import app; from models import db; app.app_context().push(); db.create_all(); print(\"Database initialized successfully\")" && gunicorn --bind 0.0.0.0:$PORT app:app --timeout 120'
     envVars:
       - key: SECRET_KEY
         generateValue: true
