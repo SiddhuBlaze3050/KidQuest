@@ -41,12 +41,25 @@ instance_dir = getattr(app.config, 'INSTANCE_DIR', None)
 if instance_dir:
     os.makedirs(instance_dir, exist_ok=True)
 
-# Configure CORS for Vue.js frontend
+# Configure CORS for Vue.js frontend - Development and Production
 CORS(app, 
-     origins=["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5000", "https://editor.swagger.io", "*"], 
+     origins=[
+         # Local development
+         "http://localhost:5173", 
+         "http://127.0.0.1:5173", 
+         "http://localhost:5000",
+         "http://localhost:4173",  # Vite preview
+         # Production - Netlify domains (update with your actual domain)
+         "https://*.netlify.app",
+         "https://*.netlify.com",
+         # Swagger for API testing
+         "https://editor.swagger.io",
+         # Allow all for now (remove in production once you have your Netlify URL)
+         "*"
+     ], 
      supports_credentials=True,
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     allow_headers=["Content-Type", "Authorization", "Accept"])
+     allow_headers=["Content-Type", "Authorization", "Accept", "X-Requested-With"])
 
 db.init_app(app)
 
