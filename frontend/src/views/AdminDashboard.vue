@@ -182,9 +182,11 @@ export default {
             currentUser.value = user
         }
 
+        // Define API_BASE_URL at component level for all functions to use
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+
         const fetchStats = async () => {
             try {
-                const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
                 const response = await axios.get(`${API_BASE_URL}/api/admin/dashboard-stats`)
                 const stats = response.data
                 totalUsers.value = stats.total_users || 0

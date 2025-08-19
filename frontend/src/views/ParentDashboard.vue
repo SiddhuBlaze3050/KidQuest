@@ -23,58 +23,54 @@
     </div>
     <!-- End Transactions Modal -->
 
-<!-- Health Modal -->
-<div v-if="modalComponent === 'health-modal'" class="health-modal modal-overlay" @click="closeModal">
-  <div class="transactions-popup" @click.stop>
-    <div class="popup-header">
-      <span>Water Intake - History</span>
-      <button class="close-btn" @click="closeModal">×</button>
-    </div>
-
-    <!-- Header Row -->
-    <div class="history-header">
-      <span class="col-intake">Intake</span>
-      <span class="col-day">Day</span>
-      <span class="col-target">Target</span>
-      <span class="col-trend">Trend</span>
-    </div>
-
-    <div class="pill-container" v-if="healthStats.waterlog.length">
-      <div
-        class="pill"
-        v-for="(entry, index) in healthStats.waterlog"
-        :key="entry.date"
-      >
-        <!-- Intake -->
-        <div class="pill-count col-intake">{{ entry.count }}</div>
-
-        <!-- Date / Day -->
-        <div class="pill-date col-day">{{ entry.date }}</div>
-
-        <!-- Target vs Actual -->
-        <div class="pill-target col-target">
-          Target: {{ healthStats.dailyTarget }}  
-          <span :class="entry.count >= healthStats.dailyTarget ? 'target-met' : 'target-missed'">
-            ({{ entry.count >= healthStats.dailyTarget ? 'Met' : 'Missed' }})
-          </span>
+    <!-- Health Modal -->
+    <div v-if="modalComponent === 'health-modal'" class="health-modal modal-overlay" @click="closeModal">
+      <div class="transactions-popup" @click.stop>
+        <div class="popup-header">
+          <span>Water Intake - History</span>
+          <button class="close-btn" @click="closeModal">×</button>
         </div>
 
-        <!-- Trend Indicator -->
-        <div class="pill-trend col-trend" v-if="index < healthStats.waterlog.length - 1">
-          <span v-if="entry.count > healthStats.waterlog[index + 1].count" class="trend-up">⬆ Up</span>
-          <span v-else-if="entry.count < healthStats.waterlog[index + 1].count" class="trend-down">⬇ Down</span>
-          <span v-else class="trend-same">→ Same</span>
+        <!-- Header Row -->
+        <div class="history-header">
+          <span class="col-intake">Intake</span>
+          <span class="col-day">Day</span>
+          <span class="col-target">Target</span>
+          <span class="col-trend">Trend</span>
         </div>
-        <!-- Fallback when no next day -->
-        <div class="pill-trend col-trend" v-else>—</div>
+
+        <div class="pill-container" v-if="healthStats.waterlog.length">
+          <div class="pill" v-for="(entry, index) in healthStats.waterlog" :key="entry.date">
+            <!-- Intake -->
+            <div class="pill-count col-intake">{{ entry.count }}</div>
+
+            <!-- Date / Day -->
+            <div class="pill-date col-day">{{ entry.date }}</div>
+
+            <!-- Target vs Actual -->
+            <div class="pill-target col-target">
+              Target: {{ healthStats.dailyTarget }}
+              <span :class="entry.count >= healthStats.dailyTarget ? 'target-met' : 'target-missed'">
+                ({{ entry.count >= healthStats.dailyTarget ? 'Met' : 'Missed' }})
+              </span>
+            </div>
+
+            <!-- Trend Indicator -->
+            <div class="pill-trend col-trend" v-if="index < healthStats.waterlog.length - 1">
+              <span v-if="entry.count > healthStats.waterlog[index + 1].count" class="trend-up">⬆ Up</span>
+              <span v-else-if="entry.count < healthStats.waterlog[index + 1].count" class="trend-down">⬇ Down</span>
+              <span v-else class="trend-same">→ Same</span>
+            </div>
+            <!-- Fallback when no next day -->
+            <div class="pill-trend col-trend" v-else>—</div>
+          </div>
+        </div>
+
+        <div v-else class="no-data">
+          No water intake data available.
+        </div>
       </div>
     </div>
-
-    <div v-else class="no-data">
-      No water intake data available.
-    </div>
-  </div>
-</div>
 
     <!-- Psychometric Modal Component -->
     <div v-if="modalComponent === 'psychometric-modal'" class="psychometric-modal modal-overlay" @click="closeModal">
@@ -85,13 +81,13 @@
         </div>
         <div class="psychometric-detailed popup-body scrollable-section">
           <div class="psycho-stats-grid highlight-style">
-          <div class="psycho-stat-card learning-style-card">
-            <div class="stat-icon">📚</div>
-            <div class="stat-info">
-              <h4>Learning Style</h4>
-              <div class="stat-value highlight-badge">{{ modalData.learning_style || 'Balanced' }}</div>
+            <div class="psycho-stat-card learning-style-card">
+              <div class="stat-icon">📚</div>
+              <div class="stat-info">
+                <h4>Learning Style</h4>
+                <div class="stat-value highlight-badge">{{ modalData.learning_style || 'Balanced' }}</div>
+              </div>
             </div>
-          </div>
             <div class="psycho-stat-card personality-card">
               <div class="stat-icon">👤</div>
               <div class="stat-info">
@@ -164,10 +160,10 @@
 
     <!-- Emotional Modal Component -->
     <div v-if="modalComponent === 'emotional-modal'" class="emotional-modal modal-overlay" @click="closeModal">
-      <div class="transactions-popup"  @click.stop>
+      <div class="transactions-popup" @click.stop>
         <div class="popup-header">
           <div>Emotional Insight</div>
-          <button class="close-btn"  @click="closeModal">×</button>
+          <button class="close-btn" @click="closeModal">×</button>
         </div>
 
         <div class="popup-body scrollable-section">
@@ -1295,7 +1291,8 @@ function getDoodleImageUrl(filePath) {
   if (!filePath) return ''
   // Remove 'static/' if present, then prepend '/static/'
   const relPath = filePath.replace(/^static[\\/]/, '')
-  return `http://localhost:5000/static/${relPath}`
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+  return `${API_BASE_URL}/static/${relPath}`
 }
 
 const doodleStats = ref({
@@ -2103,16 +2100,16 @@ const logout = () => {
     max-width: 95vw;
     max-height: 90vh;
   }
-  
+
   .doodle-gallery {
     grid-template-columns: 1fr;
     gap: 15px;
   }
-  
+
   .doodle-gallery-container {
     padding: 0 15px 15px 15px;
   }
-  
+
   .doodle-canvas-large {
     height: 150px;
   }
@@ -2784,6 +2781,7 @@ const logout = () => {
   gap: 1.5rem;
   justify-content: center;
 }
+
 .psycho-stat-card {
   background: linear-gradient(135deg, #f8fafc 60%, #e0e7ff 100%);
   border-radius: 18px;
@@ -2795,10 +2793,12 @@ const logout = () => {
   text-align: center;
   transition: box-shadow 0.2s;
 }
+
 .psycho-stat-card .stat-icon {
   font-size: 2.2rem;
   margin-bottom: 0.5rem;
 }
+
 .stat-value.highlight-badge {
   display: inline-block;
   background: linear-gradient(90deg, #6366f1 60%, #a5b4fc 100%);
@@ -2808,8 +2808,9 @@ const logout = () => {
   border-radius: 12px;
   padding: 0.3em 1em;
   margin: 0.5em 0;
-  box-shadow: 0 2px 8px rgba(99,102,241,0.10);
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.10);
 }
+
 .trait-tag.highlight-tag {
   background: #fbbf24;
   color: #fff;
@@ -2820,6 +2821,7 @@ const logout = () => {
   font-weight: 600;
   display: inline-block;
 }
+
 .progress-bar {
   background: #e5e7eb;
   border-radius: 8px;
@@ -2830,12 +2832,14 @@ const logout = () => {
   margin-right: auto;
   overflow: hidden;
 }
+
 .progress-fill {
   background: linear-gradient(90deg, #34d399, #60a5fa);
   height: 100%;
   border-radius: 8px;
   transition: width 0.4s;
 }
+
 .section-header h3 {
   margin: 0;
   font-size: 16px;
@@ -2849,9 +2853,11 @@ const logout = () => {
 }
 
 .scrollable-section {
-  max-height: 650px; /* Adjust as needed for your modal size */
+  max-height: 650px;
+  /* Adjust as needed for your modal size */
   overflow-y: auto;
-  padding-right: 8px; /* Optional: for scrollbar spacing */
+  padding-right: 8px;
+  /* Optional: for scrollbar spacing */
 }
 
 
@@ -3083,7 +3089,8 @@ const logout = () => {
 /* Pill style */
 .pill {
   display: grid;
-  grid-template-columns: 100px 1fr 1.2fr 0.8fr; /* 👈 Matches header */
+  grid-template-columns: 100px 1fr 1.2fr 0.8fr;
+  /* 👈 Matches header */
   gap: 12px;
   align-items: center;
   background: #f8f9fa;
@@ -3093,13 +3100,28 @@ const logout = () => {
   transition: background 0.2s ease-in-out;
   cursor: default;
 }
-.pill:hover { background: #eef3f7; }
+
+.pill:hover {
+  background: #eef3f7;
+}
 
 /* Explicit Column Mapping */
-.col-intake { grid-column: 1; }
-.col-day    { grid-column: 2; }
-.col-target { grid-column: 3; }
-.col-trend  { grid-column: 4; text-align: right; }
+.col-intake {
+  grid-column: 1;
+}
+
+.col-day {
+  grid-column: 2;
+}
+
+.col-target {
+  grid-column: 3;
+}
+
+.col-trend {
+  grid-column: 4;
+  text-align: right;
+}
 
 .pill-count {
   font-size: 1rem;
@@ -3133,7 +3155,8 @@ const logout = () => {
 
 .history-header {
   display: grid;
-  grid-template-columns: 100px 1fr 1.2fr 0.8fr; /* Ensures alignment */
+  grid-template-columns: 100px 1fr 1.2fr 0.8fr;
+  /* Ensures alignment */
   gap: 12px;
   background: #f0f4f8;
   padding: 8px 12px;
@@ -3144,14 +3167,32 @@ const logout = () => {
 }
 
 /* Status Colors */
-.target-met { color: green; font-weight: 600; }
-.target-missed { color: red; font-weight: 600; }
+.target-met {
+  color: green;
+  font-weight: 600;
+}
+
+.target-missed {
+  color: red;
+  font-weight: 600;
+}
 
 /* Trend Styles */
-.pill-trend { font-size: 0.85rem; }
-.trend-up { color: green; }
-.trend-down { color: red; }
-.trend-same { color: gray; }
+.pill-trend {
+  font-size: 0.85rem;
+}
+
+.trend-up {
+  color: green;
+}
+
+.trend-down {
+  color: red;
+}
+
+.trend-same {
+  color: gray;
+}
 
 .modal-content {
   width: 800px;

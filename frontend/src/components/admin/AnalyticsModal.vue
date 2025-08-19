@@ -1,13 +1,7 @@
 <!-- Analytics Modal Component -->
 <template>
-  <BaseModal
-    v-model="isVisible"
-    title="Analytics Dashboard"
-    subtitle="View usage statistics and reports"
-    icon="📊"
-    @update:modelValue="$emit('update:modelValue', $event)"
-    :large="true"
-  >
+  <BaseModal v-model="isVisible" title="Analytics Dashboard" subtitle="View usage statistics and reports" icon="📊"
+    @update:modelValue="$emit('update:modelValue', $event)" :large="true">
     <div class="analytics-content">
       <!-- Quick Stats Overview -->
       <div class="stats-overview">
@@ -42,7 +36,7 @@
             <canvas ref="activityChart" width="400" height="200" @click="onChartClick"></canvas>
           </div>
         </div>
-        
+
         <div class="chart-container">
           <h3>User Role Distribution</h3>
           <div class="role-distribution">
@@ -62,7 +56,7 @@
       <!-- Demographics Section -->
       <div class="demographics-section">
         <h3>📊 Child Demographics</h3>
-        
+
         <!-- Demographics Summary -->
         <div class="demographics-summary" v-if="analyticsData.totalProfiles > 0">
           <div class="summary-stats">
@@ -79,7 +73,7 @@
               <div class="summary-label">Gender Categories</div>
             </div>
           </div>
-          
+
           <!-- Age Distribution Summary -->
           <div class="distribution-summary" v-if="Object.keys(analyticsData.ageDistribution).length > 0">
             <h4>Age Distribution</h4>
@@ -93,7 +87,7 @@
               </div>
             </div>
           </div>
-          
+
           <!-- Gender Distribution Summary -->
           <div class="distribution-summary" v-if="Object.keys(analyticsData.genderDistribution).length > 0">
             <h4>Gender Distribution</h4>
@@ -101,7 +95,8 @@
               <div v-for="(count, gender) in analyticsData.genderDistribution" :key="gender" class="distribution-bar">
                 <div class="bar-label">{{ gender.charAt(0).toUpperCase() + gender.slice(1) }}</div>
                 <div class="bar-container">
-                  <div class="bar-fill gender-fill" :style="{ width: (count / analyticsData.totalProfiles * 100) + '%' }"></div>
+                  <div class="bar-fill gender-fill"
+                    :style="{ width: (count / analyticsData.totalProfiles * 100) + '%' }"></div>
                 </div>
                 <div class="bar-count">{{ count }} ({{ Math.round(count / analyticsData.totalProfiles * 100) }}%)</div>
               </div>
@@ -119,19 +114,19 @@
             <div class="report-title">User Activity Report</div>
             <div class="report-desc">Daily and weekly user engagement</div>
           </div>
-          
+
           <div class="report-card" @click="generateReport('screen-time')">
             <div class="report-icon">⏱️</div>
             <div class="report-title">Screen Time Analysis</div>
             <div class="report-desc">Detailed screen time statistics</div>
           </div>
-          
+
           <div class="report-card" @click="generateReport('chat-analytics')">
             <div class="report-icon">💬</div>
             <div class="report-title">Chat Analytics</div>
             <div class="report-desc">Chatbot usage and interactions</div>
           </div>
-          
+
           <div class="report-card" @click="generateReport('achievements')">
             <div class="report-icon">🏆</div>
             <div class="report-title">Achievement Stats</div>
@@ -189,7 +184,7 @@ export default {
     }
   },
   emits: ['update:modelValue'],
-  
+
   setup(props, { emit }) {
     const isVisible = computed({
       get: () => props.modelValue,
@@ -198,7 +193,7 @@ export default {
 
     const loading = ref(false)
     const activityChart = ref(null)
-    
+
     const analyticsData = ref({
       totalUsers: 0,
       totalChatSessions: 0,
@@ -211,18 +206,20 @@ export default {
       totalProfiles: 0
     })
 
+    // Define API_BASE_URL at component level for all functions to use
+    const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+
     const fetchAnalyticsData = async () => {
       try {
         loading.value = true
         console.log('🔄 AnalyticsModal: Fetching analytics data...')
-        
+
         // Fetch comprehensive analytics data
-        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
         const analyticsResponse = await axios.get(`${API_BASE_URL}/api/admin/analytics`)
         const data = analyticsResponse.data
-        
+
         console.log('✅ AnalyticsModal: Analytics data received:', data)
-        
+
         // Also fetch demographics data specifically
         let demographicsData = {}
         try {
@@ -237,36 +234,36 @@ export default {
             total_profiles: data.demographics?.total_profiles || 0
           }
         }
-        
+
         analyticsData.value = {
           totalUsers: data.user_statistics.total_users || 0,
           totalChatSessions: data.activity_data.total_chat_sessions || 0,
           avgScreenTime: data.screen_time.average_minutes || 0,
           completedTasks: data.activity_data.completed_tasks || 0,
           roleDistribution: [
-            { 
-              name: 'Children', 
-              count: data.user_statistics.child_count || 0, 
-              percentage: data.user_statistics.total_users > 0 ? Math.round(((data.user_statistics.child_count || 0) / data.user_statistics.total_users) * 100) : 0, 
-              color: '#FFD700' 
+            {
+              name: 'Children',
+              count: data.user_statistics.child_count || 0,
+              percentage: data.user_statistics.total_users > 0 ? Math.round(((data.user_statistics.child_count || 0) / data.user_statistics.total_users) * 100) : 0,
+              color: '#FFD700'
             },
-            { 
-              name: 'Parents', 
-              count: data.user_statistics.parent_count || 0, 
-              percentage: data.user_statistics.total_users > 0 ? Math.round(((data.user_statistics.parent_count || 0) / data.user_statistics.total_users) * 100) : 0, 
-              color: '#C9A270' 
+            {
+              name: 'Parents',
+              count: data.user_statistics.parent_count || 0,
+              percentage: data.user_statistics.total_users > 0 ? Math.round(((data.user_statistics.parent_count || 0) / data.user_statistics.total_users) * 100) : 0,
+              color: '#C9A270'
             },
-            { 
-              name: 'Teachers', 
-              count: data.user_statistics.teacher_count || 0, 
-              percentage: data.user_statistics.total_users > 0 ? Math.round(((data.user_statistics.teacher_count || 0) / data.user_statistics.total_users) * 100) : 0, 
-              color: '#2A623D' 
+            {
+              name: 'Teachers',
+              count: data.user_statistics.teacher_count || 0,
+              percentage: data.user_statistics.total_users > 0 ? Math.round(((data.user_statistics.teacher_count || 0) / data.user_statistics.total_users) * 100) : 0,
+              color: '#2A623D'
             },
-            { 
-              name: 'Admins', 
-              count: data.user_statistics.admin_count || 0, 
-              percentage: data.user_statistics.total_users > 0 ? Math.round(((data.user_statistics.admin_count || 0) / data.user_statistics.total_users) * 100) : 0, 
-              color: '#8B5A2B' 
+            {
+              name: 'Admins',
+              count: data.user_statistics.admin_count || 0,
+              percentage: data.user_statistics.total_users > 0 ? Math.round(((data.user_statistics.admin_count || 0) / data.user_statistics.total_users) * 100) : 0,
+              color: '#8B5A2B'
             }
           ],
           activityData: data.activity_data.weekly_activity || [],
@@ -274,20 +271,20 @@ export default {
           genderDistribution: demographicsData.gender_distribution || {},
           totalProfiles: demographicsData.total_profiles || 0
         }
-        
+
         console.log('📊 AnalyticsModal: Processed analytics data:', analyticsData.value)
-        
+
         // Draw activity chart after data is loaded
         nextTick(() => {
           console.log('🎨 AnalyticsModal: Drawing activity chart...')
           drawActivityChart()
         })
-        
+
       } catch (error) {
         console.error('❌ AnalyticsModal: Error fetching analytics data:', error)
         // Enhanced error handling with more specific error messages
         let errorMessage = 'Failed to load analytics data'
-        
+
         if (error.response) {
           // Server responded with error status
           errorMessage = `Server error: ${error.response.status} - ${error.response.data?.error || 'Unknown error'}`
@@ -298,49 +295,49 @@ export default {
           // Something else happened
           errorMessage = error.message || 'An unexpected error occurred'
         }
-        
+
         // Fallback to dashboard stats if analytics endpoint fails
         try {
           console.log('🔄 AnalyticsModal: Trying fallback dashboard stats...')
           const statsResponse = await axios.get(`${API_BASE_URL}/api/admin/dashboard-stats`)
           const stats = statsResponse.data
-          
+
           console.log('✅ AnalyticsModal: Fallback data loaded successfully')
-          
+
           analyticsData.value = {
             totalUsers: stats.total_users || 0,
             totalChatSessions: stats.chat_sessions || 0,
             avgScreenTime: stats.average_screen_time || 0,
             completedTasks: Math.floor(Math.random() * 150) + 50,
             roleDistribution: [
-              { 
-                name: 'Children', 
-                count: stats.child_count || 0, 
-                percentage: stats.total_users > 0 ? Math.round(((stats.child_count || 0) / stats.total_users) * 100) : 0, 
-                color: '#FFD700' 
+              {
+                name: 'Children',
+                count: stats.child_count || 0,
+                percentage: stats.total_users > 0 ? Math.round(((stats.child_count || 0) / stats.total_users) * 100) : 0,
+                color: '#FFD700'
               },
-              { 
-                name: 'Parents', 
-                count: stats.parent_count || 0, 
-                percentage: stats.total_users > 0 ? Math.round(((stats.parent_count || 0) / stats.total_users) * 100) : 0, 
-                color: '#C9A270' 
+              {
+                name: 'Parents',
+                count: stats.parent_count || 0,
+                percentage: stats.total_users > 0 ? Math.round(((stats.parent_count || 0) / stats.total_users) * 100) : 0,
+                color: '#C9A270'
               },
-              { 
-                name: 'Teachers', 
-                count: stats.teacher_count || 0, 
-                percentage: stats.total_users > 0 ? Math.round(((stats.teacher_count || 0) / stats.total_users) * 100) : 0, 
-                color: '#2A623D' 
+              {
+                name: 'Teachers',
+                count: stats.teacher_count || 0,
+                percentage: stats.total_users > 0 ? Math.round(((stats.teacher_count || 0) / stats.total_users) * 100) : 0,
+                color: '#2A623D'
               },
-              { 
-                name: 'Admins', 
-                count: stats.admin_count || 0, 
-                percentage: stats.total_users > 0 ? Math.round(((stats.admin_count || 0) / stats.total_users) * 100) : 0, 
-                color: '#8B5A2B' 
+              {
+                name: 'Admins',
+                count: stats.admin_count || 0,
+                percentage: stats.total_users > 0 ? Math.round(((stats.admin_count || 0) / stats.total_users) * 100) : 0,
+                color: '#8B5A2B'
               }
             ],
             activityData: generateMockActivityData()
           }
-          
+
           nextTick(() => {
             drawActivityChart()
           })
@@ -360,7 +357,7 @@ export default {
             ],
             activityData: []
           }
-          
+
           // Show user-friendly error message
           setTimeout(() => {
             alert(`⚠️ ${errorMessage}\n\nThe analytics dashboard is currently showing placeholder data. Please try refreshing the page or contact your administrator if the problem persists.`)
@@ -388,25 +385,25 @@ export default {
         console.warn('📊 AnalyticsModal: Chart canvas not found')
         return
       }
-      
+
       const canvas = activityChart.value
       const ctx = canvas.getContext('2d')
       let data = analyticsData.value.activityData
-      
+
       // Use mock data if no real data available
       if (!data || data.length === 0) {
         console.log('📊 AnalyticsModal: No activity data, using mock data')
         data = generateMockActivityData()
       }
-      
+
       // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height)
-      
+
       // Chart styling
       const padding = 40
       const chartWidth = canvas.width - 2 * padding
       const chartHeight = canvas.height - 2 * padding
-      
+
       if (data.length === 0) {
         // Draw "No Data" message
         ctx.fillStyle = '#666'
@@ -415,41 +412,41 @@ export default {
         ctx.fillText('No activity data available', canvas.width / 2, canvas.height / 2)
         return
       }
-      
+
       // Find max value for scaling
       const maxValue = Math.max(...data.map(d => d.active_users || d.users || 1), 1)
-      
+
       // Calculate bar dimensions
       const barWidth = Math.max(chartWidth / data.length * 0.7, 30)
       const spacing = (chartWidth - (barWidth * data.length)) / (data.length + 1)
-      
+
       // Draw gradient background
       const gradient = ctx.createLinearGradient(0, padding, 0, canvas.height - padding)
       gradient.addColorStop(0, 'rgba(102, 126, 234, 0.8)')
       gradient.addColorStop(1, 'rgba(102, 126, 234, 0.2)')
-      
+
       data.forEach((item, index) => {
         const value = item.active_users || item.users || 0
         const barHeight = Math.max((value / maxValue) * chartHeight, 5)
         const x = padding + spacing + index * (barWidth + spacing)
         const y = canvas.height - padding - barHeight
-        
+
         // Draw bar with gradient
         ctx.fillStyle = gradient
         ctx.fillRect(x, y, barWidth, barHeight)
-        
+
         // Draw bar border
         ctx.strokeStyle = '#667eea'
         ctx.lineWidth = 2
         ctx.strokeRect(x, y, barWidth, barHeight)
-        
+
         // Draw day label
         ctx.fillStyle = '#333'
         ctx.font = 'bold 12px Arial'
         ctx.textAlign = 'center'
         const dayLabel = item.day || (item.date ? new Date(item.date).toLocaleDateString('en', { weekday: 'short' }) : `Day ${index + 1}`)
         ctx.fillText(dayLabel, x + barWidth / 2, canvas.height - 10)
-        
+
         // Draw value label
         ctx.fillStyle = '#333'
         ctx.font = 'bold 11px Arial'
@@ -461,13 +458,13 @@ export default {
           ctx.fillText(value.toString(), x + barWidth / 2, y - 5)
         }
       })
-      
+
       // Draw chart title
       ctx.fillStyle = '#333'
       ctx.font = 'bold 14px Arial'
       ctx.textAlign = 'center'
       ctx.fillText('Weekly User Activity', canvas.width / 2, 25)
-      
+
       console.log('✅ AnalyticsModal: Chart drawn successfully')
     }
 
@@ -484,24 +481,24 @@ export default {
       try {
         loading.value = true
         console.log(`📊 AnalyticsModal: Generating ${reportType} report...`)
-        
+
         const reportMessages = {
           'user-activity': '📈 Generating detailed user activity report with engagement metrics, login patterns, and usage trends...',
           'screen-time': '⏱️ Generating comprehensive screen time analysis with daily averages, peak usage times, and wellness recommendations...',
           'chat-analytics': '💬 Generating chatbot interaction report with conversation metrics, popular topics, and user engagement data...',
           'achievements': '🏆 Generating achievement statistics with completion rates, popular goals, and user progress tracking...'
         }
-        
+
         const message = reportMessages[reportType] || `Generating ${reportType} report...`
-        
+
         // Show initial message
         setTimeout(() => {
           alert(message)
         }, 100)
-        
+
         // Generate the actual report
         let reportData = null
-        
+
         switch (reportType) {
           case 'user-activity':
             reportData = await generateUserActivityReport()
@@ -518,7 +515,7 @@ export default {
           default:
             throw new Error(`Unknown report type: ${reportType}`)
         }
-        
+
         // Download the generated report
         if (reportData) {
           downloadDetailedReport(reportData, reportType)
@@ -526,7 +523,7 @@ export default {
             alert(`✅ ${reportData.title} has been generated and downloaded successfully!`)
           }, 500)
         }
-        
+
       } catch (error) {
         console.error(`❌ Error generating ${reportType} report:`, error)
         alert(`❌ Failed to generate ${reportType} report: ${error.message}`)
@@ -539,7 +536,7 @@ export default {
       try {
         loading.value = true
         console.log(`📤 AnalyticsModal: Exporting data as ${format}...`)
-        
+
         // Prepare comprehensive export data
         const exportData = {
           timestamp: new Date().toISOString(),
@@ -554,7 +551,7 @@ export default {
           role_distribution: analyticsData.value.roleDistribution,
           weekly_activity: analyticsData.value.activityData
         }
-        
+
         if (format === 'csv') {
           downloadCSV(exportData)
         } else if (format === 'json') {
@@ -562,12 +559,12 @@ export default {
         } else if (format === 'pdf') {
           generatePDFReport(exportData)
         }
-        
+
         // Show success message
         setTimeout(() => {
           alert(`✅ ${format.toUpperCase()} export completed successfully!`)
         }, 500)
-        
+
       } catch (error) {
         console.error('❌ AnalyticsModal: Export failed:', error)
         alert(`❌ Export failed: ${error.message}. Please try again.`)
@@ -598,7 +595,7 @@ export default {
         'Day,Active Users,Date',
         ...data.weekly_activity.map(activity => `${activity.day || 'N/A'},${activity.active_users || activity.users || 0},${activity.date || 'N/A'}`)
       ].join('\n')
-      
+
       const filename = `kidquest-analytics-${new Date().toISOString().split('T')[0]}.csv`
       downloadFile(csvContent, filename, 'text/csv')
     }
@@ -634,10 +631,10 @@ export default {
         '',
         '--- End of Report ---'
       ].join('\n')
-      
+
       const filename = `kidquest-analytics-report-${new Date().toISOString().split('T')[0]}.txt`
       downloadFile(pdfContent, filename, 'text/plain')
-      
+
       // Show info about PDF conversion
       setTimeout(() => {
         alert('📄 Report downloaded as text file. You can convert it to PDF using any text-to-PDF converter or print to PDF from your browser.')
@@ -650,7 +647,7 @@ export default {
         // Fetch additional user activity data
         const currentData = analyticsData.value
         const today = new Date()
-        
+
         // Generate comprehensive user activity report
         const report = {
           title: 'User Activity Report',
@@ -675,7 +672,7 @@ export default {
             'User retention is highest among children (85%) - focus on parent engagement strategies'
           ]
         }
-        
+
         return report
       } catch (error) {
         console.error('Error generating user activity report:', error)
@@ -687,7 +684,7 @@ export default {
       try {
         const currentData = analyticsData.value
         const avgMinutes = currentData.avgScreenTime
-        
+
         const report = {
           title: 'Screen Time Analysis Report',
           generated_at: new Date().toISOString(),
@@ -716,7 +713,7 @@ export default {
           ],
           peak_usage_times: generatePeakUsageData()
         }
-        
+
         return report
       } catch (error) {
         console.error('Error generating screen time report:', error)
@@ -727,7 +724,7 @@ export default {
     const generateChatAnalyticsReport = async () => {
       try {
         const currentData = analyticsData.value
-        
+
         const report = {
           title: 'Chat Analytics Report',
           generated_at: new Date().toISOString(),
@@ -766,7 +763,7 @@ export default {
             'Create specialized chat flows for different age groups'
           ]
         }
-        
+
         return report
       } catch (error) {
         console.error('Error generating chat analytics report:', error)
@@ -777,7 +774,7 @@ export default {
     const generateAchievementReport = async () => {
       try {
         const currentData = analyticsData.value
-        
+
         const report = {
           title: 'Achievement Statistics Report',
           generated_at: new Date().toISOString(),
@@ -813,7 +810,7 @@ export default {
             'Introduce seasonal achievement campaigns to maintain engagement'
           ]
         }
-        
+
         return report
       } catch (error) {
         console.error('Error generating achievement report:', error)
@@ -882,17 +879,17 @@ export default {
 
     const downloadDetailedReport = (reportData, reportType) => {
       const timestamp = new Date().toISOString().split('T')[0]
-      
+
       // Format report as JSON
       const jsonContent = JSON.stringify(reportData, null, 2)
       const jsonFilename = `kidquest-${reportType}-report-${timestamp}.json`
       downloadFile(jsonContent, jsonFilename, 'application/json')
-      
+
       // Also create a human-readable version
       const readableContent = formatReportAsText(reportData)
       const textFilename = `kidquest-${reportType}-report-${timestamp}.txt`
       downloadFile(readableContent, textFilename, 'text/plain')
-      
+
       console.log(`📊 Generated ${reportType} report files: ${jsonFilename} and ${textFilename}`)
     }
 
@@ -906,12 +903,12 @@ export default {
         'SUMMARY',
         '-------'
       ]
-      
+
       // Add summary data
       Object.entries(reportData.summary).forEach(([key, value]) => {
         lines.push(`${key.replace(/_/g, ' ').toUpperCase()}: ${value}`)
       })
-      
+
       // Add specific sections based on report type
       if (reportData.daily_activity) {
         lines.push('', 'DAILY ACTIVITY', '-'.repeat(14))
@@ -919,40 +916,40 @@ export default {
           lines.push(`${day.day}: ${day.active_users} users, ${day.sessions} sessions`)
         })
       }
-      
+
       if (reportData.popular_topics) {
         lines.push('', 'POPULAR TOPICS', '-'.repeat(14))
         reportData.popular_topics.forEach(topic => {
           lines.push(`${topic.topic}: ${topic.percentage}% (${topic.sessions} sessions)`)
         })
       }
-      
+
       if (reportData.achievement_categories) {
         lines.push('', 'ACHIEVEMENT CATEGORIES', '-'.repeat(22))
         reportData.achievement_categories.forEach(cat => {
           lines.push(`${cat.category}: ${cat.completed}/${cat.total} (${cat.rate})`)
         })
       }
-      
+
       if (reportData.recommendations) {
         lines.push('', 'RECOMMENDATIONS', '-'.repeat(15))
         reportData.recommendations.forEach((rec, index) => {
           lines.push(`${index + 1}. ${rec}`)
         })
       }
-      
+
       lines.push('', '--- End of Report ---')
       return lines.join('\n')
     }
 
     const onChartClick = (event) => {
       if (!activityChart.value) return
-      
+
       const canvas = activityChart.value
       const rect = canvas.getBoundingClientRect()
       const x = event.clientX - rect.left
       const y = event.clientY - rect.top
-      
+
       // Simple click detection for bars
       const data = analyticsData.value.activityData
       if (data && data.length > 0) {
@@ -960,7 +957,7 @@ export default {
         const chartWidth = canvas.width - 2 * padding
         const barWidth = Math.max(chartWidth / data.length * 0.7, 30)
         const spacing = (chartWidth - (barWidth * data.length)) / (data.length + 1)
-        
+
         data.forEach((item, index) => {
           const barX = padding + spacing + index * (barWidth + spacing)
           if (x >= barX && x <= barX + barWidth) {
@@ -1135,11 +1132,13 @@ export default {
   font-weight: 600;
 }
 
-.reports-section, .export-section {
+.reports-section,
+.export-section {
   margin-bottom: 2rem;
 }
 
-.reports-section h3, .export-section h3 {
+.reports-section h3,
+.export-section h3 {
   color: white;
   margin-bottom: 1rem;
   font-size: 1.2rem;
@@ -1246,8 +1245,13 @@ export default {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 /* Demographics Summary Styles */
@@ -1345,33 +1349,33 @@ export default {
   .charts-section {
     grid-template-columns: 1fr;
   }
-  
+
   .stats-overview {
     grid-template-columns: 1fr;
   }
-  
+
   .export-options {
     flex-direction: column;
   }
-  
+
   .summary-stats {
     grid-template-columns: 1fr;
   }
-  
+
   .distribution-bar {
     flex-direction: column;
     align-items: flex-start;
     gap: 0.5rem;
   }
-  
+
   .bar-label {
     min-width: auto;
   }
-  
+
   .bar-container {
     width: 100%;
   }
-  
+
   .bar-count {
     min-width: auto;
     text-align: left;

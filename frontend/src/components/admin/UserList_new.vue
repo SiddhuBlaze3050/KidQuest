@@ -1,22 +1,12 @@
 <!-- User List Component -->
 <template>
-  <BaseModal
-    v-model="isVisible"
-    title="User Management"
-    subtitle="Manage and monitor user accounts"
-    icon="👥"
-    @update:modelValue="$emit('update:modelValue', $event)"
-  >
+  <BaseModal v-model="isVisible" title="User Management" subtitle="Manage and monitor user accounts" icon="👥"
+    @update:modelValue="$emit('update:modelValue', $event)">
     <!-- Search and Filter Controls -->
     <div class="controls-section">
       <div class="search-box">
         <span class="search-icon">🔍</span>
-        <input 
-          type="text" 
-          v-model="searchQuery" 
-          placeholder="Search by name or email..."
-          class="search-input"
-        />
+        <input type="text" v-model="searchQuery" placeholder="Search by name or email..." class="search-input" />
       </div>
       <div class="filter-box">
         <select v-model="selectedRole" class="role-filter">
@@ -56,7 +46,8 @@
             </td>
             <td class="email-cell">{{ user.email }}</td>
             <td>
-              <span class="status-badge" :class="{ 'complete': user.profile_complete, 'incomplete': !user.profile_complete }">
+              <span class="status-badge"
+                :class="{ 'complete': user.profile_complete, 'incomplete': !user.profile_complete }">
                 {{ user.profile_complete ? 'Complete' : 'Incomplete' }}
               </span>
             </td>
@@ -92,12 +83,7 @@
     </div>
 
     <!-- Delete Confirmation Modal -->
-    <BaseModal
-      v-if="showDeleteModal"
-      v-model="showDeleteModal"
-      title="Confirm Delete"
-      icon="⚠️"
-    >
+    <BaseModal v-if="showDeleteModal" v-model="showDeleteModal" title="Confirm Delete" icon="⚠️">
       <div class="delete-confirmation">
         <p>Are you sure you want to delete user <strong>{{ selectedUser?.username }}</strong>?</p>
         <p class="warning-text">This action cannot be undone.</p>
@@ -131,7 +117,7 @@ export default {
     }
   },
   emits: ['update:modelValue'],
-  
+
   setup(props, { emit }) {
     const isVisible = computed({
       get: () => props.modelValue,
@@ -147,19 +133,20 @@ export default {
     // Filter users based on search query and selected role
     const filteredUsers = computed(() => {
       return users.value.filter(user => {
-        const matchesSearch = 
+        const matchesSearch =
           user.username.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
           user.email.toLowerCase().includes(searchQuery.value.toLowerCase())
-        
+
         const matchesRole = !selectedRole.value || user.role === selectedRole.value
-        
+
         return matchesSearch && matchesRole
       })
     })
 
     const fetchUsers = async () => {
       try {
-        const response = await axios.get('http://localhost:5001/api/admin/users')
+        const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
+        const response = await axios.get(`${API_BASE_URL}/api/admin/users`)
         users.value = response.data.users
       } catch (error) {
         console.error('Error fetching users:', error)
@@ -180,7 +167,7 @@ export default {
       if (!selectedUser.value) return
 
       try {
-        await axios.delete(`http://localhost:5001/api/admin/users/${selectedUser.value.id}`)
+        await axios.delete(`${API_BASE_URL}/api/admin/users/${selectedUser.value.id}`)
         users.value = users.value.filter(u => u.id !== selectedUser.value.id)
         showDeleteModal.value = false
         selectedUser.value = null
@@ -482,7 +469,8 @@ export default {
   justify-content: center;
 }
 
-.cancel-btn, .confirm-btn {
+.cancel-btn,
+.confirm-btn {
   padding: 0.75rem 2rem;
   border: 1px solid rgba(255, 255, 255, 0.3);
   border-radius: 8px;

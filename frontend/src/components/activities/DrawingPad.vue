@@ -259,8 +259,8 @@ const showReference = ref(true);
 const sessionId = ref(null);
 const isTimerStopped = ref(false); // Track if timer is stopped
 
-// API Configuration
-const API_BASE = 'http://localhost:5000';
+// API Configuration - uses environment variable
+const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 // Function to get appropriate cursor class for canvas
 const getCanvasCursorClass = () => {

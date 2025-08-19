@@ -11,10 +11,7 @@
           <div class="header-subtitle">
             <p>Discover your learning style and personality traits!</p>
           </div>
-          <button 
-            class="btn quit-btn"
-            @click="quitTest"
-          >
+          <button class="btn quit-btn" @click="quitTest">
             Quit
           </button>
         </div>
@@ -64,13 +61,8 @@
               <h3 v-else class="error-text">⚠️ Question not loaded properly</h3>
             </div>
             <div class="options-container" v-if="currentQuestion && currentQuestion.options">
-              <div
-                v-for="(text, letter) in currentQuestion.options"
-                :key="letter"
-                class="option"
-                :class="{ selected: selectedAnswer === letter }"
-                @click="selectOption(letter)"
-              >
+              <div v-for="(text, letter) in currentQuestion.options" :key="letter" class="option"
+                :class="{ selected: selectedAnswer === letter }" @click="selectOption(letter)">
                 <div class="option-letter">{{ letter }}</div>
                 <div class="option-text">{{ text }}</div>
               </div>
@@ -110,18 +102,18 @@
                 <span class="result-value">{{ formatPercentage(results.results?.memory_strength) }}</span>
                 <span class="result-label">Memory</span>
               </div>
-             
+
               <div class="result-item">
                 <span class="result-value">{{ results.total_questions || 0 }}</span>
                 <span class="result-label">Total Questions</span>
               </div>
-              
+
               <div class="result-item">
                 <span class="result-value">{{ results.duration_seconds || 0 }}s</span>
                 <span class="result-label">Test Duration</span>
               </div>
             </div>
-            
+
             <div v-if="results.results && results.results.detailed_scores" class="category-breakdown">
               <h4>Category Breakdown</h4>
               <ul>
@@ -130,7 +122,7 @@
                 </li>
               </ul>
             </div>
-            
+
             <div v-if="results.results && results.results.feedback" class="feedback-section">
               <h3>Personalized Feedback:</h3>
               <div v-html="results.results.feedback"></div>
@@ -140,12 +132,8 @@
 
         <!-- Action Buttons -->
         <div v-if="showQuestion || showResults" class="action-buttons">
-          <button 
-            v-if="showQuestion" 
-            class="btn primary-btn" 
-            @click="submitAnswer" 
-            :disabled="!selectedAnswer || isLoading"
-          >
+          <button v-if="showQuestion" class="btn primary-btn" @click="submitAnswer"
+            :disabled="!selectedAnswer || isLoading">
             Submit Answer
           </button>
           <button v-if="showResults" class="btn secondary-btn" @click="restartTest">
@@ -167,23 +155,23 @@ export default {
       isLoading: false,
       loadingMessage: 'Starting the assessment...AI is generating questions for you...Please wait.',
       debugMode: false,
-      
+
       // Question data
       currentQuestion: null,
       selectedAnswer: null,
       currentQuestionNumber: 1,
       totalQuestions: 0,
-      
+
       // Progress tracking
       currentAccuracy: 0,
       progressPercentage: 0,
-      
+
       // Results
       results: {},
       showResults: false,
-      
-      // API base URL - adjust this to match your Flask app
-      apiBaseUrl: 'http://localhost:5000/api/psychometry'
+
+      // API base URL - uses environment variable
+      apiBaseUrl: (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000') + '/api/psychometry'
     }
   },
   computed: {
@@ -214,10 +202,10 @@ export default {
           return;
         }
         console.log('Starting test, making API call to:', `${this.apiBaseUrl}/start`);
-        
+
         const response = await fetch(`${this.apiBaseUrl}/start`, {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json'
           },
           credentials: 'include',
@@ -225,7 +213,7 @@ export default {
         });
 
         console.log('API Response status:', response.status);
-        
+
         if (!response.ok) {
           const errorText = await response.text();
           console.error('API Error Response:', errorText);
@@ -234,7 +222,7 @@ export default {
 
         const data = await response.json();
         console.log('API Response data:', data);
-        
+
         this.displayQuestion(data);
         this.isLoading = false;
       } catch (error) {
@@ -256,7 +244,7 @@ export default {
 
     async submitAnswer() {
       if (!this.selectedAnswer) return;
-      
+
       this.isLoading = true;
       this.loadingMessage = 'Processing your answer...';
 
@@ -269,10 +257,10 @@ export default {
           return;
         }
         console.log('Submitting answer:', this.selectedAnswer);
-        
+
         const response = await fetch(`${this.apiBaseUrl}/submit`, {
           method: 'POST',
-          headers: { 
+          headers: {
             'Content-Type': 'application/json'
           },
           credentials: 'include',
@@ -292,9 +280,9 @@ export default {
 
         const data = await response.json();
         console.log('Submit response data:', data);
-        
+
         this.isLoading = false;
-        
+
         if (data.results) {
           // Test is complete
           this.showTestResults(data);
@@ -312,14 +300,14 @@ export default {
 
     displayQuestion(data) {
       console.log('displayQuestion called with:', data);
-      
+
       // Ensure we have the question data
       if (!data || !data.question) {
         console.error('Invalid question data received:', data);
         this.currentQuestion = null;
         return;
       }
-      
+
       // Set the current question - this should contain all the question data
       this.currentQuestion = {
         question: data.question,
@@ -327,13 +315,13 @@ export default {
         correct_answer: data.correct_answer,
         category: data.category
       };
-      
+
       console.log('Current question set to:', this.currentQuestion);
-      
+
       this.selectedAnswer = null;
       this.currentQuestionNumber = data.question_number || 1;
       this.totalQuestions = data.total_questions || 1;
-      
+
       // Update progress
       this.progressPercentage = data.progress || 0;
     },
@@ -395,10 +383,10 @@ export default {
 </script>
 
 <style scoped>
-* { 
-  margin: 0; 
-  padding: 0; 
-  box-sizing: border-box; 
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 .psychometric-app {
@@ -465,19 +453,19 @@ export default {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
 }
 
-.stat-item { 
-  text-align: center; 
+.stat-item {
+  text-align: center;
 }
 
-.stat-value { 
-  font-size: 2rem; 
-  font-weight: bold; 
+.stat-value {
+  font-size: 2rem;
+  font-weight: bold;
   display: block;
   color: #667eea;
 }
 
-.stat-label { 
-  font-size: 0.9rem; 
+.stat-label {
+  font-size: 0.9rem;
   color: #666;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -538,9 +526,9 @@ export default {
   text-align: left;
 }
 
-.options-container { 
-  display: grid; 
-  gap: 1rem; 
+.options-container {
+  display: grid;
+  gap: 1rem;
 }
 
 .option {
@@ -719,8 +707,13 @@ export default {
 }
 
 @keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }
 
 .debug-info {
@@ -757,11 +750,13 @@ export default {
   padding: 1rem 2rem;
   min-width: 120px;
 }
+
 .quit-btn:hover {
   background: linear-gradient(135deg, #f44336 0%, #ff4e50 100%);
   box-shadow: 0 10px 25px rgba(244, 67, 54, 0.4);
   transform: translateY(-2px);
 }
+
 @media (max-width: 768px) {
   .quit-btn {
     padding: 0.7rem 1rem;
@@ -774,32 +769,32 @@ export default {
   .container {
     padding: 0 0.5rem;
   }
-  
+
   .welcome-card,
   .question-card,
   .loading-card,
   .results-card {
     padding: 2rem 1rem;
   }
-  
+
   .results-grid {
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 1rem;
   }
-  
+
   .result-item {
     padding: 1.5rem 1rem;
   }
-  
+
   .result-value {
     font-size: 1.5rem;
   }
-  
+
   .stats-bar {
     flex-direction: column;
     gap: 1rem;
   }
-  
+
   .header-content {
     flex-direction: column;
     gap: 0.5rem;
@@ -811,7 +806,7 @@ export default {
   .welcome-card h1 {
     font-size: 2rem;
   }
-  
+
   .btn {
     width: 100%;
     min-width: auto;
