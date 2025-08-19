@@ -1822,11 +1822,12 @@ def start_psychometry_test():
         test_questions = psychometry_service.initialize_assessment()
         
         # Debug: Check if questions are properly formatted
-        print(f"DEBUG: Generated {len(test_questions)} questions")
+        print(f"DEBUG START: Generated {len(test_questions)} questions")
+        print(f"DEBUG START: user_id={user_id} (type: {type(user_id)})")
         if test_questions:
             first_question = test_questions[0]
-            print(f"DEBUG: First question structure: {first_question}")
-            print(f"DEBUG: First question text: '{first_question.get('question', 'MISSING')}'")
+            print(f"DEBUG START: First question structure: {first_question}")
+            print(f"DEBUG START: First question text: '{first_question.get('question', 'MISSING')}'")
         
         # Store in session (backup) and also in a more reliable way
         session['psychometry_questions'] = test_questions
@@ -1848,6 +1849,13 @@ def start_psychometry_test():
         }
         # Store as a backup in session with a different key
         session[f'psychometry_session_{user_id}'] = json.dumps(session_data)
+        
+        # Debug: Verify session data was stored
+        print(f"DEBUG START: Session keys after storage: {list(session.keys())}")
+        print(f"DEBUG START: backup_session_key=psychometry_session_{user_id}")
+        print(f"DEBUG START: backup session data stored successfully: {bool(session.get(f'psychometry_session_{user_id}'))}")
+        print(f"DEBUG START: regular session data - questions count: {len(session.get('psychometry_questions', []))}")
+        print(f"DEBUG START: regular session data - current_index: {session.get('psychometry_current_index', 'NOT_SET')}")
         
         # Return first question
         return get_next_psychometry_question()
@@ -1871,10 +1879,12 @@ def submit_psychometry_answer():
         # Basic validation: check if user_id matches session (if session exists)
         session_user_id = session.get('psychometry_user_id')
         if session_user_id and str(user_id) != str(session_user_id):
+            print(f"DEBUG SUBMIT: ERROR - Session user ID mismatch: session={session_user_id}, request={user_id}")
             return jsonify({'error': 'Session user ID mismatch'}), 400
         
         user_answer = data.get('answer')
         if not user_answer:
+            print(f"DEBUG SUBMIT: ERROR - No answer provided in request")
             return jsonify({'error': 'No answer provided'}), 400
         
         # Get current question - try backup session data first
@@ -1882,24 +1892,38 @@ def submit_psychometry_answer():
         backup_session_key = f'psychometry_session_{user_id}'
         backup_session_data = session.get(backup_session_key)
         
+        print(f"DEBUG SUBMIT: user_id={user_id} (type: {type(user_id)})")
+        print(f"DEBUG SUBMIT: session_user_id={session_user_id} (type: {type(session_user_id)})")
+        print(f"DEBUG SUBMIT: backup_session_key={backup_session_key}")
+        print(f"DEBUG SUBMIT: backup_session_data exists={bool(backup_session_data)}")
+        print(f"DEBUG SUBMIT: regular session keys={list(session.keys())}")
+        print(f"DEBUG SUBMIT: all session data={dict(session)}")
+        print(f"DEBUG SUBMIT: request data={data}")
+        print(f"DEBUG SUBMIT: user_answer={user_answer}")
+        
         if backup_session_data:
             try:
                 session_data = json.loads(backup_session_data)
                 current_index = session_data.get('current_index', 0)
                 questions = session_data.get('questions', [])
                 responses = session_data.get('responses', [])
-            except (json.JSONDecodeError, KeyError):
+                print(f"DEBUG SUBMIT: Using backup session - index={current_index}, questions_count={len(questions)}")
+            except (json.JSONDecodeError, KeyError) as e:
+                print(f"DEBUG SUBMIT: Backup session parse error: {e}")
                 # Fallback to regular session
                 current_index = session.get('psychometry_current_index', 0)
                 questions = session.get('psychometry_questions', [])
                 responses = session.get('psychometry_responses', [])
+                print(f"DEBUG SUBMIT: Using regular session fallback - index={current_index}, questions_count={len(questions)}")
         else:
             # Fallback to regular session
             current_index = session.get('psychometry_current_index', 0)
             questions = session.get('psychometry_questions', [])
             responses = session.get('psychometry_responses', [])
+            print(f"DEBUG SUBMIT: Using regular session - index={current_index}, questions_count={len(questions)}")
         
         if current_index >= len(questions):
+            print(f"DEBUG SUBMIT: ERROR - Invalid question index: {current_index}/{len(questions)}")
             return jsonify({'error': f'Invalid question index: {current_index}/{len(questions)}. Session may have expired.'}), 400
             
         current_question = questions[current_index]
