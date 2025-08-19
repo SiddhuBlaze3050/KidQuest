@@ -1805,28 +1805,28 @@ psychometry_service = PsychometryService(OPENROUTER_API_KEY, OPENROUTER_API_URL)
 
 # Psychometry Assessment Routes
 @app.route('/api/psychometry/start', methods=['POST'])
-@jwt_required()
 def start_psychometry_test():
     """Initialize a new psychometry assessment test session"""
     try:
-        # Get user ID from JWT token instead of request body
-        jwt_user_id = get_jwt_identity()
-        
+        # Get user ID from request body (no JWT required for psychometric test)
         data = request.get_json()
         user_id = data.get('user_id')
         
-        # Validate that the requested user_id matches the JWT user
-        if user_id and str(user_id) != str(jwt_user_id):
-            return jsonify({'error': 'User ID mismatch with authentication'}), 400
-            
-        # Use JWT user ID as the authoritative source
-        user_id = jwt_user_id
+        if not user_id:
+            return jsonify({'error': 'user_id is required'}), 400
 
         # Store user_id in session for later use (backup)
         session['psychometry_user_id'] = user_id
 
         # Initialize assessment
         test_questions = psychometry_service.initialize_assessment()
+        
+        # Debug: Check if questions are properly formatted
+        print(f"DEBUG: Generated {len(test_questions)} questions")
+        if test_questions:
+            first_question = test_questions[0]
+            print(f"DEBUG: First question structure: {first_question}")
+            print(f"DEBUG: First question text: '{first_question.get('question', 'MISSING')}'")
         
         # Store in session (backup) and also in a more reliable way
         session['psychometry_questions'] = test_questions
@@ -1857,27 +1857,18 @@ def start_psychometry_test():
         return jsonify({'error': 'Failed to start psychometry test', 'message': str(e)}), 500
 
 @app.route('/api/psychometry/submit', methods=['POST'])
-@jwt_required()
 def submit_psychometry_answer():
     """Submit an answer for psychometry assessment"""
     try:
-        # Get user ID from JWT token instead of request body
-        jwt_user_id = get_jwt_identity()
-        
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data received'}), 400
             
         user_id = data.get('user_id')
+        if not user_id:
+            return jsonify({'error': 'user_id is required'}), 400
         
-        # Validate that the requested user_id matches the JWT user
-        if user_id and str(user_id) != str(jwt_user_id):
-            return jsonify({'error': 'User ID mismatch with authentication'}), 400
-            
-        # Use JWT user ID as the authoritative source
-        user_id = jwt_user_id
-        
-        # Check session data (fallback validation)
+        # Basic validation: check if user_id matches session (if session exists)
         session_user_id = session.get('psychometry_user_id')
         if session_user_id and str(user_id) != str(session_user_id):
             return jsonify({'error': 'Session user ID mismatch'}), 400

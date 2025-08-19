@@ -194,22 +194,23 @@ export default {
       this.resetData();
 
       try {
+        // Get user ID for the request (no strict auth required for psychometric test)
         const user = JSON.parse(localStorage.getItem('user'));
         const user_id = user ? user.id : null;
         if (!user_id) {
-          alert('User not logged in!');
+          alert('User information not found. Please refresh the page and try again.');
           this.isLoading = false;
           return;
         }
         console.log('Starting test, making API call to:', `${this.apiBaseUrl}/start`);
 
-        // Get JWT token for authentication
+        // Prepare headers (JWT token optional for psychometric test)
         const token = localStorage.getItem('jwt_token');
         const headers = {
           'Content-Type': 'application/json'
         };
 
-        // Add authorization header if token exists
+        // Add authorization header if available (for logging purposes)
         if (token) {
           headers['Authorization'] = `Bearer ${token}`;
         }
@@ -258,22 +259,25 @@ export default {
       this.loadingMessage = 'Processing your answer...';
 
       try {
+        // Get user ID for the request (no strict auth required for psychometric test)
         const user = JSON.parse(localStorage.getItem('user'));
         const user_id = user ? user.id : null;
+
         if (!user_id) {
-          alert('User not logged in!');
+          alert('User information not found. Please refresh the page and try again.');
           this.isLoading = false;
           return;
         }
+
         console.log('Submitting answer:', this.selectedAnswer);
 
-        // Get JWT token for authentication
+        // Prepare headers (JWT token optional for psychometric test)
         const token = localStorage.getItem('jwt_token');
         const headers = {
           'Content-Type': 'application/json'
         };
 
-        // Add authorization header if token exists
+        // Add authorization header if available (for logging purposes)
         if (token) {
           headers['Authorization'] = `Bearer ${token}`;
         }
