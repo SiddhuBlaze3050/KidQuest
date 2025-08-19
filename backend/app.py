@@ -1822,18 +1822,32 @@ def start_psychometry_test():
         # Use JWT user ID as the authoritative source
         user_id = jwt_user_id
 
-        # Store user_id in session for later use
+        # Store user_id in session for later use (backup)
         session['psychometry_user_id'] = user_id
 
         # Initialize assessment
         test_questions = psychometry_service.initialize_assessment()
         
-        # Store in session
+        # Store in session (backup) and also in a more reliable way
         session['psychometry_questions'] = test_questions
         session['psychometry_current_index'] = 0
         session['psychometry_responses'] = []
         session['psychometry_start_time'] = time.time()
         session.permanent = True
+        
+        # ALSO store in a temporary way that's more reliable
+        # We'll use a simple approach: store in the user's session as a JSON string in memory
+        # For now, let's try to make sessions work by ensuring they're properly configured
+        import json
+        session_data = {
+            'user_id': user_id,
+            'questions': test_questions,
+            'current_index': 0,
+            'responses': [],
+            'start_time': time.time()
+        }
+        # Store as a backup in session with a different key
+        session[f'psychometry_session_{user_id}'] = json.dumps(session_data)
         
         # Return first question
         return get_next_psychometry_question()
@@ -1872,12 +1886,30 @@ def submit_psychometry_answer():
         if not user_answer:
             return jsonify({'error': 'No answer provided'}), 400
         
-        # Get current question
-        current_index = session.get('psychometry_current_index', 0)
-        questions = session.get('psychometry_questions', [])
+        # Get current question - try backup session data first
+        import json
+        backup_session_key = f'psychometry_session_{user_id}'
+        backup_session_data = session.get(backup_session_key)
+        
+        if backup_session_data:
+            try:
+                session_data = json.loads(backup_session_data)
+                current_index = session_data.get('current_index', 0)
+                questions = session_data.get('questions', [])
+                responses = session_data.get('responses', [])
+            except (json.JSONDecodeError, KeyError):
+                # Fallback to regular session
+                current_index = session.get('psychometry_current_index', 0)
+                questions = session.get('psychometry_questions', [])
+                responses = session.get('psychometry_responses', [])
+        else:
+            # Fallback to regular session
+            current_index = session.get('psychometry_current_index', 0)
+            questions = session.get('psychometry_questions', [])
+            responses = session.get('psychometry_responses', [])
         
         if current_index >= len(questions):
-            return jsonify({'error': 'Invalid question index'}), 400
+            return jsonify({'error': f'Invalid question index: {current_index}/{len(questions)}. Session may have expired.'}), 400
             
         current_question = questions[current_index]
         
@@ -1895,6 +1927,16 @@ def submit_psychometry_answer():
         
         # Update session
         session['psychometry_current_index'] = current_index + 1
+        
+        # Also update backup session data
+        if backup_session_data:
+            try:
+                session_data = json.loads(backup_session_data)
+                session_data['current_index'] = current_index + 1
+                session_data['responses'] = responses
+                session[backup_session_key] = json.dumps(session_data)
+            except (json.JSONDecodeError, KeyError):
+                pass  # If backup fails, continue with regular session
         
         # Check if test is complete
         if session['psychometry_current_index'] >= len(questions):
