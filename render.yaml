@@ -4,7 +4,7 @@ services:
     env: python
     plan: free
     buildCommand: "pip install -r backend/requirements.txt"
-    startCommand: 'cd backend && python -c ''from app import app; from models import db; app.app_context().push(); db.create_all(); print("Database initialized")'' && gunicorn --bind 0.0.0.0:$PORT app:app'
+    startCommand: 'cd backend && python -c "import os; print(f\"Database will be created at: {os.environ.get(\"DATABASE_URL\", \"default_path\")}\"); from app import app; from models import db; app.app_context().push(); db.create_all(); print(\"Database initialized successfully\")" && gunicorn --bind 0.0.0.0:$PORT app:app --timeout 120'
     envVars:
       - key: SECRET_KEY
         generateValue: true
@@ -20,7 +20,10 @@ services:
         value: "https://openrouter.ai/api/v1/chat/completions"
       - key: FLASK_ENV
         value: "production"
+      - key: RENDER
+        value: "true"
     # FREE TIER DEPLOYMENT
     # - Database resets on each deployment (perfect for testing)
     # - Service spins down after 15 minutes of inactivity
     # - 750 hours/month limit
+    # - SQLite database stored in /tmp (writable directory)

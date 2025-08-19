@@ -14,7 +14,14 @@ class Config:
 
     # Database configuration - FREE TIER SETUP
     # SQLite on ephemeral storage (resets on each deployment)
-    DATABASE_PATH = os.path.join(INSTANCE_DIR, 'app.db')
+    # Use /tmp for writable directory on Render
+    if os.environ.get('RENDER'):
+        # On Render, use /tmp directory which is writable
+        DATABASE_PATH = '/tmp/app.db'
+    else:
+        # Local development
+        DATABASE_PATH = os.path.join(INSTANCE_DIR, 'app.db')
+    
     SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', f"sqlite:///{DATABASE_PATH}")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
