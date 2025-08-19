@@ -11,8 +11,10 @@
 [build.environment]
   # Node.js version
   NODE_VERSION = "18"
-  # Backend API URL for production
+  # Backend API URL for production - CRITICAL for frontend to connect to backend
   VITE_API_BASE_URL = "https://kidquest-backend.onrender.com"
+  # Ensure production mode
+  NODE_ENV = "production"
 
 # Redirect rules for Vue.js SPA (Single Page Application)
 [[redirects]]
