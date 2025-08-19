@@ -13,16 +13,17 @@ class Config:
     os.makedirs(INSTANCE_DIR, exist_ok=True)
 
     # Database configuration - FREE TIER SETUP
-    # SQLite on ephemeral storage (resets on each deployment)
-    # Use /tmp for writable directory on Render
-    if os.environ.get('RENDER'):
-        # On Render, use /tmp directory which is writable
-        DATABASE_PATH = '/tmp/app.db'
+    # For Render deployment, use in-memory SQLite (perfect for free tier)
+    # For local development, use file-based SQLite
+    if os.environ.get('RENDER') or os.environ.get('FLASK_ENV') == 'production':
+        # Production/Render: Use in-memory SQLite (resets on each restart)
+        DATABASE_URI = 'sqlite:///:memory:'
     else:
-        # Local development
+        # Local development: Use file-based SQLite
         DATABASE_PATH = os.path.join(INSTANCE_DIR, 'app.db')
+        DATABASE_URI = f"sqlite:///{DATABASE_PATH}"
     
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', f"sqlite:///{DATABASE_PATH}")
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', DATABASE_URI)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     # SQLite Configuration optimized for free tier
@@ -34,9 +35,10 @@ class Config:
     }
     
     # FREE TIER NOTES:
-    # - Database resets on each deployment (good for testing)
+    # - In-memory database resets on each service restart (perfect for testing)
+    # - No file system permissions issues
     # - Service spins down after 15 minutes of inactivity
-    # - Perfect for development and demonstration
+    # - Ideal for development, testing, and demonstration
 
     # API Keys (better stored in Render environment variables)
     GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "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")
