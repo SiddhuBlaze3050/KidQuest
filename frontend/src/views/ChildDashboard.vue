@@ -517,9 +517,7 @@ export default {
                 const userId = user.value?.id
                 if (!userId) return
 
-                // Use environment-based API URL
-                const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'
-                const { data } = await axios.get(`${API_BASE_URL}/api/quote/${userId}`)
+                const { data } = await axios.get(`/api/quote/${userId}`)
                 Quote.value = data.quote
             } catch (error) {
                 console.error('Error fetching quote:', error)
@@ -533,7 +531,7 @@ export default {
                 const userId = user.value?.id
                 if (!userId) return
 
-                const { data } = await axios.get(`${API_BASE_URL}/api/login-streak/${userId}`)
+                const { data } = await axios.get(`/api/login-streak/${userId}`)
                 if (data.success) {
                     streakDays.value = data.current_streak
                     console.log(`Login streak for user ${userId}: ${data.current_streak} days`)
@@ -551,7 +549,7 @@ export default {
                 if (!userId) return
 
                 console.log(`🔄 Fetching dashboard stats for user ${userId}`)
-                const { data } = await axios.get(`${API_BASE_URL}/api/child/stats/${userId}`)
+                const { data } = await axios.get(`/api/child/stats/${userId}`)
 
                 if (data.success) {
                     // Store old stats for level-up checking
@@ -628,7 +626,7 @@ export default {
                 console.log('🎯 Adding test achievement:', achievementData)
 
                 // Call the API to create the achievement
-                const { data } = await axios.post(`${API_BASE_URL}/api/achievement/test`, achievementData)
+                const { data } = await axios.post('/api/achievement/test', achievementData)
 
                 if (data.success) {
                     // Show success message
