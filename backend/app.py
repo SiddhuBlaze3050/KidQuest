@@ -68,6 +68,69 @@ with app.app_context():
     try:
         db.create_all()
         print("✅ Database tables created successfully")
+        
+        # Create default admin user if it doesn't exist
+        admin_user = User.query.filter_by(role='admin').first()
+        if not admin_user:
+            # Create default admin user
+            admin_password = generate_password_hash('admin123')  # Change this password!
+            admin_user = User(
+                username='admin',
+                email='admin@kidquest.com',
+                password_hash=admin_password,
+                role='admin',
+                profile_complete=True
+            )
+            db.session.add(admin_user)
+            db.session.commit()
+            print("✅ Default admin user created successfully")
+            print("📧 Admin credentials: username='admin', password='admin123'")
+            print("🔒 Please change the admin password after first login!")
+        else:
+            print("✅ Admin user already exists")
+            
+        # Create sample users for testing (only if no users exist except admin)
+        user_count = User.query.filter(User.role != 'admin').count()
+        if user_count == 0:
+            sample_users = [
+                {
+                    'username': 'demo_child',
+                    'email': 'child@demo.com',
+                    'password': 'demo123',
+                    'role': 'child'
+                },
+                {
+                    'username': 'demo_parent',
+                    'email': 'parent@demo.com', 
+                    'password': 'demo123',
+                    'role': 'parent'
+                },
+                {
+                    'username': 'demo_teacher',
+                    'email': 'teacher@demo.com',
+                    'password': 'demo123',
+                    'role': 'teacher'
+                }
+            ]
+            
+            for user_data in sample_users:
+                user = User(
+                    username=user_data['username'],
+                    email=user_data['email'],
+                    password_hash=generate_password_hash(user_data['password']),
+                    role=user_data['role'],
+                    profile_complete=True
+                )
+                db.session.add(user)
+            
+            db.session.commit()
+            print("✅ Sample demo users created successfully")
+            print("👶 Demo Child: username='demo_child', password='demo123'")
+            print("👨‍👩‍👧 Demo Parent: username='demo_parent', password='demo123'") 
+            print("👩‍🏫 Demo Teacher: username='demo_teacher', password='demo123'")
+        else:
+            print("✅ Sample users already exist or users found")
+            
     except Exception as e:
         print(f"❌ Database initialization error: {e}")
 
