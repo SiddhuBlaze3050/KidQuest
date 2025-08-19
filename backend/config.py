@@ -16,17 +16,17 @@ class Config:
     # For Render deployment, use /tmp directory (writable on Render)
     # For local development, use file-based SQLite in instance folder
     if os.environ.get('RENDER'):
-        # Render: Use writable /tmp directory
+        # Render: Use writable /tmp directory - IGNORE DATABASE_URL env var
         DATABASE_PATH = "/tmp/app.db"
-        DATABASE_URI = f"sqlite:///{DATABASE_PATH}"
+        SQLALCHEMY_DATABASE_URI = f"sqlite:///{DATABASE_PATH}"
         print(f"🔧 Render detected: Using database at {DATABASE_PATH}")
     else:
-        # Local development: Use instance folder
+        # Local development: Use instance folder or DATABASE_URL if provided
         DATABASE_PATH = os.path.join(INSTANCE_DIR, 'app.db')
         DATABASE_URI = f"sqlite:///{DATABASE_PATH}"
+        SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', DATABASE_URI)
         print(f"🔧 Local development: Using database at {DATABASE_PATH}")
     
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL', DATABASE_URI)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
     print(f"📊 Final Database URI: {SQLALCHEMY_DATABASE_URI}")
