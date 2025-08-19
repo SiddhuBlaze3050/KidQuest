@@ -23,7 +23,3 @@ services:
         value: "https://openrouter.ai/api/v1/chat/completions"
       - key: FLASK_ENV
         value: "production"
-
-disks:
-  - name: kidquest-data
-    sizeGB: 1
