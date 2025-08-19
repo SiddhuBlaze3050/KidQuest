@@ -203,11 +203,20 @@ export default {
         }
         console.log('Starting test, making API call to:', `${this.apiBaseUrl}/start`);
 
+        // Get JWT token for authentication
+        const token = localStorage.getItem('jwt_token');
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        // Add authorization header if token exists
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
         const response = await fetch(`${this.apiBaseUrl}/start`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: headers,
           credentials: 'include',
           body: JSON.stringify({ user_id }) // Important for session management
         });
@@ -258,11 +267,20 @@ export default {
         }
         console.log('Submitting answer:', this.selectedAnswer);
 
+        // Get JWT token for authentication
+        const token = localStorage.getItem('jwt_token');
+        const headers = {
+          'Content-Type': 'application/json'
+        };
+
+        // Add authorization header if token exists
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+
         const response = await fetch(`${this.apiBaseUrl}/submit`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: headers,
           credentials: 'include',
           body: JSON.stringify({
             answer: this.selectedAnswer,

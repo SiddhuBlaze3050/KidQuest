@@ -38,22 +38,14 @@
                     </div>
                     <div class="naming-content">
                         <p>Give your drawing a special name!</p>
-                        <input 
-                            v-model="drawingName" 
-                            type="text" 
-                            placeholder="My Amazing Drawing..." 
-                            class="drawing-name-input"
-                            maxlength="100"
-                            @keyup.enter="confirmSave"
-                            ref="drawingNameInput"
-                        >
+                        <input v-model="drawingName" type="text" placeholder="My Amazing Drawing..."
+                            class="drawing-name-input" maxlength="100" @keyup.enter="confirmSave"
+                            ref="drawingNameInput">
                         <div class="name-suggestions">
                             <p>💡 Ideas:</p>
                             <div class="suggestion-buttons">
-                                <button @click="drawingName = suggestion" 
-                                        v-for="suggestion in nameSuggestions" 
-                                        :key="suggestion" 
-                                        class="suggestion-btn">
+                                <button @click="drawingName = suggestion" v-for="suggestion in nameSuggestions"
+                                    :key="suggestion" class="suggestion-btn">
                                     {{ suggestion }}
                                 </button>
                             </div>
@@ -80,7 +72,8 @@
                         <div v-if="savedDrawings.length > 0" class="gallery-section">
                             <h4>📱 Local Gallery</h4>
                             <div class="gallery-grid">
-                                <div v-for="(drawing, index) in savedDrawings" :key="`local-${index}`" class="gallery-item">
+                                <div v-for="(drawing, index) in savedDrawings" :key="`local-${index}`"
+                                    class="gallery-item">
                                     <img :src="drawing.dataURL" :alt="drawing.name" @click="loadDrawing(drawing)">
                                     <div class="item-info">
                                         <p>{{ drawing.name }}</p>
@@ -170,22 +163,24 @@
                     <canvas ref="canvasRef" @mousedown="startDrawing" @mousemove="draw" @mouseup="stopDrawing"
                         @mouseleave="stopDrawing" :class="getCanvasCursorClass()"></canvas>
                 </div>
-                
+
                 <!-- Reference Image Panel -->
                 <div v-if="referenceImage && showReference" class="reference-panel">
                     <div class="reference-header">
                         <h4>🎯 Reference Image</h4>
                         <div class="reference-controls">
-                            <button @click="showReference = false" class="hide-ref-btn" title="Hide Reference">👁️</button>
+                            <button @click="showReference = false" class="hide-ref-btn"
+                                title="Hide Reference">👁️</button>
                             <button @click="changeReference" class="change-ref-btn" title="Change Reference">🔄</button>
                         </div>
                     </div>
                     <div class="reference-image-container">
-                        <img :src="`${API_BASE}${referenceImage.url}`" :alt="referenceImage.title" class="reference-image" />
+                        <img :src="`${API_BASE}${referenceImage.url}`" :alt="referenceImage.title"
+                            class="reference-image" />
                         <p class="reference-caption">{{ referenceImage.title }}</p>
                     </div>
                 </div>
-                
+
                 <!-- Show Reference Button when hidden -->
                 <div v-if="referenceImage && !showReference" class="show-reference-panel">
                     <button @click="showReference = true" class="show-ref-btn">
@@ -283,7 +278,7 @@ const startTimer = () => {
     startTime.value = Date.now();
     elapsedTime.value = 0;
     isTimerStopped.value = false;
-    
+
     timerInterval.value = setInterval(() => {
         if (startTime.value && !isTimerStopped.value) {
             elapsedTime.value = Math.floor((Date.now() - startTime.value) / 1000);
@@ -305,7 +300,7 @@ const pauseTimer = () => {
 
 const resumeTimer = () => {
     if (!isTimerStopped.value) return;
-    
+
     // Adjust start time to account for paused duration
     const pausedTime = elapsedTime.value * 1000;
     startTime.value = Date.now() - pausedTime;
@@ -323,7 +318,7 @@ const formatTime = (seconds) => {
 const loadRandomReference = async () => {
     try {
         const response = await fetch(`${API_BASE}/api/drawings/random-reference`);
-        
+
         if (response.ok) {
             const result = await response.json();
             if (result.success) {
@@ -344,11 +339,11 @@ const changeReference = async () => {
 const resizeCanvas = () => {
     const canvas = canvasRef.value;
     if (!canvas) return;
-    
+
     const rect = canvas.getBoundingClientRect();
     canvas.width = rect.width;
     canvas.height = rect.height;
-    
+
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
 };
@@ -360,7 +355,7 @@ onMounted(() => {
         window.addEventListener('resize', resizeCanvas);
         requestAnimationFrame(resizeCanvas);
     }
-    
+
     // Load saved drawings from localStorage
     loadGalleryFromStorage();
     // Load drawings from database
@@ -481,7 +476,7 @@ const saveToGallery = async () => {
     // Show naming modal first
     showNamingModal.value = true;
     drawingName.value = ''; // Reset name
-    
+
     // Focus on input after modal opens
     setTimeout(() => {
         if (drawingNameInput.value) {
@@ -495,35 +490,35 @@ const confirmSave = async () => {
     if (!drawingName.value.trim()) {
         return; // Don't save if no name
     }
-    
+
     showNamingModal.value = false;
     isSaving.value = true;
-    
+
     // Stop the timer when saving
     const finalDrawingTime = elapsedTime.value;
     stopTimer();
-    
+
     try {
         const canvas = canvasRef.value;
-        
+
         // Create a temporary canvas with white background
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
-        
+
         // Set same dimensions as original canvas
         tempCanvas.width = canvas.width;
         tempCanvas.height = canvas.height;
-        
+
         // Fill with white background
         tempCtx.fillStyle = '#FFFFFF';
         tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-        
+
         // Draw the original canvas content on top of white background
         tempCtx.drawImage(canvas, 0, 0);
-        
+
         // Get dataURL from temporary canvas (with white background)
         const dataURL = tempCanvas.toDataURL('image/png');
-        
+
         // Save to localStorage with user-provided name
         const localDrawing = {
             name: drawingName.value.trim(),
@@ -533,10 +528,10 @@ const confirmSave = async () => {
             timeTaken: finalDrawingTime,
             referenceTitle: referenceImage.value?.title
         };
-        
+
         savedDrawings.value.push(localDrawing);
         saveGalleryToStorage();
-        
+
         // Save to database with user-provided name
         try {
             const requestData = {
@@ -547,7 +542,7 @@ const confirmSave = async () => {
                 ref_image_path: referenceImage.value?.path,
                 ref_image_title: referenceImage.value?.title
             };
-            
+
             const response = await fetch(`${API_BASE}/api/drawings/save`, {
                 method: 'POST',
                 headers: {
@@ -555,18 +550,18 @@ const confirmSave = async () => {
                 },
                 body: JSON.stringify(requestData)
             });
-            
+
             const contentType = response.headers.get('content-type');
             if (!contentType || !contentType.includes('application/json')) {
                 throw new Error('Server returned HTML instead of JSON - Flask app may not be running');
             }
-            
+
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            
+
             const result = await response.json();
-            
+
             if (result.success) {
                 await loadDatabaseDrawings();
                 message.value = `🎉 "${drawingName.value}" saved! Time: ${formatTime(finalDrawingTime)}`;
@@ -583,18 +578,18 @@ const confirmSave = async () => {
             }
             messageType.value = 'success';
         }
-        
+
         // Clear the drawing name for next time
         drawingName.value = '';
-        
+
         setTimeout(() => {
             message.value = '';
         }, 3000);
-        
+
     } catch (error) {
         message.value = '❌ Failed to save drawing';
         messageType.value = 'error';
-        
+
         setTimeout(() => {
             message.value = '';
         }, 3000);
@@ -612,18 +607,18 @@ const loadDatabaseDrawings = async () => {
                 'Content-Type': 'application/json',
             },
         });
-        
+
         const contentType = response.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
             return;
         }
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
             databaseDrawings.value = result.drawings;
         }
@@ -637,7 +632,7 @@ const loadDatabaseDrawing = async (drawing) => {
     if (!confirm('Load this drawing from database? Current drawing will be replaced and timer will restart.')) {
         return;
     }
-    
+
     try {
         const response = await fetch(`${API_BASE}/api/drawings/image/${drawing.id}`, {
             method: 'GET',
@@ -645,28 +640,28 @@ const loadDatabaseDrawing = async (drawing) => {
                 'Content-Type': 'application/json',
             },
         });
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const contentType = response.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
             throw new Error('Server returned HTML instead of JSON');
         }
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
             const img = new Image();
             img.onload = () => {
                 ctx.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height);
                 ctx.drawImage(img, 0, 0);
                 showGallery.value = false;
-                
+
                 // Restart timer when loading a drawing
                 startTimer();
-                
+
                 message.value = '🎨 Drawing loaded from database! Timer restarted.';
                 messageType.value = 'success';
                 setTimeout(() => {
@@ -695,7 +690,7 @@ const deleteDatabaseDrawing = async (drawing) => {
     if (!confirm('Are you sure you want to delete this drawing from the database? This cannot be undone.')) {
         return;
     }
-    
+
     try {
         const response = await fetch(`${API_BASE}/api/drawings/delete/${drawing.id}`, {
             method: 'DELETE',
@@ -703,21 +698,21 @@ const deleteDatabaseDrawing = async (drawing) => {
                 'Content-Type': 'application/json',
             },
         });
-        
+
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const contentType = response.headers.get('content-type');
         if (!contentType || !contentType.includes('application/json')) {
             throw new Error('Server returned HTML instead of JSON');
         }
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
             databaseDrawings.value = databaseDrawings.value.filter(d => d.id !== drawing.id);
-            
+
             message.value = '🗑️ Drawing deleted from database';
             messageType.value = 'success';
             setTimeout(() => {
@@ -742,51 +737,51 @@ const deleteDatabaseDrawing = async (drawing) => {
 // Download image function - downloads directly to user's computer
 const downloadImage = () => {
     isDownloading.value = true;
-    
+
     try {
         const canvas = canvasRef.value;
-        
+
         // Create a temporary canvas with white background
         const tempCanvas = document.createElement('canvas');
         const tempCtx = tempCanvas.getContext('2d');
-        
+
         // Set same dimensions as original canvas
         tempCanvas.width = canvas.width;
         tempCanvas.height = canvas.height;
-        
+
         // Fill with white background
         tempCtx.fillStyle = '#FFFFFF';
         tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-        
+
         // Draw the original canvas content on top of white background
         tempCtx.drawImage(canvas, 0, 0);
-        
+
         // Get dataURL from temporary canvas (with white background)
         const dataURL = tempCanvas.toDataURL('image/png');
-        
+
         // Create download link with reference info if available
         const link = document.createElement('a');
         const refTitle = referenceImage.value ? `_${referenceImage.value.title.replace(/\s+/g, '_')}` : '';
         link.download = `drawing${refTitle}_${new Date().toISOString().slice(0, 19).replace(/:/g, '-')}.png`;
         link.href = dataURL;
-        
+
         // Trigger download
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
-        
+
         // Show success message
         message.value = '📥 Image downloaded to your computer!';
         messageType.value = 'success';
-        
+
         setTimeout(() => {
             message.value = '';
         }, 3000);
-        
+
     } catch (error) {
         message.value = '❌ Failed to download image';
         messageType.value = 'error';
-        
+
         setTimeout(() => {
             message.value = '';
         }, 3000);
@@ -822,10 +817,10 @@ const loadDrawing = (drawing) => {
             ctx.clearRect(0, 0, canvasRef.value.width, canvasRef.value.height);
             ctx.drawImage(img, 0, 0);
             showGallery.value = false;
-            
+
             // Restart timer when loading a drawing
             startTimer();
-            
+
             message.value = '🎨 Drawing loaded! Timer restarted.';
             messageType.value = 'success';
             setTimeout(() => {
@@ -840,7 +835,7 @@ const deleteDrawing = (index) => {
     if (confirm('Are you sure you want to delete this drawing?')) {
         savedDrawings.value.splice(index, 1);
         saveGalleryToStorage();
-        
+
         message.value = '🗑️ Drawing deleted from gallery';
         messageType.value = 'success';
         setTimeout(() => {
@@ -1054,6 +1049,7 @@ const deleteDrawing = (index) => {
         transform: translateY(-50px);
         opacity: 0;
     }
+
     to {
         transform: translateY(0);
         opacity: 1;
@@ -1146,7 +1142,8 @@ const deleteDrawing = (index) => {
     justify-content: center;
 }
 
-.cancel-btn, .confirm-btn {
+.cancel-btn,
+.confirm-btn {
     padding: 0.75rem 1.5rem;
     border: none;
     border-radius: 10px;
@@ -1353,6 +1350,7 @@ const deleteDrawing = (index) => {
         transform: translateY(-20px);
         opacity: 0;
     }
+
     to {
         transform: translateY(0);
         opacity: 1;
@@ -1594,31 +1592,32 @@ canvas {
         width: 95%;
         padding: 1.5rem;
     }
-    
+
     .naming-header h3 {
         font-size: 1.3rem;
     }
-    
+
     .drawing-name-input {
         font-size: 1rem;
         padding: 0.8rem;
     }
-    
+
     .suggestion-buttons {
         gap: 0.3rem;
     }
-    
+
     .suggestion-btn {
         font-size: 0.8rem;
         padding: 0.4rem 0.8rem;
     }
-    
+
     .naming-actions {
         flex-direction: column;
         gap: 0.8rem;
     }
-    
-    .cancel-btn, .confirm-btn {
+
+    .cancel-btn,
+    .confirm-btn {
         min-width: 100%;
     }
 }
@@ -1628,7 +1627,7 @@ canvas {
     .drawing-area {
         flex-direction: column;
     }
-    
+
     .reference-panel {
         width: 100%;
         max-height: 200px;
@@ -1636,21 +1635,21 @@ canvas {
         align-items: center;
         gap: 1rem;
     }
-    
+
     .reference-image-container {
         flex-grow: 0;
     }
-    
+
     .reference-image {
         width: 150px;
         height: 150px;
     }
-    
+
     .show-reference-panel {
         width: 100%;
         height: 60px;
     }
-    
+
     .show-ref-btn {
         flex-direction: row;
         padding: 0.5rem 1rem;
@@ -1666,61 +1665,61 @@ canvas {
         padding: 1rem;
         max-width: 95vw;
     }
-    
+
     .header {
         flex-direction: column;
         gap: 0.5rem;
         text-align: center;
     }
-    
+
     .title-section {
         align-items: center;
     }
-    
+
     .header-actions {
         flex-direction: row;
         gap: 0.25rem;
         width: 100%;
         justify-content: center;
     }
-    
+
     .timer-display {
         padding: 0.3rem 0.6rem;
     }
-    
+
     .timer {
         font-size: 0.9rem;
     }
-    
+
     .save-btn {
         font-size: 0.8rem;
         padding: 0.4rem 0.8rem;
         min-width: 80px;
     }
-    
+
     .reference-panel {
         max-height: 150px;
     }
-    
+
     .reference-image {
         width: 120px;
         height: 120px;
     }
-    
+
     .gallery-grid {
         grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     }
-    
+
     .gallery-container {
         width: 95%;
         height: 85vh;
         padding: 1rem;
     }
-    
+
     .toolbar {
         gap: 0.5rem;
     }
-    
+
     .tool-group {
         padding: 0 0.25rem;
     }
@@ -1730,21 +1729,21 @@ canvas {
     .title {
         font-size: 1.4rem;
     }
-    
+
     .header-actions {
         flex-direction: column;
         gap: 0.25rem;
     }
-    
+
     .save-btn {
         width: 100%;
         max-width: 120px;
     }
-    
+
     .reference-title {
         font-size: 0.8rem;
     }
-    
+
     .reference-image {
         width: 100px;
         height: 100px;
