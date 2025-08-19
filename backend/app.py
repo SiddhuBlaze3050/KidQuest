@@ -78,8 +78,7 @@ with app.app_context():
                 username='admin',
                 email='admin@kidquest.com',
                 password_hash=admin_password,
-                role='admin',
-                profile_complete=True
+                role='admin'
             )
             db.session.add(admin_user)
             db.session.commit()
@@ -118,8 +117,7 @@ with app.app_context():
                     username=user_data['username'],
                     email=user_data['email'],
                     password_hash=generate_password_hash(user_data['password']),
-                    role=user_data['role'],
-                    profile_complete=True
+                    role=user_data['role']
                 )
                 db.session.add(user)
             
