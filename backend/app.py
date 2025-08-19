@@ -1805,13 +1805,22 @@ psychometry_service = PsychometryService(OPENROUTER_API_KEY, OPENROUTER_API_URL)
 
 # Psychometry Assessment Routes
 @app.route('/api/psychometry/start', methods=['POST'])
+@jwt_required()
 def start_psychometry_test():
     """Initialize a new psychometry assessment test session"""
     try:
+        # Get user ID from JWT token instead of request body
+        jwt_user_id = get_jwt_identity()
+        
         data = request.get_json()
         user_id = data.get('user_id')
-        if not user_id:
-            return jsonify({'error': 'user_id is required'}), 400
+        
+        # Validate that the requested user_id matches the JWT user
+        if user_id and str(user_id) != str(jwt_user_id):
+            return jsonify({'error': 'User ID mismatch with authentication'}), 400
+            
+        # Use JWT user ID as the authoritative source
+        user_id = jwt_user_id
 
         # Store user_id in session for later use
         session['psychometry_user_id'] = user_id
@@ -1834,16 +1843,30 @@ def start_psychometry_test():
         return jsonify({'error': 'Failed to start psychometry test', 'message': str(e)}), 500
 
 @app.route('/api/psychometry/submit', methods=['POST'])
+@jwt_required()
 def submit_psychometry_answer():
     """Submit an answer for psychometry assessment"""
     try:
+        # Get user ID from JWT token instead of request body
+        jwt_user_id = get_jwt_identity()
+        
         data = request.get_json()
         if not data:
             return jsonify({'error': 'No data received'}), 400
+            
         user_id = data.get('user_id')
+        
+        # Validate that the requested user_id matches the JWT user
+        if user_id and str(user_id) != str(jwt_user_id):
+            return jsonify({'error': 'User ID mismatch with authentication'}), 400
+            
+        # Use JWT user ID as the authoritative source
+        user_id = jwt_user_id
+        
+        # Check session data (fallback validation)
         session_user_id = session.get('psychometry_user_id')
-        if not user_id or not session_user_id or str(user_id) != str(session_user_id):
-            return jsonify({'error': 'User ID mismatch or missing'}), 400
+        if session_user_id and str(user_id) != str(session_user_id):
+            return jsonify({'error': 'Session user ID mismatch'}), 400
         
         user_answer = data.get('answer')
         if not user_answer:
