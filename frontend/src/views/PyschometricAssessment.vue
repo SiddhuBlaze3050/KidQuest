@@ -174,6 +174,13 @@ export default {
       apiBaseUrl: (import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000') + '/api/psychometry'
     }
   },
+  mounted() {
+    // Debug environment variables
+    console.log('🔍 PSYCHOMETRY DEBUG:')
+    console.log('VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL)
+    console.log('Final apiBaseUrl:', this.apiBaseUrl)
+    console.log('Environment mode:', import.meta.env.MODE)
+  },
   computed: {
     showStats() {
       return this.testStarted && !this.showResults && !this.isLoading;

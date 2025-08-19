@@ -49,13 +49,11 @@ CORS(app,
          "http://127.0.0.1:5173", 
          "http://localhost:5000",
          "http://localhost:4173",  # Vite preview
-         # Production - Netlify domains
+         # Production - Netlify domains (specific URL - wildcards don't work with credentials)
          "https://kidquest.netlify.app",
-         "https://*.netlify.app",
-         "https://*.netlify.com",
          # Swagger for API testing
          "https://editor.swagger.io"
-         # Note: Cannot use "*" with supports_credentials=True
+         # Note: Cannot use "*" or wildcards with supports_credentials=True
      ], 
      supports_credentials=True,
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -1808,11 +1806,17 @@ psychometry_service = PsychometryService(OPENROUTER_API_KEY, OPENROUTER_API_URL)
 def start_psychometry_test():
     """Initialize a new psychometry assessment test session"""
     try:
+        print(f"🔍 PSYCHOMETRY START: Request received from {request.origin}")
+        print(f"🔍 PSYCHOMETRY START: Headers: {dict(request.headers)}")
+        
         # Get user ID from request body (no JWT required for psychometric test)
         data = request.get_json()
+        print(f"🔍 PSYCHOMETRY START: Request data: {data}")
+        
         user_id = data.get('user_id')
         
         if not user_id:
+            print(f"🔍 PSYCHOMETRY START: ERROR - No user_id provided")
             return jsonify({'error': 'user_id is required'}), 400
 
         # Store user_id in session for later use (backup)

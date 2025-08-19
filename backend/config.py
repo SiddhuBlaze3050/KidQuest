@@ -53,6 +53,13 @@ class Config:
     # Production settings
     DEBUG = os.environ.get('FLASK_DEBUG', 'False').lower() == 'true'
     TESTING = False
+    
+    # Session Cookie Configuration for cross-origin requests
+    SESSION_COOKIE_SECURE = True if os.environ.get('RENDER') else False  # HTTPS only in production
+    SESSION_COOKIE_HTTPONLY = True  # Prevent XSS
+    SESSION_COOKIE_SAMESITE = 'None' if os.environ.get('RENDER') else 'Lax'  # Allow cross-origin
+    SESSION_COOKIE_NAME = 'kidquest_session'
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=2)
 
     # JWT Configuration
     JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY', 'team-kidquest-jwt-secret-key')
