@@ -3,7 +3,7 @@ services:
     name: kidquest-backend
     env: python
     plan: free
-    buildCommand: "pip install -r requirements.txt"
+    buildCommand: "pip install -r backend/requirements.txt"
     startCommand: 'cd backend && python -c ''from app import app; from models import db; app.app_context().push(); db.create_all(); print("Database initialized")'' && gunicorn --bind 0.0.0.0:$PORT app:app'
     envVars:
       - key: SECRET_KEY

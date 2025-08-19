@@ -11,7 +11,7 @@ import base64
 import time
 import traceback
 from config import Config
-from openai import OpenAI
+from groq import Groq
 import secrets
 from datetime import datetime, date, UTC, timedelta
 import json
@@ -97,8 +97,8 @@ def token_verification_failed_callback(jwt_header, jwt_payload):
 
 EMAIL_REGEX = re.compile(r"[^@]+@[^@]+\.[^@]+") 
 
-# Initialize OpenAI client
-client = OpenAI(base_url="https://api.groq.com/openai/v1",api_key=app.config['GROQ_API_KEY'])
+# Initialize Groq client
+client = Groq(api_key=app.config['GROQ_API_KEY'])
 
 # ---------------------------
 # Utility Functions
